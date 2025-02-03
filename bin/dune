@@ -1,4 +1,3 @@
 (executable
- (public_name pa2)
- (name main)
- (libraries pa2))
+ (public_name cool)
+ (name main))

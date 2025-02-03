@@ -1,11 +1,11 @@
 (lang dune 3.17)
 
-(name pa2)
+(name cool)
 
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github muoup/cs485_compiler))
 
 (authors "Author Name <author@example.com>")
 
@@ -16,11 +16,11 @@
 (documentation https://url/to/documentation)
 
 (package
- (name pa2)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (name cool)
+ (synopsis "Classroom Object-Oriented Language Compiler")
+ (description "Compiler middle and backend created for CS485 with Professor Kellogg")
  (depends ocaml)
  (tags
-  ("add topics" "to describe" your project)))
+  ("COOL" "compiler backend" "compiler middle end" your project)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
