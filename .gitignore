@@ -8,6 +8,9 @@
 *.cmxs
 *.cmxa
 
+# generated ast files
+*.cl-ast
+
 # ocamlbuild working directory
 _build/
 

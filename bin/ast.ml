@@ -48,3 +48,19 @@ type ast_class = {
 }
 
 type ast = ast_class list
+
+(* Ast Parsing *)
+let parse_ast (file_contents : string list) -> ast =
+    match file_contents with
+    | [] -> []
+
+
+
+
+
+
+
+
+
+
+
