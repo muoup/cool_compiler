@@ -1,9 +1,3 @@
--- class B {
---     s : Int <- 5;
--- 	f(): Int { 1 };
--- };
-
-
 class Main inherits IO{
     str : String <- "3s3";
 	main() : Object { 
