@@ -100,6 +100,26 @@ let parse_ast (file_contents : string list) : ast =
             internal_rec (pop_data_lines data 1) [] param_count
         in
 
+        let parse_block (data : parser_data) : (parser_data * ast_expression) =
+            (* A bit of a hack, but parsing method call params and parsing block expressions is identical *)
+            let data, call_params = parse_call_params data in
+
+            data, Block { body = call_params }
+        in
+
+        let parse_assign (data: parser_data) : (parser_data * ast_expression ) =
+            let data, val_name      = parse_identifier data in
+            let data, rhs           = parse_expression data in
+
+            data, Assign { var = val_name; rhs = rhs }
+        in
+
+        let parse_identifier_expr (data: parser_data) : (parser_data * ast_expression) =
+            let data, identifier = parse_identifier data in
+
+            data, Identifier identifier
+        in
+
         let parse_self_dispatch (data : parser_data) : (parser_data * ast_expression) =
             Printf.printf "parse_self_dispatch: %s\n" (List.hd data.file_contents);
 
@@ -108,7 +128,7 @@ let parse_ast (file_contents : string list) : ast =
 
             data, SelfDispatch {
                 _method = method_name;
-                params = call_params;
+                params =  call_params;
             }
         in
 
@@ -119,6 +139,9 @@ let parse_ast (file_contents : string list) : ast =
         match expr_type.name with
         | "self_dispatch"   -> parse_self_dispatch data
         | "string"          -> parse_string data
+        | "block"           -> parse_block data
+        | "assign"          -> parse_assign data
+        | "identifier"      -> parse_identifier_expr data
         | unsupported -> 
             Printf.printf "Unsupported expression: %s\n" unsupported;
             raise Ast_error
