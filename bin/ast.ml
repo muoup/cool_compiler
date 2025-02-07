@@ -35,7 +35,9 @@ type ast_dispatch_type =
     | DynamicDispatch
 
 type ast_body_expr =
-    | Method                of { name: ast_identifier; params: ast_param list; _type : ast_identifier; } 
+    | Method                of { name : ast_identifier; params : ast_param list; _type : ast_identifier; } 
+    | AttributeNoInit       of { name : ast_identifier; _type  : ast_identifier }
+    | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; } 
 
 type ast_class = {
     name        : ast_identifier;
@@ -123,12 +125,25 @@ let parse_ast (file_contents : string list) : ast =
     in
 
     (* TODO: Implement parameter parsing, right now this will only work with no parameter methods (such as in hello_world.cl) *)
-    let parse_parameters (data : parser_data) : (parser_data * 'a list) =
+    let parse_parameters (data : parser_data) : (parser_data * ast_param list) =
         Printf.printf "parse_parameters: %s\n" (List.hd data.file_contents);
 
-        let count = List.hd data.file_contents in
+        let rec internal_rec (data : parser_data) (acc : ast_param list) (i : int) : (parser_data * ast_param list) =
+            match i with
+            | 0 -> (data, acc)
+            | x ->
+                let data, param_name = parse_identifier data in
+                let data, param_type = parse_identifier data in
+                let param = { name = param_name; _type = param_type } in
 
-        (pop_data_lines data 1, [])
+                internal_rec data (acc @ [param]) (i - 1)
+        in
+
+        let count = int_of_string (List.hd data.file_contents) in
+        let data = pop_data_lines data 1 in
+        let data, params = internal_rec data [] count in
+
+        (data, params)
     in
 
     let parse_method (data : parser_data) : (parser_data * ast_body_expr) =
@@ -147,6 +162,21 @@ let parse_ast (file_contents : string list) : ast =
         })
     in
 
+    let parse_attribute_no_init (data : parser_data) : (parser_data * ast_body_expr) =
+        let data, attribute_name    = parse_identifier data in
+        let data, _type             = parse_identifier data in
+
+        (data, AttributeNoInit { name = attribute_name; _type = _type })
+    in
+
+    let parse_attribute_init (data : parser_data) : (parser_data * ast_body_expr) =
+        let data, attribute_name    = parse_identifier data in
+        let data, _type             = parse_identifier data in
+        let data, init_expr         = parse_expression data in
+
+        (data, AttributeInit { name = attribute_name; _type = _type; init = init_expr }) 
+    in
+
     let parse_body_expr (data : parser_data) : (parser_data * ast_body_expr) =
         Printf.printf "parse_body_expr: %s\n" (List.hd data.file_contents);
         let body_expr_type = List.hd data.file_contents in
@@ -154,6 +184,7 @@ let parse_ast (file_contents : string list) : ast =
 
         match body_expr_type with
         | "method" -> parse_method data
+        | "attribute_no_init" -> parse_attribute_no_init data
         | _ -> raise Ast_error
     in
 
