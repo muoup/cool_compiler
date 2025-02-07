@@ -158,7 +158,7 @@ let parse_ast (file_contents : string list) : ast =
     in
 
     let rec parse_body_exprs (data : parser_data) (acc : ast_body_expr list) (count : int) : (parser_data * ast_body_expr list) =
-        Printf.printf "parse_body_exprs: %s \n";
+        Printf.printf "parse_body_exprs\n";
 
         match count with
         | 0 -> (data, acc)
@@ -178,7 +178,8 @@ let parse_ast (file_contents : string list) : ast =
                     let data = pop_data_lines data 1 in
                     let data, identifier = parse_identifier data in
                     data, Some identifier
-            | _ -> data, None 
+            | "no_inherits" ->
+                    pop_data_lines data 1, None
         in
 
         let body_expr_count = parse_int (List.hd data.file_contents) in
