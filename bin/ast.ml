@@ -259,7 +259,6 @@ let parse_ast (file_contents : string list) : ast =
             raise Ast_error
     in
 
-    (* TODO: Implement parameter parsing, right now this will only work with no parameter methods (such as in hello_world.cl) *)
     let parse_parameters (data : parser_data) : (parser_data * ast_param list) =
         let parse_param (data : parser_data) : (parser_data * ast_param) =
             let data, param_name    = parse_identifier data in
