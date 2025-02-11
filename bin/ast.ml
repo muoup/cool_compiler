@@ -41,7 +41,7 @@ type ast_dispatch_type =
     | DynamicDispatch
 
 type ast_body_expr =
-    | Method                of { name : ast_identifier; params : ast_param list; _type : ast_identifier; } 
+    | Method                of { name : ast_identifier; params : ast_param list; _type : ast_identifier; body : ast_expression; } 
     | AttributeNoInit       of { name : ast_identifier; _type  : ast_identifier }
     | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; } 
 
@@ -266,12 +266,13 @@ let parse_ast (file_contents : string list) : ast =
         let data, method_name   = parse_identifier data in
         let data, params        = parse_parameters data in
         let data, return_type   = parse_identifier data in
-        let data, expression    = parse_expression data in
+        let data, body          = parse_expression data in
  
         (data, Method {
             name = method_name;
             params = params;
             _type = return_type;
+            body = body;
         })
     in
 
