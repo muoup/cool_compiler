@@ -85,16 +85,12 @@ let parse_list (data : parser_data) (mapping : parser_data -> (parser_data * 'a)
     let line_count = parse_int (List.hd data.file_contents) in
     let data = pop_data_lines data 1 in
 
-    Printf.printf "parse_list: %d\n" line_count;
-
     internal_rec data mapping line_count [] 
 
 let parse_ast (file_contents : string list) : ast =
     let parse_identifier (data : parser_data) : (parser_data * ast_identifier) =
         let identifier = List.nth data.file_contents 1 in
         let line_number = parse_int (List.hd data.file_contents) in
-        
-        Printf.printf "Identifier parsed: %s\n" identifier;
 
         (pop_data_lines data 2, { name = identifier; line_number = line_number })
     in
@@ -125,8 +121,6 @@ let parse_ast (file_contents : string list) : ast =
         in
 
         let parse_self_dispatch (data : parser_data) : (parser_data * ast_expression) =
-            Printf.printf "parse_self_dispatch: %s\n" (List.hd data.file_contents);
-
             let data, method_name = parse_identifier data in
             let data, call_params = parse_list data parse_expression in
             
@@ -188,7 +182,6 @@ let parse_ast (file_contents : string list) : ast =
 
         let parse_string (data : parser_data) : (parser_data * ast_expression) =
             let str_val = List.hd data.file_contents in
-            Printf.printf "parse_string: %s\n" str_val;
  
             (pop_data_lines data 1, String str_val)
         in
@@ -225,8 +218,6 @@ let parse_ast (file_contents : string list) : ast =
             | x                             -> Printf.printf "invalid let type: %s" init.name; raise Ast_error 
         in
 
-        Printf.printf "parse_expression: %s\n" (List.nth data.file_contents 1);
-
         let data, expr_type = parse_identifier data in
 
         match expr_type.name with
@@ -255,8 +246,8 @@ let parse_ast (file_contents : string list) : ast =
         | "false"               -> data, False
         | "let"                 -> parse_let data
         | unsupported -> 
-            Printf.printf "Unsupported expression: %s\n" unsupported;
-            raise Ast_error
+                Printf.printf "Unsupported expression: %s\n" unsupported;
+                raise Ast_error
     in
 
     let parse_parameters (data : parser_data) : (parser_data * ast_param list) =
@@ -271,8 +262,6 @@ let parse_ast (file_contents : string list) : ast =
     in
 
     let parse_method (data : parser_data) : (parser_data * ast_body_expr) =
-        Printf.printf "parse_method: %s\n" (List.hd data.file_contents);
-
         (* Feels like there should be some way to do this with a monad *)
         let data, method_name   = parse_identifier data in
         let data, params        = parse_parameters data in
@@ -302,7 +291,6 @@ let parse_ast (file_contents : string list) : ast =
     in
 
     let parse_body_expr (data : parser_data) : (parser_data * ast_body_expr) =
-        Printf.printf "parse_body_expr: %s\n" (List.hd data.file_contents);
         let body_expr_type = List.hd data.file_contents in
         let data = pop_data_lines data 1 in
 
@@ -313,10 +301,7 @@ let parse_ast (file_contents : string list) : ast =
     in
 
     let parse_class (data : parser_data) : (parser_data * ast_class) =
-        Printf.printf "parse_class: %s\n" (List.hd data.file_contents);
-
         let data, class_name = parse_identifier data in
-
         let data, inherits = 
             match (List.hd data.file_contents) with
             | "inherits" ->
@@ -329,7 +314,6 @@ let parse_ast (file_contents : string list) : ast =
                 Printf.printf "Unexpected inherits: %s" x;
                 raise Ast_error
         in
-
         let body_expr_count = parse_int (List.hd data.file_contents) in
         let data, body_exprs = parse_list data parse_body_expr in
 
