@@ -30,11 +30,11 @@ type ast_expression =
     | Identifier            of ast_identifier
     | True             
     | False      
-    | LetBindingNoInit      of { variable : ast_identifier; _type : ast_identifier }
-    | LetBindingInit        of { variable : ast_identifier; _type : ast_identifier; value : ast_expression }
+    | LetBindingNoInit      of { variable : ast_identifier; _type : ast_identifier;                         _in : ast_expression }
+    | LetBindingInit        of { variable : ast_identifier; _type : ast_identifier; value : ast_expression; _in : ast_expression }
     | Case                  of { expression : ast_expression; case_list : ast_expression list; body_list : ast_expression list }
 
-type ast_param = { _type : ast_identifier; name : ast_identifier }
+type ast_param =               { name : ast_identifier; _type : ast_identifier }
 
 type ast_dispatch_type =
     | SelfDispatch
@@ -84,6 +84,8 @@ let parse_list (data : parser_data) (mapping : parser_data -> (parser_data * 'a)
 
     let line_count = parse_int (List.hd data.file_contents) in
     let data = pop_data_lines data 1 in
+
+    Printf.printf "parse_list: %d\n" line_count;
 
     internal_rec data mapping line_count [] 
 
@@ -147,9 +149,9 @@ let parse_ast (file_contents : string list) : ast =
         in
 
         let parse_block (data : parser_data) : (parser_data * ast_expression) =
-            let data, call_params = parse_list data parse_expression in
+            let data, body = parse_list data parse_expression in
 
-            data, Block { body = call_params }
+            data, Block { body = body }
         in
 
         let parse_new (data : parser_data) : (parser_data * ast_expression) =
@@ -201,16 +203,18 @@ let parse_ast (file_contents : string list) : ast =
             let parse_no_init (data : parser_data) : (parser_data * ast_expression) =
                 let data, var     = parse_identifier data in
                 let data, _type   = parse_identifier data in
+                let data, _in     = parse_expression data in
                 
-                data, LetBindingNoInit { variable = var; _type = _type }
+                data, LetBindingNoInit { variable = var; _type = _type; _in = _in }
             in
 
             let parse_init (data : parser_data) : (parser_data * ast_expression) =
                 let data, var     = parse_identifier data in
                 let data, _type   = parse_identifier data in
                 let data, value   = parse_expression data in
+                let data, _in     = parse_expression data in
 
-                data, LetBindingInit { variable = var; _type = _type; value = value }
+                data, LetBindingInit { variable = var; _type = _type; value = value; _in = _in }
             in
 
             let data, init = parse_identifier data in
@@ -257,24 +261,14 @@ let parse_ast (file_contents : string list) : ast =
 
     (* TODO: Implement parameter parsing, right now this will only work with no parameter methods (such as in hello_world.cl) *)
     let parse_parameters (data : parser_data) : (parser_data * ast_param list) =
-        Printf.printf "parse_parameters: %s\n" (List.hd data.file_contents);
+        let parse_param (data : parser_data) : (parser_data * ast_param) =
+            let data, param_name    = parse_identifier data in
+            let data, _type         = parse_identifier data in
 
-        let rec internal_rec (data : parser_data) (acc : ast_param list) (i : int) : (parser_data * ast_param list) =
-            match i with
-            | 0 -> (data, acc)
-            | x ->
-                let data, param_name = parse_identifier data in
-                let data, param_type = parse_identifier data in
-                let param = { name = param_name; _type = param_type } in
-
-                internal_rec data (acc @ [param]) (i - 1)
+            data, { name = param_name; _type = _type }
         in
 
-        let count = int_of_string (List.hd data.file_contents) in
-        let data = pop_data_lines data 1 in
-        let data, params = internal_rec data [] count in
-
-        (data, params)
+        parse_list data parse_param
     in
 
     let parse_method (data : parser_data) : (parser_data * ast_body_expr) =
