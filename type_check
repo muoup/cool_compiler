@@ -1,5 +1,0 @@
-#!/usr/bin/bash
-
-cool --parse $1
-dune exec --profile release cool $1-ast
-rm $1-ast
