@@ -18,14 +18,7 @@ let get_file_contents file_dir : string list =
     contents
 
 let () = 
-    let rec print_contents arr = 
-        match arr with
-        | [] -> ()
-        | x :: xs -> 
-                Printf.printf "%s\n" x; 
-                print_contents xs
-    in
-    
     let file_contents = get_file_contents Sys.argv.(1) in
     let ast = Ast.parse_ast file_contents in
-    ()
+    Type_checker.verify_ast ast;
+    Printf.printf "Verification Successful!\n"
