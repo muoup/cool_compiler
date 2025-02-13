@@ -1,6 +1,6 @@
 type ast_identifier = { name : string; line_number: int; }
 
-type ast_bin_op_type =
+and ast_bin_op_type =
     | Plus
     | Minus
     | Times
@@ -9,11 +9,17 @@ type ast_bin_op_type =
     | LE
     | EQ
 
-type ast_un_op_type =
+and ast_un_op_type =
     | Not
     | Negate
 
-type ast_expression =
+and ast_case_mapping = {
+    name            : ast_identifier;
+    _type           : ast_identifier;
+    maps_to         : ast_expression;
+}
+
+and ast_expression =
     | Assign                of { var        : ast_identifier; rhs       : ast_expression }
     | DynamicDispatch       of { call_on    : ast_expression; _method   : ast_identifier; args   : ast_expression list }
     | StaticDispatch        of { call_on    : ast_expression; _method   : ast_identifier; args   : ast_expression list }
@@ -32,26 +38,26 @@ type ast_expression =
     | False      
     | LetBindingNoInit      of { variable : ast_identifier; _type : ast_identifier;                         _in : ast_expression }
     | LetBindingInit        of { variable : ast_identifier; _type : ast_identifier; value : ast_expression; _in : ast_expression }
-    | Case                  of { expression : ast_expression; case_list : ast_expression list; body_list : ast_expression list }
+    | Case                  of { expression : ast_expression; mapping_list : ast_case_mapping list }
 
-type ast_param =               { name : ast_identifier; _type : ast_identifier }
+and ast_param =               { name : ast_identifier; _type : ast_identifier }
 
-type ast_dispatch_type =
+and ast_dispatch_type =
     | SelfDispatch
     | DynamicDispatch
 
-type ast_body_expr =
+and ast_body_expr =
     | Method                of { name : ast_identifier; params : ast_param list; _type : ast_identifier; body : ast_expression; } 
     | AttributeNoInit       of { name : ast_identifier; _type  : ast_identifier }
     | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; } 
 
-type ast_class = {
+and ast_class = {
     name        : ast_identifier;
     inherits    : ast_identifier option;
     body_exprs  : ast_body_expr list;
 }
 
-type ast  = ast_class list
+and ast  = ast_class list
 
 exception Ast_error
 
@@ -218,6 +224,21 @@ let parse_ast (file_contents : string list) : ast =
             | x                             -> Printf.printf "invalid let type: %s" init.name; raise Ast_error 
         in
 
+        let parse_case (data : parser_data) : (parser_data * ast_expression) =
+            let parse_case_mapping (data : parser_data) : (parser_data * ast_case_mapping) =
+                let data, var_name = parse_identifier data in
+                let data, var_type = parse_identifier data in
+                let data, maps_to  = parse_expression data in
+
+                data, { name = var_name; _type = var_type; maps_to = maps_to }
+            in
+
+            let data, expr     = parse_expression data in
+            let data, mappings = parse_list data parse_case_mapping in
+            
+            data, Case { expression = expr; mapping_list = mappings }
+        in
+
         let data, expr_type = parse_identifier data in
 
         match expr_type.name with
@@ -245,6 +266,7 @@ let parse_ast (file_contents : string list) : ast =
         | "true"                -> data, True
         | "false"               -> data, False
         | "let"                 -> parse_let data
+        | "case"                -> parse_case data
         | unsupported -> 
                 Printf.printf "Unsupported expression: %s\n" unsupported;
                 raise Ast_error
