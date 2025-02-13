@@ -26,4 +26,6 @@ let () =
                 print_contents xs
     in
     
-    print_contents (get_file_contents Sys.argv.(1));
+    let file_contents = get_file_contents Sys.argv.(1) in
+    let ast = Ast.parse_ast file_contents in
+    ()
