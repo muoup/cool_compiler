@@ -17,19 +17,33 @@ let get_file_contents file_dir : string list =
     close_in handle;
     contents
 
-let construct_class_map ast : Ast.ast_class list = 
-    []
+
+let check_duplicate_classes (ast : Ast.ast) : unit =
+    let seen = Hashtbl.create (List.length ast) in
+    let rec find_duplicate = function
+        | [] -> ()
+        | { Ast.name; _ } :: rest ->
+        if Hashtbl.mem seen name.name then (
+            Util.print_error name.line_number ("Class " ^ name.name ^ " redefined.");
+            exit 0
+        ) else (
+            Hashtbl.add seen name.name ();
+            find_duplicate rest
+        )
+    in  
+    find_duplicate ast
 
 let () = 
-    let rec print_contents arr = 
+    let rec _print_contents arr = 
         match arr with
         | [] -> ()
         | x :: xs -> 
                 Printf.printf "%s\n" x; 
-                print_contents xs
+                _print_contents xs
     in
     
     let file_contents = get_file_contents Sys.argv.(1) in
     let ast = Ast.parse_ast file_contents in
-    let class_map = construct_class_map ast in
-    ()
+    (
+        check_duplicate_classes ast
+    )

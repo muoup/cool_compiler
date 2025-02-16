@@ -221,7 +221,7 @@ let parse_ast (file_contents : string list) : ast =
             match init.name with
             | "let_binding_no_init"         -> parse_no_init data
             | "let_binding_init"            -> parse_init data
-            | x                             -> Printf.printf "invalid let type: %s" init.name; raise Ast_error 
+            | _                             -> Printf.printf "invalid let type: %s" init.name; raise Ast_error 
         in
 
         let parse_case (data : parser_data) : (parser_data * ast_expression) =
@@ -305,7 +305,7 @@ let parse_ast (file_contents : string list) : ast =
         (data, AttributeNoInit { name = attribute_name; _type = _type })
     in
 
-    let parse_attribute_init (data : parser_data) : (parser_data * ast_body_expr) =
+    let _parse_attribute_init (data : parser_data) : (parser_data * ast_body_expr) =
         let data, attribute_name    = parse_identifier data in
         let data, _type             = parse_identifier data in
         let data, init_expr         = parse_expression data in
@@ -337,7 +337,7 @@ let parse_ast (file_contents : string list) : ast =
                 Printf.printf "Unexpected inherits: %s" x;
                 raise Ast_error
         in
-        let body_expr_count = parse_int (List.hd data.file_contents) in
+        let _body_expr_count = parse_int (List.hd data.file_contents) in
         let data, body_exprs = parse_list data parse_body_expr in
 
         data, {
