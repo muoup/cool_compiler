@@ -30,6 +30,23 @@ let verify_classes (ast : Ast.ast) : unit =
         else
             check_for_main rest
     in 
+
+    let rec check_illegal_inheritance = function
+    | [] -> ()
+    | { Ast.name; Ast.inherits; _ } :: rest ->
+    (* This is a bit ugly, should be changed at some point *)
+    if (Option.is_some inherits && (Option.get inherits).name = "Int") then (
+        Util.print_error (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from Int");
+    )
+    else if (Option.is_some inherits && (Option.get inherits).name = "Bool") then (
+        Util.print_error (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from Bool");
+    )
+    else if (Option.is_some inherits && (Option.get inherits).name = "String") then (
+        Util.print_error (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from String");
+    )
+    else
+        check_illegal_inheritance rest
+    in
  
     let seen = Hashtbl.create (List.length ast) in
     let rec find_duplicate = function
@@ -44,7 +61,8 @@ let verify_classes (ast : Ast.ast) : unit =
         )
     in  
     find_duplicate ast;
-    check_for_main ast
+    check_for_main ast;
+    check_illegal_inheritance ast
 
 
 let () = 
