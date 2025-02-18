@@ -25,6 +25,16 @@ let verify_classes (ast : Ast.ast) : unit =
         illegal_inheritance rest
   in
 
+  let rec check_name = function
+  | [] ->  ()
+  | { Ast.name; _ } :: rest ->
+  if (name.name = "Int" || name.name = "String" || name.name = "Bool" || name.name = "Object" || name.name = "IO") then
+    Util.error_and_exit name.line_number ("class " ^ name.name ^ " redefined");
+  check_name rest
+  in
+
+  (* TODO - does it inherit from only existing classes *)
+
   let seen = Hashtbl.create (List.length ast) in
   let rec find_duplicates = function
       | [] -> ()
@@ -62,6 +72,7 @@ let verify_classes (ast : Ast.ast) : unit =
       in process [] lst
   in
 
+  check_name ast;
   find_duplicates ast;
   check_for_main ast;
   illegal_inheritance ast;
