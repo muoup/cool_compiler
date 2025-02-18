@@ -305,7 +305,7 @@ let parse_ast (file_contents : string list) : ast =
         (data, AttributeNoInit { name = attribute_name; _type = _type })
     in
 
-    let _parse_attribute_init (data : parser_data) : (parser_data * ast_body_expr) =
+    let parse_attribute_init (data : parser_data) : (parser_data * ast_body_expr) =
         let data, attribute_name    = parse_identifier data in
         let data, _type             = parse_identifier data in
         let data, init_expr         = parse_expression data in
@@ -320,6 +320,7 @@ let parse_ast (file_contents : string list) : ast =
         match body_expr_type with
         | "method" -> parse_method data
         | "attribute_no_init" -> parse_attribute_no_init data
+        | "attribute_init" -> parse_attribute_init data
         | _ -> Printf.printf "Unexpected body_expr_type\n"; raise Ast_error
     in
 
