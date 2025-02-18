@@ -3,5 +3,6 @@ let rec ntail (lst : 'a list) (n : int) =
     | 0 -> lst
     | n -> ntail (List.tl lst) (n - 1)
 
-let print_error line_number message = 
+let error_and_exit line_number message = 
     Printf.printf "ERROR: %i: Type-Check: %s\n" line_number message;
+    exit 0;

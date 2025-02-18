@@ -17,54 +17,6 @@ let get_file_contents file_dir : string list =
     close_in handle;
     contents
 
-
-let verify_classes (ast : Ast.ast) : unit =
-    let main_flag = ref false in
-        let rec check_for_main = function
-        | [] -> if not !main_flag then (
-            Util.print_error 0 "class Main not found";
-        )
-        | { Ast.name; _ } :: rest ->
-        if name.name = "Main" then
-            main_flag := true
-        else
-            check_for_main rest
-    in 
-
-    let rec check_illegal_inheritance = function
-    | [] -> ()
-    | { Ast.name; Ast.inherits; _ } :: rest ->
-    (* This is a bit ugly, should be changed at some point *)
-    if (Option.is_some inherits && (Option.get inherits).name = "Int") then (
-        Util.print_error (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from Int");
-    )
-    else if (Option.is_some inherits && (Option.get inherits).name = "Bool") then (
-        Util.print_error (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from Bool");
-    )
-    else if (Option.is_some inherits && (Option.get inherits).name = "String") then (
-        Util.print_error (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from String");
-    )
-    else
-        check_illegal_inheritance rest
-    in
- 
-    let seen = Hashtbl.create (List.length ast) in
-    let rec find_duplicate = function
-        | [] -> ()
-        | { Ast.name; _ } :: rest ->
-        if Hashtbl.mem seen name.name then (
-            Util.print_error name.line_number ("Class " ^ name.name ^ " redefined.");
-            exit 0
-        ) else (
-            Hashtbl.add seen name.name ();
-            find_duplicate rest
-        )
-    in  
-    find_duplicate ast;
-    check_for_main ast;
-    check_illegal_inheritance ast
-
-
 let () = 
     let rec _print_contents arr = 
         match arr with
@@ -77,5 +29,5 @@ let () =
     let file_contents = get_file_contents Sys.argv.(1) in
     let ast = Ast.parse_ast file_contents in
     (
-        verify_classes ast;
+        Verify_classes.verify_classes ast;
     )

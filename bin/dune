@@ -1,4 +1,4 @@
 (executable
  (public_name cool)
  (name main)
- (modules util ast main))
+ (modules util ast verify_classes main))

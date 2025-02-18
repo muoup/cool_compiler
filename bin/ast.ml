@@ -320,7 +320,7 @@ let parse_ast (file_contents : string list) : ast =
         match body_expr_type with
         | "method" -> parse_method data
         | "attribute_no_init" -> parse_attribute_no_init data
-        | _ -> raise Ast_error
+        | _ -> Printf.printf "Unexpected body_expr_type\n"; raise Ast_error
     in
 
     let parse_class (data : parser_data) : (parser_data * ast_class) =
