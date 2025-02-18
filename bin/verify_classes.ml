@@ -17,16 +17,10 @@ let verify_classes (ast : Ast.ast) : unit =
   let rec illegal_inheritance = function
   | [] -> ()
   | { Ast.name; Ast.inherits; _ } :: rest ->
-  if Option.is_some inherits then
-    if (Option.get inherits).name = "Int" then (
-        Util.error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from Int");
-    )
-    else if (Option.get inherits).name = "Bool" then (
-        Util.error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from Bool");
-    )
-    else if (Option.get inherits).name = "String" then (
-        Util.error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from String");
-    )
+    if (Option.is_some inherits) then
+        if (Option.get inherits).name = "Bool" || (Option.get inherits).name = "Int" || (Option.get inherits).name = "String" then (
+            Util.error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from " ^ (Option.get inherits).name);
+        ) else ()
     else
         illegal_inheritance rest
   in
@@ -43,7 +37,7 @@ let verify_classes (ast : Ast.ast) : unit =
       )
   in  
 
-  (* This is slightly ugly, but it's because I copied by PA1 code and worked around it *)
+  (* This is slightly ugly, but it's because I copied my PA1 code and worked around it *)
   let convert_ast_class (ast_class : Ast.ast_class) : (string * string list) =
     let str = ast_class.name.name in
     let str_list = match ast_class.inherits with
@@ -55,7 +49,7 @@ let verify_classes (ast : Ast.ast) : unit =
   let convert_ast_class_list (ast_list : Ast.ast_class list) : (string * string list) list =
     List.map convert_ast_class ast_list  
   in 
-  let topologicalSort lst =
+  let check_cycles lst =
     let rec remove_key key lst = List.map (fun (k, values) -> (k, List.filter ((<>) key) values)) lst in
     let rec process acc remaining =
       match List.find_opt (fun (_, values) -> values = []) remaining with
@@ -63,7 +57,7 @@ let verify_classes (ast : Ast.ast) : unit =
           let updated_rest = remove_key key (List.remove_assoc key remaining) in
           process (key :: acc) updated_rest
       | None -> if remaining = [] then () else (
-        Util.error_and_exit 0 "inheritance cycle"
+        Util.error_and_exit 0 ("inheritance cycle: "  ^ (String.concat " " (List.map fst remaining))) 
       )
       in process [] lst
   in
@@ -71,4 +65,4 @@ let verify_classes (ast : Ast.ast) : unit =
   find_duplicates ast;
   check_for_main ast;
   illegal_inheritance ast;
-  topologicalSort (convert_ast_class_list ast)
+  check_cycles (convert_ast_class_list ast)
