@@ -52,11 +52,6 @@ and ast_attribute =
     | AttributeNoInit       of { name : ast_identifier; _type  : ast_identifier }
     | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; }
 
-and ast_body_expr =
-    | Method                of { name : ast_identifier; params : ast_param list; _type : ast_identifier; body : ast_expression; } 
-    | AttributeNoInit       of { name : ast_identifier; _type  : ast_identifier }
-    | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; } 
-
 and ast_class = {
     name        : ast_identifier;
     inherits    : ast_identifier option;
@@ -378,4 +373,5 @@ let parse_ast (file_contents : string list) : ast =
     } in
 
     let _, classes = parse_list data parse_class in
-    classes
+    
+    List.sort (fun (class1 : ast_class) (class2 : ast_class) -> compare class1.name class2.name) classes
