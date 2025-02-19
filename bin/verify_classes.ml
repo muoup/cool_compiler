@@ -19,7 +19,7 @@ let verify_classes (ast : Ast.ast) : unit =
   | { Ast.name; Ast.inherits; _ } :: rest ->
     if (Option.is_some inherits) then
         if (Option.get inherits).name = "Bool" || (Option.get inherits).name = "Int" || (Option.get inherits).name = "String" then (
-            Util.error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from " ^ (Option.get inherits).name);
+            Util.error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from " ^ (Option.get inherits).name)
         ) else ()
     else
         illegal_inheritance rest
@@ -40,7 +40,7 @@ let verify_classes (ast : Ast.ast) : unit =
       | [] -> ()
       | { Ast.name; _ } :: rest ->
       if Hashtbl.mem seen name.name then (
-          Util.error_and_exit name.line_number ("Class " ^ name.name ^ " redefined.");
+          Util.error_and_exit name.line_number ("Class " ^ name.name ^ " redefined.")
       ) else (
           Hashtbl.add seen name.name ();
           find_duplicates rest
