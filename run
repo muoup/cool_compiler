@@ -1,3 +1,0 @@
-#!/usr/bin/bash
-
-dune exec --profile release cool valid_testcases/rosetta.cl-ast

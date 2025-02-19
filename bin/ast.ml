@@ -46,15 +46,17 @@ and ast_dispatch_type =
     | SelfDispatch
     | DynamicDispatch
 
-and ast_body_expr =
-    | Method                of { name : ast_identifier; params : ast_param list; _type : ast_identifier; body : ast_expression; } 
+and ast_method =               { name : ast_identifier; params : ast_param list; _type : ast_identifier; body : ast_expression; }
+
+and ast_attribute =
     | AttributeNoInit       of { name : ast_identifier; _type  : ast_identifier }
-    | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; } 
+    | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; }
 
 and ast_class = {
     name        : ast_identifier;
     inherits    : ast_identifier option;
-    body_exprs  : ast_body_expr list;
+    attributes  : ast_attribute list;
+    methods     : ast_method list;
 }
 
 and ast  = ast_class list
@@ -283,14 +285,14 @@ let parse_ast (file_contents : string list) : ast =
         parse_list data parse_param
     in
 
-    let parse_method (data : parser_data) : (parser_data * ast_body_expr) =
+    let parse_method (data : parser_data) : (parser_data * ast_method) =
         (* Feels like there should be some way to do this with a monad *)
         let data, method_name   = parse_identifier data in
         let data, params        = parse_parameters data in
         let data, return_type   = parse_identifier data in
         let data, body          = parse_expression data in
  
-        (data, Method {
+        (data, {
             name = method_name;
             params = params;
             _type = return_type;
@@ -298,14 +300,14 @@ let parse_ast (file_contents : string list) : ast =
         })
     in
 
-    let parse_attribute_no_init (data : parser_data) : (parser_data * ast_body_expr) =
+    let parse_attribute_no_init (data : parser_data) : (parser_data * ast_attribute) =
         let data, attribute_name    = parse_identifier data in
         let data, _type             = parse_identifier data in
 
         (data, AttributeNoInit { name = attribute_name; _type = _type })
     in
 
-    let parse_attribute_init (data : parser_data) : (parser_data * ast_body_expr) =
+    let parse_attribute_init (data : parser_data) : (parser_data * ast_attribute) =
         let data, attribute_name    = parse_identifier data in
         let data, _type             = parse_identifier data in
         let data, init_expr         = parse_expression data in
@@ -313,15 +315,23 @@ let parse_ast (file_contents : string list) : ast =
         (data, AttributeInit { name = attribute_name; _type = _type; init = init_expr }) 
     in
 
-    let parse_body_expr (data : parser_data) : (parser_data * ast_body_expr) =
+    let parse_body_expr (data : parser_data) (_class : ast_class) : (parser_data * ast_class) =
         let body_expr_type = List.hd data.file_contents in
         let data = pop_data_lines data 1 in
 
         match body_expr_type with
-        | "method" -> parse_method data
-        | "attribute_no_init" -> parse_attribute_no_init data
-        | "attribute_init" -> parse_attribute_init data
-        | _ -> Printf.printf "Unexpected body_expr_type %s \n" body_expr_type; raise Ast_error
+        | "method" -> 
+            let data, _method = parse_method data in
+            data, { _class with methods = _class.methods @ [_method] }
+        | "attribute_no_init" ->
+            let data, attribute = parse_attribute_no_init data in
+            data, { _class with attributes = _class.attributes @ [attribute] }
+        | "attribute_init" ->
+            let data, attribute = parse_attribute_init data in
+            data, { _class with attributes = _class.attributes @ [attribute] }
+        | invalid -> 
+                Printf.printf "Invalid Body Expression Type: %s\n" invalid;
+                raise Ast_error
     in
 
     let parse_class (data : parser_data) : (parser_data * ast_class) =
@@ -338,14 +348,24 @@ let parse_ast (file_contents : string list) : ast =
                 Printf.printf "Unexpected inherits: %s" x;
                 raise Ast_error
         in
-        let _body_expr_count = parse_int (List.hd data.file_contents) in
-        let data, body_exprs = parse_list data parse_body_expr in
-
-        data, {
+        let body_exprs = parse_int (List.hd data.file_contents) in
+        let data = pop_data_lines data 1 in
+        let _class = {
             name = class_name;
             inherits = inherits;
-            body_exprs = body_exprs;
-        }
+            attributes = [];
+            methods = [];
+        } in
+
+        let rec consume_n_body_exprs data _class n =
+            match n with
+            | 0 -> data, _class
+            | i -> 
+                let data, _class = parse_body_expr data _class in
+                consume_n_body_exprs data _class (i - 1)
+        in
+
+        consume_n_body_exprs data _class body_exprs
     in
 
     let data = {
@@ -353,4 +373,5 @@ let parse_ast (file_contents : string list) : ast =
     } in
 
     let _, classes = parse_list data parse_class in
-    classes
+    
+    List.sort (fun (class1 : ast_class) (class2 : ast_class) -> compare class1.name class2.name) classes

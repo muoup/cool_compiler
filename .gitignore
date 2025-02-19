@@ -10,7 +10,10 @@
 a.out
 
 # generated ast files
-*.cl-ast
+*.cl-*
+
+# run files I end up making for myself
+run*
 
 # ocamlbuild working directory
 _build/
