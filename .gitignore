@@ -9,7 +9,7 @@
 *.cmxa
 
 # generated ast files
-*.cl-ast
+*.cl-*
 
 # ocamlbuild working directory
 _build/
