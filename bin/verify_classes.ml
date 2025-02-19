@@ -33,7 +33,16 @@ let verify_classes (ast : Ast.ast) : unit =
   check_name rest
   in
 
-  (* TODO - does it inherit from only existing classes *)
+  let extract_inherits (ast: Ast.ast) : Ast.ast_identifier list =
+    List.filter_map (fun (c: Ast.ast_class) -> c.inherits) ast
+  in 
+  let rec check_inherits = function
+  | [] ->  ()
+  | { Ast.name; Ast.inherits; _ } :: rest ->
+  if (not (List.mem name (extract_inherits ast))) then
+    Util.error_and_exit name.line_number ("class " ^ name.name ^ " inherits from unknown class " ^ (Option.get inherits).name);
+    check_inherits rest    
+  in
 
   let seen = Hashtbl.create (List.length ast) in
   let rec find_duplicates = function
@@ -73,6 +82,7 @@ let verify_classes (ast : Ast.ast) : unit =
   in
 
   check_name ast;
+  check_inherits ast;
   find_duplicates ast;
   check_for_main ast;
   illegal_inheritance ast;
