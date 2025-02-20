@@ -34,15 +34,21 @@ let verify_classes (ast : ast) : unit =
   check_name rest
   in
 
-  let extract_inherits (ast: ast) : ast_identifier list =
-    List.filter_map (fun (c: ast_class) -> c.inherits) ast
-  in 
+  let extract_inherited_names (ast : ast) : string list =
+    List.filter_map (fun cls -> 
+      match cls.inherits with
+      | Some id -> Some id.name
+      | None -> None
+    ) ast
+  in
   let rec check_inherits = function
   | [] ->  ()
   | { name; inherits; _ } :: rest ->
-  if not (List.mem name (extract_inherits ast) || (Option.get inherits).name = "IO") then
+  if (Option.is_some inherits) then (
+  if not (List.mem name.name (extract_inherited_names ast) || (Option.get inherits).name = "IO") then
     Util.error_and_exit name.line_number ("class " ^ name.name ^ " inherits from unknown class " ^ (Option.get inherits).name);
     check_inherits rest    
+  )
   in
 
   let seen = Hashtbl.create (List.length ast) in
@@ -70,7 +76,7 @@ let verify_classes (ast : ast) : unit =
     List.map convert_ast_class ast_list @ [("IO", [])]
   in 
   let check_cycles lst =
-    let rec remove_key key lst = List.map (fun (k, values) -> (k, List.filter ((<>) key) values)) lst in
+    let remove_key key lst = List.map (fun (k, values) -> (k, List.filter ((<>) key) values)) lst in
     let rec process acc remaining =
       match List.find_opt (fun (_, values) -> values = []) remaining with
       | Some (key, _) ->
@@ -83,8 +89,8 @@ let verify_classes (ast : ast) : unit =
   in
 
   check_name ast;
-  check_inherits ast;
-  find_duplicates ast;
   check_for_main ast;
   illegal_inheritance ast;
+  check_inherits ast;
+  find_duplicates ast;
   check_cycles (convert_ast_class_list ast)

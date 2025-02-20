@@ -23,18 +23,17 @@ let () =
         Filename.remove_extension path ^ "." ^ new_extension
     in
 
-    let rec print_contents arr = 
+    let rec _print_contents arr = 
         match arr with
         | [] -> ()
         | x :: xs -> 
                 Printf.printf "%s\n" x; 
-                print_contents xs
+                _print_contents xs
     in
     
     let file_name = Sys.argv.(1) in
     let file_contents = get_file_contents file_name in
     let ast = Ast.parse_ast file_contents in (
         Verify_classes.verify_classes ast;
-        Typecheck.verify_ast;
         Output.output_ast ast (change_file_extension file_name "cl-type")
     )
