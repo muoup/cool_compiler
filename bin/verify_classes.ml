@@ -1,13 +1,14 @@
+open Ast
 module StringMap = Map.Make(String)
 
-let verify_classes (ast : Ast.ast) : unit =
+let verify_classes (ast : ast) : unit =
 
   let main_flag = ref false in
       let rec check_for_main = function
       | [] -> if not !main_flag then (
           Util.error_and_exit 0 "class Main not found";
       )
-      | { Ast.name; _ } :: rest ->
+      | { name; _ } :: rest ->
       if name.name = "Main" then
           main_flag := true
       else
@@ -16,7 +17,7 @@ let verify_classes (ast : Ast.ast) : unit =
 
   let rec illegal_inheritance = function
   | [] -> ()
-  | { Ast.name; Ast.inherits; _ } :: rest ->
+  | { name; inherits; _ } :: rest ->
     if (Option.is_some inherits) then
         if (Option.get inherits).name = "Bool" || (Option.get inherits).name = "Int" || (Option.get inherits).name = "String" then (
             Util.error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from " ^ (Option.get inherits).name)
@@ -27,19 +28,19 @@ let verify_classes (ast : Ast.ast) : unit =
 
   let rec check_name = function
   | [] ->  ()
-  | { Ast.name; _ } :: rest ->
+  | { name; _ } :: rest ->
   if (name.name = "Int" || name.name = "String" || name.name = "Bool" || name.name = "Object" || name.name = "IO") then
     Util.error_and_exit name.line_number ("class " ^ name.name ^ " redefined");
   check_name rest
   in
 
-  let extract_inherits (ast: Ast.ast) : Ast.ast_identifier list =
-    List.filter_map (fun (c: Ast.ast_class) -> c.inherits) ast
+  let extract_inherits (ast: ast) : ast_identifier list =
+    List.filter_map (fun (c: ast_class) -> c.inherits) ast
   in 
   let rec check_inherits = function
   | [] ->  ()
-  | { Ast.name; Ast.inherits; _ } :: rest ->
-  if (not (List.mem name (extract_inherits ast))) then
+  | { name; inherits; _ } :: rest ->
+  if not (List.mem name (extract_inherits ast) || (Option.get inherits).name = "IO") then
     Util.error_and_exit name.line_number ("class " ^ name.name ^ " inherits from unknown class " ^ (Option.get inherits).name);
     check_inherits rest    
   in
@@ -47,7 +48,7 @@ let verify_classes (ast : Ast.ast) : unit =
   let seen = Hashtbl.create (List.length ast) in
   let rec find_duplicates = function
       | [] -> ()
-      | { Ast.name; _ } :: rest ->
+      | { name; _ } :: rest ->
       if Hashtbl.mem seen name.name then (
           Util.error_and_exit name.line_number ("Class " ^ name.name ^ " redefined.")
       ) else (
@@ -57,7 +58,7 @@ let verify_classes (ast : Ast.ast) : unit =
   in  
 
   (* This is slightly ugly, but it's because I copied my PA1 code and worked around it *)
-  let convert_ast_class (ast_class : Ast.ast_class) : (string * string list) =
+  let convert_ast_class (ast_class : ast_class) : (string * string list) =
     let str = ast_class.name.name in
     let str_list = match ast_class.inherits with
       | Some inherits -> [inherits.name]
@@ -65,8 +66,8 @@ let verify_classes (ast : Ast.ast) : unit =
     in
     (str, str_list)
   in
-  let convert_ast_class_list (ast_list : Ast.ast_class list) : (string * string list) list =
-    List.map convert_ast_class ast_list  
+  let convert_ast_class_list (ast_list : ast_class list) : (string * string list) list =
+    List.map convert_ast_class ast_list @ [("IO", [])]
   in 
   let check_cycles lst =
     let rec remove_key key lst = List.map (fun (k, values) -> (k, List.filter ((<>) key) values)) lst in

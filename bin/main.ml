@@ -35,5 +35,6 @@ let () =
     let file_contents = get_file_contents file_name in
     let ast = Ast.parse_ast file_contents in (
         Verify_classes.verify_classes ast;
+        Typecheck.verify_ast;
         Output.output_ast ast (change_file_extension file_name "cl-type")
     )
