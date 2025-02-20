@@ -17,7 +17,7 @@ let output_ast (ast : Ast.ast) (file_path : string) : unit =
                         output_line "no_initializer";
                         output_line name.name;
                         output_line _type.name
-                | AttributeInit     { name; _type; init } ->
+                | AttributeInit     { name; _type; init = _ } ->
                         output_line "initializer";
                         output_line name.name;
                         output_line _type.name;

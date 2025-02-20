@@ -1,3 +1,4 @@
 (executable
  (public_name cool)
- (name main))
+ (name main)
+ (modules util ast output verify_classes typecheck main))

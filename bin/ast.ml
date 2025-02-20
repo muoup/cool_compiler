@@ -237,7 +237,7 @@ let parse_ast (file_contents : string list) : ast =
             match init.name with
             | "let_binding_no_init"         -> parse_no_init data
             | "let_binding_init"            -> parse_init data
-            | x                             -> Printf.printf "invalid let type: %s" init.name; raise Ast_error 
+            | _                             -> Printf.printf "invalid let type: %s" init.name; raise Ast_error 
         in
 
         let parse_case (data : parser_data) : (parser_data * ast_expression) =
