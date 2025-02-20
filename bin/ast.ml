@@ -39,6 +39,7 @@ and ast_expression =
     | LetBindingNoInit      of { variable : ast_identifier; _type : ast_identifier;                         _in : ast_expression }
     | LetBindingInit        of { variable : ast_identifier; _type : ast_identifier; value : ast_expression; _in : ast_expression }
     | Case                  of { expression : ast_expression; mapping_list : ast_case_mapping list }
+    | Unreachable
 
 and ast_param =               { name : ast_identifier; _type : ast_identifier }
 
@@ -78,6 +79,19 @@ let parse_int (str : string) : int =
     | None ->
         Printf.printf "Unknown line number: %s\n" str;
         raise Ast_error
+
+let generate_native_classes : ast_class list =
+    let native_identifier (str : string) : ast_identifier =
+        { name = str; line_number = 0 }
+    in
+
+    [
+        { name = native_identifier "Object"; inherits = None; attributes = []; methods = [] };
+        { name = native_identifier "String"; inherits = None; attributes = []; methods = [] };
+        { name = native_identifier "Int"   ; inherits = None; attributes = []; methods = [] };
+        { name = native_identifier "Bool"  ; inherits = None; attributes = []; methods = [] };
+        { name = native_identifier "IO"    ; inherits = None; attributes = []; methods = [] }
+    ]
 
 let parse_list (data : parser_data) (mapping : parser_data -> (parser_data * 'a)) : (parser_data * 'a list) =
     let rec internal_rec data mapping (i : int) (acc : 'a list) : (parser_data * 'a list) =
@@ -335,7 +349,7 @@ let parse_ast (file_contents : string list) : ast =
     in
 
     let parse_class (data : parser_data) : (parser_data * ast_class) =
-        let data, class_name = parse_identifier data in
+        let data, class_name = parse_identifier data in 
         let data, inherits = 
             match (List.hd data.file_contents) with
             | "inherits" ->
@@ -373,5 +387,6 @@ let parse_ast (file_contents : string list) : ast =
     } in
 
     let _, classes = parse_list data parse_class in
+    let classes = classes @ generate_native_classes in
     
     List.sort (fun (class1 : ast_class) (class2 : ast_class) -> compare class1.name class2.name) classes
