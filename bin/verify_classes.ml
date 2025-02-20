@@ -88,7 +88,7 @@ let verify_classes (ast : ast) : unit =
       in process [] lst
   in
 
-  check_name ast;
+  (*check_name ast;*)
   check_for_main ast;
   illegal_inheritance ast;
   check_inherits ast;
