@@ -1,4 +1,6 @@
-open Ast
+open D_ast
+open A_util
+
 module StringMap = Map.Make(String)
 
 let verify_classes (ast : ast) : unit =
@@ -6,7 +8,7 @@ let verify_classes (ast : ast) : unit =
   let main_flag = ref false in
       let rec check_for_main = function
       | [] -> if not !main_flag then (
-          Util.error_and_exit 0 "class Main not found";
+          error_and_exit 0 "class Main not found";
       )
       | { name; _ } :: rest ->
       if name.name = "Main" then
@@ -20,7 +22,7 @@ let verify_classes (ast : ast) : unit =
   | { name; inherits; _ } :: rest ->
     if (Option.is_some inherits) then
         if (Option.get inherits).name = "Bool" || (Option.get inherits).name = "Int" || (Option.get inherits).name = "String" then (
-            Util.error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from " ^ (Option.get inherits).name)
+            error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from " ^ (Option.get inherits).name)
         ) else ()
     else
         illegal_inheritance rest
@@ -30,7 +32,7 @@ let verify_classes (ast : ast) : unit =
   | [] ->  ()
   | { name; _ } :: rest ->
   if (name.name = "Int" || name.name = "String" || name.name = "Bool" || name.name = "Object" || name.name = "IO") then
-    Util.error_and_exit name.line_number ("class " ^ name.name ^ " redefined");
+    error_and_exit name.line_number ("class " ^ name.name ^ " redefined");
   check_name rest
   in
 
@@ -46,7 +48,7 @@ let verify_classes (ast : ast) : unit =
   | { name; inherits; _ } :: rest ->
   if (Option.is_some inherits) then (
   if not (List.mem name.name (extract_inherited_names ast) || (Option.get inherits).name = "IO") then
-    Util.error_and_exit name.line_number ("class " ^ name.name ^ " inherits from unknown class " ^ (Option.get inherits).name);
+    error_and_exit name.line_number ("class " ^ name.name ^ " inherits from unknown class " ^ (Option.get inherits).name);
     check_inherits rest    
   )
   in
@@ -56,7 +58,7 @@ let verify_classes (ast : ast) : unit =
       | [] -> ()
       | { name; _ } :: rest ->
       if Hashtbl.mem seen name.name then (
-          Util.error_and_exit name.line_number ("Class " ^ name.name ^ " redefined.")
+          error_and_exit name.line_number ("Class " ^ name.name ^ " redefined.")
       ) else (
           Hashtbl.add seen name.name ();
           find_duplicates rest
@@ -83,7 +85,7 @@ let verify_classes (ast : ast) : unit =
           let updated_rest = remove_key key (List.remove_assoc key remaining) in
           process (key :: acc) updated_rest
       | None -> if remaining = [] then () else (
-        Util.error_and_exit 0 ("inheritance cycle: "  ^ (String.concat " " (List.map fst remaining))) 
+        error_and_exit 0 ("inheritance cycle: "  ^ (String.concat " " (List.map fst remaining))) 
       )
       in process [] lst
   in

@@ -70,8 +70,15 @@ type parser_data = {
 
 (* Ast Parsing *)
 let pop_data_lines (data : parser_data) (n : int) : parser_data =
-    { file_contents = Util.ntail data.file_contents n }
+    let rec ntail (lst : 'a list) (n : int) =
+        match n with
+        | 0 -> lst
+        | n -> ntail (List.tl lst) (n - 1)
+    in
 
+    { file_contents = ntail data.file_contents n }
+
+(* utility method *)
 (* int_of_string wrapper that logs an error when given invalid input *)
 let parse_int (str : string) : int =
     match int_of_string_opt str with

@@ -1,4 +1,4 @@
-let output_ast (ast : Ast.ast) (file_path : string) : unit =
+let output_ast (ast : D_ast.ast) (file_path : string) : unit =
     let oc = open_out file_path in
     let output_line = fun (line : string) -> Printf.fprintf oc "%s\n" line in
     let output_number = fun (num : int) -> Printf.fprintf oc "%d\n" num in
@@ -7,11 +7,11 @@ let output_ast (ast : Ast.ast) (file_path : string) : unit =
         output_line "class_map";
         output_number (List.length ast);
 
-        let output_class (_class : Ast.ast_class) : unit =
+        let output_class (_class : D_ast.ast_class) : unit =
             output_line _class.name.name;
             output_number (List.length _class.attributes);
         
-            let output_attribute (_attr : Ast.ast_attribute) : unit =
+            let output_attribute (_attr : D_ast.ast_attribute) : unit =
                 match _attr with
                 | AttributeNoInit   { name; _type } ->
                         output_line "no_initializer";
