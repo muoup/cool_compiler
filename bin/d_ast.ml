@@ -341,7 +341,7 @@ let parse_ast (file_contents : string list) : ast =
         let data = pop_data_lines data 1 in
 
         match body_expr_type with
-        | "method" -> 
+        | "method" ->
             let data, _method = parse_method data in
             data, { _class with methods = _class.methods @ [_method] }
         | "attribute_no_init" ->

@@ -1,5 +1,3 @@
-open E_ast_data
-
 (* File IO *)
 let get_file_contents file_dir : string list =
     let rec generate_array file_handle arr =
@@ -39,7 +37,7 @@ let () =
     let file_name = Sys.argv.(1) in
     let file_contents = get_file_contents file_name in
     let ast = D_ast.parse_ast file_contents in 
-    let ast_data = generate_ast_data ast in
+    let ast_data = E_ast_data.generate_ast_data ast in
 
     (*
     StringMap.iter (fun key data ->
@@ -51,5 +49,7 @@ let () =
     *)
 
     G_verify_classes.verify_classes ast;
-    D_output.output_ast ast (change_file_extension file_name "cl-type")
-    
+    G_verify_inheritance.verify_inheritance ast_data;
+
+    D_output.output_ast ast (change_file_extension file_name "cl-type");
+    Printf.printf "Output successful!\n";
