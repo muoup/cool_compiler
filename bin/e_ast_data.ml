@@ -2,7 +2,7 @@ open D_ast
 
 type class_data = {
     class_ref   : ast_class;
-    sub_classes : string list;
+    sub_classes : ast_identifier list;
 }
 
 module StringMap = Map.Make(String)
@@ -12,20 +12,20 @@ type ast_data = {
     classes : class_map
 }
 
-let supertype_of (classes : class_map) (class_name : string) : string =
-    let instance = (StringMap.find class_name classes).class_ref.inherits in
+let supertype_of (data : ast_data) (class_name : ast_identifier) : ast_identifier =
+    let instance = (StringMap.find class_name.name data.classes).class_ref.inherits in
 
     match instance with
-    | None -> "Object"
-    | Some class_ -> class_.name
+    | None -> (StringMap.find "Object" data.classes).class_ref.name
+    | Some class_ -> class_
 
-let rec is_subtype_of (classes : class_map) (lhs : string) (rhs : string) : bool =
-    match lhs, rhs with
+let rec is_subtype_of (data : ast_data) (lhs : ast_identifier) (rhs : ast_identifier) : bool =
+    match lhs.name, rhs.name with
     | x, y        when x = y  -> true
-    | x, "Object"             -> false
-    | x, y                    -> is_subtype_of classes lhs (supertype_of classes rhs) 
+    | "Object", _             -> false
+    | _, _                    -> is_subtype_of data (supertype_of data lhs) rhs
 
-let generate_ast_data (ast : ast) : class_map =
+let generate_ast_data (ast : ast) : ast_data =
     let map_fold (classes : class_map) (_class : ast_class) =
         let new_data = {
             class_ref = _class;
@@ -41,10 +41,10 @@ let generate_ast_data (ast : ast) : class_map =
 
         match data.class_ref.inherits with
         | None          -> classes
-        | Some parent   -> StringMap.update parent.name (Option.map (fun _data -> { _data with sub_classes = (parent.name :: _data.sub_classes) })) classes
+        | Some parent   -> StringMap.update parent.name (Option.map (fun _data -> { _data with sub_classes = (class_.name :: _data.sub_classes) })) classes
     in
 
     let class_map = List.fold_left (map_fold) StringMap.empty ast in
     let class_map = List.fold_left (populate_data) class_map ast in
 
-    class_map
+    { classes = class_map }

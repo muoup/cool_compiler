@@ -1,7 +1,11 @@
-class Base {}
+class Base {};
 
-class Derived : Base {}
+class Derived inherits Base {};
 
-class Child : Derived {}
+class Child inherits Derived {};
 
-class Unrelated {}
+class Unrelated {};
+
+class Main {
+	main() : Object { 0 };
+};

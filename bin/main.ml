@@ -12,12 +12,15 @@ let get_file_contents file_dir : string list =
         | End_of_file -> arr
         | e -> raise e
     in
-    
-    let handle = open_in file_dir in
-    let contents = generate_array handle [] in
+ 
+    try
+        let handle = open_in file_dir in
+        let contents = generate_array handle [] in
 
-    close_in handle;
-    contents
+        close_in handle;
+        contents
+    with
+    | e -> Printf.printf "Cannot open file: %s\n" file_dir; exit 1
 
 let () = 
     (* Code courtesy of stack overflow user ivg's answer to question id: 70978234 *)
@@ -35,14 +38,18 @@ let () =
     
     let file_name = Sys.argv.(1) in
     let file_contents = get_file_contents file_name in
-    let ast = D_ast.parse_ast file_contents in (
-        G_verify_classes.verify_classes ast;
-        D_output.output_ast ast (change_file_extension file_name "cl-type");
+    let ast = D_ast.parse_ast file_contents in 
+    let ast_data = generate_ast_data ast in
 
-        let ast_data = generate_ast_data ast in
+    (*
+    StringMap.iter (fun key data ->
+        Printf.printf "Class Name: %s\n" key;
+        Printf.printf "Subclasses: ";
+        List.iter (function (sub_class : D_ast.ast_identifier) -> Printf.printf "%s " sub_class.name) data.sub_classes;
+        Printf.printf "\n";
+    ) ast_data.classes;
+    *)
 
-        match is_subtype_of ast_data "Derived" "Base" with
-        | false -> Printf.printf "INCORRECT\n"
-        | true -> Printf.printf "CORRECT\n"
-        ; 
-    )
+    G_verify_classes.verify_classes ast;
+    D_output.output_ast ast (change_file_extension file_name "cl-type")
+    
