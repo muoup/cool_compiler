@@ -4,7 +4,6 @@ open A_util
 module StringMap = Map.Make(String)
 
 let verify_classes (ast : ast) : unit =
-
   let main_flag = ref false in
       let rec check_for_main = function
       | [] -> if not !main_flag then (

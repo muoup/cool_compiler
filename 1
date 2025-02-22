@@ -39,9 +39,9 @@ let () =
         G_verify_classes.verify_classes ast;
         D_output.output_ast ast (change_file_extension file_name "cl-type");
 
-        let ast_data = generate_ast_data ast in
+        let ast_data = gen_ast_data ast in
 
-        match is_subtype_of ast_data "Derived" "Base" with
+        match is_supertype_of ast_data.class_map "Derived" "Base" with
         | false -> Printf.printf "INCORRECT\n"
         | true -> Printf.printf "CORRECT\n"
         ; 
