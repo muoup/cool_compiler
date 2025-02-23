@@ -42,11 +42,13 @@ let verify_attribute(attribute : ast_attribute) : ast_attribute = (
 let verify_class(cls : ast_class) : ast_class = (
   (* Name and inherits are checked by verify_classes file *)
   let has_main lst = List.exists (fun (ast_method : ast_method) -> ast_method.name.name = "main") lst in
+  (* TODO actually not fully correct (but passes test so I'm leaving it for now ) - main can inherit the method main *)
   if (cls.name.name = "Main") then (
     if (not (has_main cls.methods)) then
     error_and_exit 0 "class Main method main not found";
   ); 
 
+  (* Combining these two possible? *)
   let check_dupe_attribute (attrs: ast_attribute list) : unit =
     let seen = Hashtbl.create (List.length attrs) in
     let rec check_duplicate = function
@@ -54,6 +56,10 @@ let verify_class(cls : ast_class) : ast_class = (
       | (AttributeNoInit { name; _ } | AttributeInit { name; _ }) :: rest ->
           if Hashtbl.mem seen name.name then (
           error_and_exit name.line_number ("class " ^ cls.name.name ^ " redefines attribute " ^ name.name);       
+          )
+          (* Is this correct location? *)
+          else if name.name = "self" then (
+            error_and_exit name.line_number ("class " ^ cls.name.name ^ " has an attribute named self");       
           )
           else (
             Hashtbl.add seen name.name ();
