@@ -76,9 +76,6 @@ let generate_ast_data (ast : ast) : ast_data =
     let populate_data (classes : class_map) (class_ : ast_class) : class_map =
         if class_.name.name <> "Object" then
             let supertype = (supertype_of classes class_.name) in
-            
-            if not (StringMap.mem supertype.name classes) then error_and_exit supertype.line_number "Unknown inherited class";
-
             StringMap.update supertype.name (Option.map (function _data -> { _data with sub_classes = (class_.name :: _data.sub_classes) })) classes
         else
             classes
@@ -92,7 +89,17 @@ let generate_ast_data (ast : ast) : ast_data =
     | Some class_data ->
             match StringMap.find_opt "main" class_data.methods with
             | None -> error_and_exit 0 "Main class does not have a main method defined!"
-            | Some method_ -> if List.length method_.params <> 0 then error_and_exit 0 "Main.main() must be defined with no parameters"
+            | Some method_ -> if List.length method_.params <> 0 then error_and_exit 0 "Main.main must be defined with no parameters accepted"
     ;
+
+    let verify_inherits_class (_ : string) (class_ : class_data) = 
+        Option.iter (
+            fun (inherits : ast_identifier) ->
+                if not (StringMap.mem inherits.name class_map) then
+                    error_and_exit 0 ("Unknown inherited class: " ^ inherits.name)
+        ) class_.class_ref.inherits
+    in
+
+    StringMap.iter (verify_inherits_class) class_map;
 
     { classes = class_map }
