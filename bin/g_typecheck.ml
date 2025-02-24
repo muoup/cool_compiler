@@ -2,6 +2,7 @@ open D_ast
 open A_util
 module AstIdentifierSet = Set.Make(String)
 (* At some point the environment will have to be passed through these functions (class, method, objects) *)
+type class_environment = {methods : ast_method list; attributes : ast_attribute list}
 
 let verify_expression(expr : ast_expression) : ast_expression = (
   expr
@@ -39,7 +40,7 @@ let verify_attribute(attribute : ast_attribute) : ast_attribute = (
     )
 )
 
-let verify_class(cls : ast_class) : ast_class = (
+let verify_class(cls : ast_class) (class_env: class_environment) : ast_class = (
   (* Name and inherits are checked by verify_classes file *)
   let has_main lst = List.exists (fun (ast_method : ast_method) -> ast_method.name.name = "main") lst in
   (* TODO actually not fully correct (but passes test so I'm leaving it for now ) - main can inherit the method main *)
@@ -92,7 +93,17 @@ let verify_class(cls : ast_class) : ast_class = (
   cls
 )
 
+let create_type_environment(cls : ast_class) (full_ast : ast) : class_environment = (
+  let env = { methods = []; attributes = [] } in
+  env
+)
+
 let verify_ast (ast : ast) : ast =  (
-  let ast = List.map verify_class ast in
+  let pass_environment cls : ast_class = (
+    let env = create_type_environment cls ast in
+    let cls = verify_class cls env in
+    cls
+  ) in
+  let ast = List.map pass_environment ast  in
   ast
 )
