@@ -23,8 +23,9 @@ let output_ast (ast : D_ast.ast) (file_path : string) : unit =
             output_expression   call_on;
             output_identifier   _method;
             output_list         args    output_expression
-        | StaticDispatch    { call_on; _method; args } ->
+        | StaticDispatch    { call_on; _type; _method; args } ->
             output_expression call_on;
+            output_identifier _type;
             output_identifier _method;
             output_list         args    output_expression
         | SelfDispatch      { _method; args } ->
@@ -45,7 +46,7 @@ let output_ast (ast : D_ast.ast) (file_path : string) : unit =
         | BinOp             { left; right; _ } ->
             output_expression   left;
             output_expression   right;
-       | UnOp              { expr; _ } ->
+        | UnOp              { expr; _ } ->
             output_expression   expr;
         | Integer i  ->
             output_number       i

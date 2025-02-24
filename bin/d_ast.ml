@@ -26,8 +26,8 @@ and ast_expression = {
 
 and ast_expression_val =
     | Assign                of { var        : ast_identifier; rhs       : ast_expression }
-    | DynamicDispatch       of { call_on    : ast_expression; _method   : ast_identifier; args   : ast_expression list }
-    | StaticDispatch        of { call_on    : ast_expression; _method   : ast_identifier; args   : ast_expression list }
+    | DynamicDispatch       of { call_on    : ast_expression; _method   : ast_identifier; args      : ast_expression list }
+    | StaticDispatch        of { call_on    : ast_expression; _type     : ast_identifier; _method   : ast_identifier; args   : ast_expression list }
     | SelfDispatch          of { _method    : ast_identifier; args      : ast_expression list }
     | If                    of { predicate  : ast_expression; _then     : ast_expression; _else : ast_expression }
     | While                 of { predicate  : ast_expression; body      : ast_expression }
@@ -148,10 +148,11 @@ let parse_ast (file_contents : string list) : ast =
 
         let parse_static_dispatch (data : parser_data) : (parser_data * ast_expression_val) =
             let data, call_on     = parse_expression data in
+            let data, _type       = parse_identifier data in
             let data, _method     = parse_identifier data in
             let data, args        = parse_list data parse_expression in
 
-            data, StaticDispatch  { call_on = call_on; _method = _method; args = args }
+            data, StaticDispatch  { call_on = call_on; _type = _type; _method = _method; args = args }
         in
 
         let parse_self_dispatch (data : parser_data) : (parser_data * ast_expression_val) =
