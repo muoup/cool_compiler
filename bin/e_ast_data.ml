@@ -36,6 +36,14 @@ let generate_ast_data (ast : ast) : ast_data =
                 error_and_exit method_.name.line_number "Duplicate method definition"
             ;
 
+            let self_type_param_test (param : ast_param) =
+                if param._type.name = "SELF_TYPE" then
+                    error_and_exit param.name.line_number "SELF_TYPE cannot be used in a method parameter";
+                ()
+            in
+
+            List.iter (self_type_param_test) method_.params;
+
             StringMap.add method_.name.name method_ map
         in
 
@@ -74,5 +82,11 @@ let generate_ast_data (ast : ast) : ast_data =
 
     let class_map = List.fold_left (map_fold) StringMap.empty ast in
     let class_map = List.fold_left (populate_data) class_map ast in
+
+    match StringMap.find_opt "Main" class_map with
+    | None -> error_and_exit 0 "Main class not defined!"
+    | Some class_data ->
+            if not (StringMap.mem "main" class_data.methods) then error_and_exit 0 "Main class does not have a main method defined!"
+    ;
 
     { classes = class_map }
