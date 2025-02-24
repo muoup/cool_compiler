@@ -1,11 +1,15 @@
 open D_ast
+open A_util
+
+module StringMap = Map.Make(String)
 
 type class_data = {
     class_ref   : ast_class;
+
+    attributes  : ast_attribute  StringMap.t;
+    methods     : ast_method     StringMap.t;
     sub_classes : ast_identifier list;
 }
-
-module StringMap = Map.Make(String)
 type class_map = class_data StringMap.t
 
 type ast_data = {
@@ -27,8 +31,32 @@ let rec is_subtype_of (classes : class_map) (lhs : ast_identifier) (rhs : ast_id
 
 let generate_ast_data (ast : ast) : ast_data =
     let map_fold (classes : class_map) (_class : ast_class) =
+        let method_fold (map : ast_method StringMap.t) (method_ : ast_method) =
+            if StringMap.mem (method_.name.name) map then
+                error_and_exit method_.name.line_number "Duplicate method definition"
+            ;
+
+            StringMap.add method_.name.name method_ map
+        in
+
+        let attribute_fold (map : ast_attribute StringMap.t) (attribute : ast_attribute) =
+            let name = match attribute with
+            | AttributeNoInit   { name; _ } -> name
+            | AttributeInit     { name; _ } -> name
+            in
+
+            if StringMap.mem name.name map then
+                error_and_exit name.line_number "Duplicate attribute definition" 
+            ;
+
+            StringMap.add name.name attribute map
+        in
+
         let new_data = {
             class_ref = _class;
+            
+            methods = List.fold_left method_fold StringMap.empty _class.methods;
+            attributes = List.fold_left attribute_fold StringMap.empty _class.attributes;
             sub_classes = [];
         }
         in
