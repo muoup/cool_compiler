@@ -107,7 +107,7 @@ let verify_class(cls : ast_class) (class_env: class_environment) : ast_class = (
 
   check_dupe_methods cls.methods;
   check_dupe_attribute cls.attributes;
-  let _ = List.map (check_method_conflict cls.name.name) cls.methods in
+  List.iter (check_method_conflict cls.name.name) cls.methods;
   let cls = { cls with attributes = List.map verify_attribute cls.attributes } in
   let cls = { cls with methods = List.map verify_method cls.methods} in
   cls
