@@ -176,20 +176,17 @@ let rec create_type_environment(cls : ast_class) (full_ast : ast) : class_enviro
   in
   let io_methods : ast_method list = [ out_int_method; out_string_method; in_int_method; in_string_method;] in
 
-  if (Option.is_some cls.inherits) then (
-    if ((Option.get cls.inherits).name = "Object") then (
+  match cls.inherits with
+  | Some parent when parent.name = "Object" ->
       { methods = cls.methods @ object_methods; attributes = cls.attributes }
-    )
-    else if ((Option.get cls.inherits).name = "IO") then (
-      { methods = cls.methods @ io_methods; attributes = cls.attributes  }
-    ) else (
-      let parent_class = find_class_by_name (Option.get cls.inherits).name full_ast in
+  | Some parent when parent.name = "IO" ->
+      { methods = cls.methods @ io_methods; attributes = cls.attributes }
+  | Some parent -> 
+      let parent_class = find_class_by_name parent.name full_ast in
       let parent_type_env = create_type_environment parent_class full_ast in
-      {methods = parent_type_env.methods @ cls.methods; attributes = parent_type_env.attributes @ cls.attributes}
-    )
-  ) else (
-    { methods = cls.methods @ object_methods; attributes = cls.attributes}
-  )
+      { methods = parent_type_env.methods @ cls.methods; attributes = parent_type_env.attributes @ cls.attributes }
+  | None -> 
+      { methods = cls.methods @ object_methods; attributes = cls.attributes }
 )
 
 let verify_ast (ast : ast) : ast =  (
