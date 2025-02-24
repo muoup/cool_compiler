@@ -93,9 +93,93 @@ let verify_class(cls : ast_class) (class_env: class_environment) : ast_class = (
   cls
 )
 
-let create_type_environment(cls : ast_class) (full_ast : ast) : class_environment = (
-  let env = { methods = []; attributes = [] } in
-  env
+let rec create_type_environment(cls : ast_class) (full_ast : ast) : class_environment = (
+  let find_class_by_name (name : string) (classes : ast_class list) : ast_class =
+    List.find (fun (cls : ast_class) -> cls.name.name = name) classes 
+  in
+  let abort_method : ast_method = {
+    name = { name = "abort"; line_number = 0 };
+    params = [];
+    _type = { name = "Object"; line_number = 0 };
+    body = { ident = { name = "abort"; line_number = 0 }; data = Unreachable };
+  }
+  in
+  let type_name_method : ast_method = {
+    name = { name = "type_name"; line_number = 0 };
+    params = [];
+    _type = { name = "String"; line_number = 0 };
+    body = { ident = { name = "type_name"; line_number = 0 }; data = Unreachable };
+  }
+  in
+  let copy_method : ast_method = {
+    name = { name = "copy"; line_number = 0 };
+    params = [];
+    _type = { name = "SELF_TYPE"; line_number = 0 };
+    body = { ident = { name = "copy"; line_number = 0 }; data = Unreachable };
+  }
+  in  
+  let object_methods : ast_method list = [
+    abort_method;
+    type_name_method;
+    copy_method;
+  ] in
+
+  let out_string_method : ast_method = {
+    name = { name = "out_string"; line_number = 0 };
+    params = [];
+    _type = { name = "SELF_TYPE"; line_number = 0 };
+    body = { ident = { name = "abort"; line_number = 0 }; data = Unreachable };
+  }
+  in
+  let out_int_method : ast_method = {
+    name = { name = "out_int"; line_number = 0 };
+    params = [];
+    _type = { name = "SELF_TYPE"; line_number = 0 };
+    body = { ident = { name = "type_name"; line_number = 0 }; data = Unreachable };
+  }
+  in
+  let in_string_method : ast_method = {
+    name = { name = "in_string"; line_number = 0 };
+    params = [{
+      name = { name = "x"; line_number = 0 };
+      _type = { name = "String"; line_number = 0 };
+    }];
+    _type = { name = "String"; line_number = 0 };
+    body = { ident = { name = "abort"; line_number = 0 }; data = Unreachable };
+  }
+  in
+  let in_int_method : ast_method = {
+    name = { name = "in_int"; line_number = 0 };
+    params = [{
+      name = { name = "x"; line_number = 0 };
+      _type = { name = "Int"; line_number = 0 };
+    }];
+    _type = { name = "Int"; line_number = 0 };
+    body = { ident = { name = "type_name"; line_number = 0 }; data = Unreachable };
+  }
+  in
+  let io_methods : ast_method list= [
+    out_int_method;
+    out_string_method;
+    in_int_method;
+  in_string_method;
+  ] in
+
+  if (Option.is_some cls.inherits) then (
+    if ((Option.get cls.inherits).name = "Object") then (
+      { methods = cls.methods @ object_methods; attributes = cls.attributes }
+    )
+    else if ((Option.get cls.inherits).name = "IO") then (
+      { methods = cls.methods @ io_methods; attributes = cls.attributes  }
+    ) else (
+      Printf.printf "%s\n" (Option.get cls.inherits).name;
+      let parent_class = find_class_by_name cls.name.name full_ast in
+      let parent_type_env = create_type_environment parent_class full_ast in
+      {methods = parent_type_env.methods @ cls.methods; attributes = parent_type_env.attributes @ cls.attributes}
+    )
+  ) else (
+    { methods = cls.methods @ object_methods; attributes = cls.attributes}
+  )
 )
 
 let verify_ast (ast : ast) : ast =  (
