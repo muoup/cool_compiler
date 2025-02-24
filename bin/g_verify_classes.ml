@@ -27,14 +27,6 @@ let verify_classes (ast : ast) : unit =
         illegal_inheritance rest
   in
 
-  let rec check_name = function
-  | [] ->  ()
-  | { name; _ } :: rest ->
-  if (name.name = "Int" || name.name = "String" || name.name = "Bool" || name.name = "Object" || name.name = "IO") then
-    error_and_exit name.line_number ("class " ^ name.name ^ " redefined");
-  check_name rest
-  in
-
   let extract_inherited_names (ast : ast) : string list =
     List.filter_map (fun cls -> 
       match cls.inherits with
@@ -89,9 +81,7 @@ let verify_classes (ast : ast) : unit =
       in process [] lst
   in
 
-  (*check_name ast;*)
   check_for_main ast;
   illegal_inheritance ast;
-  check_inherits ast;
   find_duplicates ast;
   check_cycles (convert_ast_class_list ast)
