@@ -43,11 +43,30 @@ let verify_attribute(attribute : ast_attribute) : ast_attribute = (
 let verify_class(cls : ast_class) (class_env: class_environment) : ast_class = (
   (* Name and inherits are checked by verify_classes file *)
   let has_main lst = List.exists (fun (ast_method : ast_method) -> ast_method.name.name = "main") lst in
-  (* TODO actually not fully correct (but passes test so I'm leaving it for now ) - main can inherit the method main *)
   if (cls.name.name = "Main") then (
-    if (not (has_main cls.methods)) then
+    if (not (has_main class_env.methods)) then
     error_and_exit 0 "class Main method main not found";
   ); 
+
+  let check_method_conflict (class_name : string) (method_to_check : ast_method) =
+    match List.find_opt (fun (m : ast_method) -> m.name.name = method_to_check.name.name) class_env.methods with
+    | Some existing_method ->
+        if existing_method._type.name <> method_to_check._type.name  then (
+          error_and_exit method_to_check.name.line_number ("class " ^ class_name ^ " redefines method " ^ method_to_check.name.name
+        ^ " and changes return type (from " ^ existing_method._type.name ^ " to " ^ method_to_check._type.name ^ ")"); 
+        )
+        else if existing_method.params <> method_to_check.params then (
+          if (List.length existing_method.params <> List.length method_to_check.params) then (
+            error_and_exit method_to_check.name.line_number ("class " ^ class_name ^ " redefines method " ^ method_to_check.name.name 
+            ^ " and changes number of formals")
+          )
+          else (
+            error_and_exit method_to_check.name.line_number ("class " ^ class_name ^ " redefines method " ^ method_to_check.name.name 
+            ^ " and changes type of formal")
+          )
+          )
+    | None -> ()
+  in
 
   (* Combining these two possible? *)
   let check_dupe_attribute (attrs: ast_attribute list) : unit =
@@ -88,6 +107,7 @@ let verify_class(cls : ast_class) (class_env: class_environment) : ast_class = (
 
   check_dupe_methods cls.methods;
   check_dupe_attribute cls.attributes;
+  let _ = List.map (check_method_conflict cls.name.name) cls.methods in
   let cls = { cls with attributes = List.map verify_attribute cls.attributes } in
   let cls = { cls with methods = List.map verify_method cls.methods} in
   cls
@@ -118,11 +138,7 @@ let rec create_type_environment(cls : ast_class) (full_ast : ast) : class_enviro
     body = { ident = { name = "copy"; line_number = 0 }; data = Unreachable };
   }
   in  
-  let object_methods : ast_method list = [
-    abort_method;
-    type_name_method;
-    copy_method;
-  ] in
+  let object_methods : ast_method list = [ abort_method; type_name_method; copy_method;] in
 
   let out_string_method : ast_method = {
     name = { name = "out_string"; line_number = 0 };
@@ -158,12 +174,7 @@ let rec create_type_environment(cls : ast_class) (full_ast : ast) : class_enviro
     body = { ident = { name = "type_name"; line_number = 0 }; data = Unreachable };
   }
   in
-  let io_methods : ast_method list= [
-    out_int_method;
-    out_string_method;
-    in_int_method;
-  in_string_method;
-  ] in
+  let io_methods : ast_method list = [ out_int_method; out_string_method; in_int_method; in_string_method;] in
 
   if (Option.is_some cls.inherits) then (
     if ((Option.get cls.inherits).name = "Object") then (
@@ -172,8 +183,7 @@ let rec create_type_environment(cls : ast_class) (full_ast : ast) : class_enviro
     else if ((Option.get cls.inherits).name = "IO") then (
       { methods = cls.methods @ io_methods; attributes = cls.attributes  }
     ) else (
-      Printf.printf "%s\n" (Option.get cls.inherits).name;
-      let parent_class = find_class_by_name cls.name.name full_ast in
+      let parent_class = find_class_by_name (Option.get cls.inherits).name full_ast in
       let parent_type_env = create_type_environment parent_class full_ast in
       {methods = parent_type_env.methods @ cls.methods; attributes = parent_type_env.attributes @ cls.attributes}
     )
