@@ -19,7 +19,12 @@ and ast_case_mapping = {
     maps_to         : ast_expression;
 }
 
-and ast_expression =
+and ast_expression = {
+    ident: ast_identifier;
+    data: ast_expression_val
+}
+
+and ast_expression_val =
     | Assign                of { var        : ast_identifier; rhs       : ast_expression }
     | DynamicDispatch       of { call_on    : ast_expression; _method   : ast_identifier; args   : ast_expression list }
     | StaticDispatch        of { call_on    : ast_expression; _method   : ast_identifier; args   : ast_expression list }
@@ -36,8 +41,8 @@ and ast_expression =
     | Identifier            of ast_identifier
     | True             
     | False      
-    | LetBindingNoInit      of { variable : ast_identifier; _type : ast_identifier;                         _in : ast_expression }
-    | LetBindingInit        of { variable : ast_identifier; _type : ast_identifier; value : ast_expression; _in : ast_expression }
+    | LetBindingNoInit      of { type_ident : ast_identifier; variable : ast_identifier; _type : ast_identifier;                         _in : ast_expression }
+    | LetBindingInit        of { type_ident : ast_identifier; variable : ast_identifier; _type : ast_identifier; value : ast_expression; _in : ast_expression }
     | Case                  of { expression : ast_expression; mapping_list : ast_case_mapping list }
     | Unreachable
 
@@ -125,15 +130,15 @@ let parse_ast (file_contents : string list) : ast =
     in
 
     let rec parse_expression (data : parser_data) : (parser_data * ast_expression) =
-        
-        let parse_assignment (data : parser_data) : (parser_data * ast_expression) =
+
+        let parse_assignment (data : parser_data) : (parser_data * ast_expression_val) =
             let data, ident = parse_identifier data in
             let data, rval  = parse_expression data in
 
             data, Assign { var = ident; rhs = rval }
         in
 
-        let parse_dyn_dispatch (data : parser_data) : (parser_data * ast_expression) =
+        let parse_dyn_dispatch (data : parser_data) : (parser_data * ast_expression_val) =
             let data, call_on     = parse_expression data in
             let data, _method     = parse_identifier data in
             let data, args        = parse_list data parse_expression in
@@ -141,7 +146,7 @@ let parse_ast (file_contents : string list) : ast =
             data, DynamicDispatch { call_on = call_on; _method = _method; args = args }
         in
 
-        let parse_static_dispatch (data : parser_data) : (parser_data * ast_expression) =
+        let parse_static_dispatch (data : parser_data) : (parser_data * ast_expression_val) =
             let data, call_on     = parse_expression data in
             let data, _method     = parse_identifier data in
             let data, args        = parse_list data parse_expression in
@@ -149,14 +154,14 @@ let parse_ast (file_contents : string list) : ast =
             data, StaticDispatch  { call_on = call_on; _method = _method; args = args }
         in
 
-        let parse_self_dispatch (data : parser_data) : (parser_data * ast_expression) =
+        let parse_self_dispatch (data : parser_data) : (parser_data * ast_expression_val) =
             let data, method_name = parse_identifier data in
             let data, call_params = parse_list data parse_expression in
             
             data, SelfDispatch { _method = method_name; args =  call_params }
         in
 
-        let parse_if_statement (data : parser_data) : (parser_data * ast_expression) =
+        let parse_if_statement (data : parser_data) : (parser_data * ast_expression_val) =
             let data, predicate = parse_expression data in
             let data, _then     = parse_expression data in
             let data, _else     = parse_expression data in
@@ -164,90 +169,83 @@ let parse_ast (file_contents : string list) : ast =
             data, If { predicate = predicate; _then = _then; _else = _else }
         in
 
-        let parse_while_loop (data : parser_data) : (parser_data * ast_expression) =
+        let parse_while_loop (data : parser_data) : (parser_data * ast_expression_val) =
             let data, predicate = parse_expression data in
             let data, body      = parse_expression data in
 
             data, While { predicate = predicate; body = body }
         in
 
-        let parse_block (data : parser_data) : (parser_data * ast_expression) =
+        let parse_block (data : parser_data) : (parser_data * ast_expression_val) =
             let data, body = parse_list data parse_expression in
 
             data, Block { body = body }
         in
 
-        let parse_new (data : parser_data) : (parser_data * ast_expression) =
+        let parse_new (data : parser_data) : (parser_data * ast_expression_val) =
             let data, ident = parse_identifier data in
 
             data, New { _class = ident }
         in
 
-        let parse_is_void (data : parser_data) : (parser_data * ast_expression) =
+        let parse_is_void (data : parser_data) : (parser_data * ast_expression_val) =
             let data, expr = parse_expression data in
 
             data, IsVoid { expr = expr }
         in
 
-        let parse_bin_op (data : parser_data) (op_type : ast_bin_op_type) : (parser_data * ast_expression) =
+        let parse_bin_op (data : parser_data) (op_type : ast_bin_op_type) : (parser_data * ast_expression_val) =
             let data, left = parse_expression data in
             let data, right = parse_expression data in
 
             data, BinOp { left = left; right = right; op = op_type }
         in
 
-        let parse_un_op (data : parser_data) (op_type : ast_un_op_type) : (parser_data * ast_expression) =
+        let parse_un_op (data : parser_data) (op_type : ast_un_op_type) : (parser_data * ast_expression_val) =
             let data, expr = parse_expression data in
 
             data, UnOp { expr = expr; op = op_type }
         in
 
-        let parse_int_expr (data : parser_data) : (parser_data * ast_expression) =
-            let num = parse_int (List.hd data.file_contents) in
+        let parse_int_expr (data : parser_data) : (parser_data * ast_expression_val) =
+            let val_ = parse_int (List.hd data.file_contents) in
+            let data = pop_data_lines data 1 in
+        
+            data, Integer val_ 
+        in
+
+        let parse_string (data : parser_data) : (parser_data * ast_expression_val) =
+            let val_ = List.hd data.file_contents in
             let data = pop_data_lines data 1 in
 
-            data, Integer num
+            data, String val_
         in
 
-        let parse_string (data : parser_data) : (parser_data * ast_expression) =
-            let str_val = List.hd data.file_contents in
- 
-            (pop_data_lines data 1, String str_val)
-        in
-
-        let parse_identifier_expr (data : parser_data) : (parser_data * ast_expression) =
+        let parse_identifier_expr (data : parser_data) : (parser_data * ast_expression_val) =
             let data, identifier = parse_identifier data in
 
             data, Identifier identifier
         in
+ 
+        let parse_let (data : parser_data) : (parser_data * ast_expression_val) =
+            let data, type_ident   = parse_identifier data in
+            let data, variable     = parse_identifier data in
+            let data, _type        = parse_identifier data in
         
-        let parse_let (data: parser_data) : (parser_data * ast_expression) =
-            let parse_no_init (data : parser_data) : (parser_data * ast_expression) =
-                let data, var     = parse_identifier data in
-                let data, _type   = parse_identifier data in
-                let data, _in     = parse_expression data in
-                
-                data, LetBindingNoInit { variable = var; _type = _type; _in = _in }
-            in
+            match type_ident.name with
+            | "let_binding_init" ->
+                    let data, value       = parse_expression data in
+                    let data, _in         = parse_expression data in
 
-            let parse_init (data : parser_data) : (parser_data * ast_expression) =
-                let data, var     = parse_identifier data in
-                let data, _type   = parse_identifier data in
-                let data, value   = parse_expression data in
-                let data, _in     = parse_expression data in
+                    data, LetBindingInit    { type_ident; variable; _type; value; _in }
+            | "let_binding_no_init" ->
+                    let data, _in         = parse_expression data in
 
-                data, LetBindingInit { variable = var; _type = _type; value = value; _in = _in }
-            in
-
-            let data, init = parse_identifier data in
-
-            match init.name with
-            | "let_binding_no_init"         -> parse_no_init data
-            | "let_binding_init"            -> parse_init data
-            | _                             -> Printf.printf "invalid let type: %s" init.name; raise Ast_error 
+                    data, LetBindingNoInit  { type_ident; variable; _type; _in }
+            | x -> Printf.printf "Unknown let binding type: %s\n" x; exit 1
         in
 
-        let parse_case (data : parser_data) : (parser_data * ast_expression) =
+        let parse_case (data : parser_data) : (parser_data * ast_expression_val) =
             let parse_case_mapping (data : parser_data) : (parser_data * ast_case_mapping) =
                 let data, var_name = parse_identifier data in
                 let data, var_type = parse_identifier data in
@@ -264,7 +262,7 @@ let parse_ast (file_contents : string list) : ast =
 
         let data, expr_type = parse_identifier data in
 
-        match expr_type.name with
+        let data, expr_data = match expr_type.name with
         | "assign"              -> parse_assignment data
         | "dynamic_dispatch"    -> parse_dyn_dispatch data
         | "static_dispatch"     -> parse_static_dispatch data
@@ -293,6 +291,9 @@ let parse_ast (file_contents : string list) : ast =
         | unsupported -> 
                 Printf.printf "Unsupported expression: %s\n" unsupported;
                 raise Ast_error
+        in
+
+        data, { ident = expr_type; data = expr_data }
     in
 
     let parse_parameters (data : parser_data) : (parser_data * ast_param list) =
