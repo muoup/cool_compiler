@@ -16,6 +16,14 @@ type ast_data = {
     classes : class_map
 }
 
+let rec get_attributes (classes : class_map) (class_name : ast_identifier) : ast_attribute list =
+    let _class = StringMap.find class_name.name classes in
+    let self_attributes = _class.class_ref.attributes in
+
+    match _class.class_ref.inherits with
+    | None -> self_attributes
+    | Some inherit_from -> (get_attributes classes inherit_from) @ self_attributes
+
 let supertype_of (classes : class_map) (class_name : ast_identifier) : ast_identifier =
     let instance = (StringMap.find class_name.name classes).class_ref.inherits in
 

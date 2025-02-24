@@ -1,8 +1,6 @@
-let output_ast (ast : D_ast.ast) (file_path : string) : unit =
-    let output_list (l: 'a list) (for_each : 'a -> unit) =
-        List.iter for_each l
-    in
+module StringMap = Map.Make(String)
 
+let output_ast (ast : E_ast_data.ast_data) (file_path : string) : unit =
     let oc = open_out file_path in
 
     let output_line (line : string) = Printf.fprintf oc "%s\n" line in
@@ -10,6 +8,10 @@ let output_ast (ast : D_ast.ast) (file_path : string) : unit =
     let output_identifier (ident : D_ast.ast_identifier) =
         output_number ident.line_number;
         output_line ident.name;
+    in
+    let output_list (l: 'a list) (for_each : 'a -> unit) =  
+        output_number (List.length l);
+        List.iter for_each l
     in
 
     let rec output_expression (expr : D_ast.ast_expression) =
@@ -36,7 +38,8 @@ let output_ast (ast : D_ast.ast) (file_path : string) : unit =
             output_expression   _then;
             output_expression   _else
         | While             { predicate; body } -> 
-            output_expression   predicate
+            output_expression   predicate;
+            output_expression   body
         | Block             { body } ->
             output_list         body    output_expression
         | New               { _class } ->
@@ -56,17 +59,24 @@ let output_ast (ast : D_ast.ast) (file_path : string) : unit =
             output_identifier   ident
         | True -> ()
         | False -> ()
-        | LetBindingNoInit      { type_ident; variable; _type; _in } ->
-            output_identifier   type_ident;
-            output_identifier   variable;
-            output_identifier   _type;
-            output_expression   _in;
-        | LetBindingInit        { type_ident; variable; _type; value; _in } ->
-            output_identifier   type_ident;
-            output_identifier   variable;
-            output_identifier   _type;
-            output_expression   value;
-            output_expression   _in;
+        | Let               { bindings; _in } ->
+            let output_binding (binding : D_ast.ast_let_binding_type) : unit =
+                (match binding with 
+                | LetBindingNoInit      { variable; _type } ->
+                    output_line         "let_binding_no_init";
+                    output_identifier   variable;
+                    output_identifier   _type;
+                    output_expression   _in
+                | LetBindingInit        { variable; _type; value } ->
+                    output_line         "let_binding_init";
+                    output_identifier   variable;
+                    output_identifier   _type;
+                    output_expression   value;
+                    output_expression   _in)
+            in
+
+            output_number       (List.length bindings);
+            List.iter           output_binding bindings
         | Case                  { expression; mapping_list } ->
             output_expression   expression;
 
@@ -76,6 +86,7 @@ let output_ast (ast : D_ast.ast) (file_path : string) : unit =
                 output_expression   mapping.maps_to
             in
 
+            output_number       (List.length mapping_list);
             List.iter           output_case_mapping mapping_list
         | Unreachable -> output_line "unreachable"
         | _ -> Printf.printf "Unhandled Expression!\n"; exit 1
@@ -83,12 +94,9 @@ let output_ast (ast : D_ast.ast) (file_path : string) : unit =
 
     let output_class_map =
         output_line "class_map";
-        output_number (List.length ast);
+        output_number (StringMap.cardinal ast.classes);
 
-        let output_class (_class : D_ast.ast_class) : unit =
-            output_line _class.name.name;
-            output_number (List.length _class.attributes);
-        
+        let output_class _ (class_data : E_ast_data.class_data) : unit =
             let output_attribute (_attr : D_ast.ast_attribute) : unit =
                 match _attr with
                 | AttributeNoInit   { name; _type } ->
@@ -102,10 +110,14 @@ let output_ast (ast : D_ast.ast) (file_path : string) : unit =
                         output_expression init
             in
 
-            List.iter output_attribute _class.attributes
+            let attributes = E_ast_data.get_attributes ast.classes class_data.class_ref.name in
+
+            output_line class_data.class_ref.name.name;
+            output_number (List.length attributes);
+            List.iter output_attribute attributes
         in
 
-        List.iter output_class ast
+        StringMap.iter output_class ast.classes
     in
 
     output_class_map

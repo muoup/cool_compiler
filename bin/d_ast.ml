@@ -24,6 +24,10 @@ and ast_expression = {
     data: ast_expression_val
 }
 
+and ast_let_binding_type =
+    | LetBindingNoInit      of { variable : ast_identifier; _type : ast_identifier;                         }
+    | LetBindingInit        of { variable : ast_identifier; _type : ast_identifier; value : ast_expression; }
+
 and ast_expression_val =
     | Assign                of { var        : ast_identifier; rhs       : ast_expression }
     | DynamicDispatch       of { call_on    : ast_expression; _method   : ast_identifier; args      : ast_expression list }
@@ -39,11 +43,11 @@ and ast_expression_val =
     | Integer               of int
     | String                of string
     | Identifier            of ast_identifier
+    | Let                   of { bindings : ast_let_binding_type list; _in : ast_expression }
     | True             
     | False      
-    | LetBindingNoInit      of { type_ident : ast_identifier; variable : ast_identifier; _type : ast_identifier;                         _in : ast_expression }
-    | LetBindingInit        of { type_ident : ast_identifier; variable : ast_identifier; _type : ast_identifier; value : ast_expression; _in : ast_expression }
     | Case                  of { expression : ast_expression; mapping_list : ast_case_mapping list }
+    | Unit
     | Unreachable
 
 and ast_param =               { name : ast_identifier; _type : ast_identifier }
@@ -70,6 +74,7 @@ and ast  = ast_class list
 exception Ast_error
 
 type parser_data = {
+    line_number         : int;
     file_contents       : string list;
 }
 
@@ -81,22 +86,22 @@ let pop_data_lines (data : parser_data) (n : int) : parser_data =
         | n -> ntail (List.tl lst) (n - 1)
     in
 
-    { file_contents = ntail data.file_contents n }
+    { line_number = data.line_number + n; file_contents = ntail data.file_contents n }
 
 (* utility method *)
 (* int_of_string wrapper that logs an error when given invalid input *)
-let parse_int (str : string) : int =
-    match int_of_string_opt str with
-    | Some x -> x
+let parse_int (data : parser_data) : (parser_data * int) =
+    match int_of_string_opt (List.hd data.file_contents) with
+    | Some x -> (pop_data_lines data 1), x
     | None ->
-        Printf.printf "Unknown line number: %s\n" str;
+        Printf.printf "Unknown line number: %s at line %d\n" (List.hd data.file_contents) data.line_number;
         raise Ast_error
 
-let generate_native_classes : ast_class list =
-    let native_identifier (str : string) : ast_identifier =
-        { name = str; line_number = 0 }
-    in
 
+let native_identifier (str : string) : ast_identifier =
+    { name = str; line_number = 0 }
+
+let generate_native_classes : ast_class list =
     [
         { name = native_identifier "Object"; inherits = None; attributes = []; methods = [] };
         { name = native_identifier "String"; inherits = None; attributes = []; methods = [] };
@@ -116,17 +121,16 @@ let parse_list (data : parser_data) (mapping : parser_data -> (parser_data * 'a)
             (data, produced :: acc)
     in
 
-    let line_count = parse_int (List.hd data.file_contents) in
-    let data = pop_data_lines data 1 in
+    let data, line_count = parse_int data in
 
     internal_rec data mapping line_count [] 
 
 let parse_ast (file_contents : string list) : ast =
     let parse_identifier (data : parser_data) : (parser_data * ast_identifier) =
-        let identifier = List.nth data.file_contents 1 in
-        let line_number = parse_int (List.hd data.file_contents) in
+        let data, line_number = parse_int data in
+        let identifier = List.hd data.file_contents in
 
-        (pop_data_lines data 2, { name = identifier; line_number = line_number })
+        (pop_data_lines data 1, { name = identifier; line_number = line_number })
     in
 
     let rec parse_expression (data : parser_data) : (parser_data * ast_expression) =
@@ -209,8 +213,7 @@ let parse_ast (file_contents : string list) : ast =
         in
 
         let parse_int_expr (data : parser_data) : (parser_data * ast_expression_val) =
-            let val_ = parse_int (List.hd data.file_contents) in
-            let data = pop_data_lines data 1 in
+            let data, val_ = parse_int data in
         
             data, Integer val_ 
         in
@@ -229,21 +232,24 @@ let parse_ast (file_contents : string list) : ast =
         in
  
         let parse_let (data : parser_data) : (parser_data * ast_expression_val) =
-            let data, type_ident   = parse_identifier data in
-            let data, variable     = parse_identifier data in
-            let data, _type        = parse_identifier data in
+            let parse_let_binding (data : parser_data) : (parser_data * ast_let_binding_type) =
+                let type_ident         = (List.hd data.file_contents) in
+                let data               = pop_data_lines data 1 in
+                let data, variable     = parse_identifier data in
+                let data, _type        = parse_identifier data in
         
-            match type_ident.name with
-            | "let_binding_init" ->
-                    let data, value       = parse_expression data in
-                    let data, _in         = parse_expression data in
+                match type_ident with
+                | "let_binding_init" ->
+                        let data, value       = parse_expression data in
+                        data, LetBindingInit    { variable; _type; value }
+                | "let_binding_no_init" ->
+                        data, LetBindingNoInit  { variable; _type }
+                | x -> Printf.printf "Unknown let binding type: %s\n" x; exit 1
+            in
 
-                    data, LetBindingInit    { type_ident; variable; _type; value; _in }
-            | "let_binding_no_init" ->
-                    let data, _in         = parse_expression data in
-
-                    data, LetBindingNoInit  { type_ident; variable; _type; _in }
-            | x -> Printf.printf "Unknown let binding type: %s\n" x; exit 1
+            let data, binding_list = parse_list data parse_let_binding in
+            let data, _in          = parse_expression data in
+            data, Let { bindings = binding_list; _in }
         in
 
         let parse_case (data : parser_data) : (parser_data * ast_expression_val) =
@@ -262,7 +268,6 @@ let parse_ast (file_contents : string list) : ast =
         in
 
         let data, expr_type = parse_identifier data in
-
         let data, expr_data = match expr_type.name with
         | "assign"              -> parse_assignment data
         | "dynamic_dispatch"    -> parse_dyn_dispatch data
@@ -353,7 +358,7 @@ let parse_ast (file_contents : string list) : ast =
             let data, attribute = parse_attribute_init data in
             data, { _class with attributes = _class.attributes @ [attribute] }
         | invalid -> 
-                Printf.printf "Invalid Body Expression Type: %s\n" invalid;
+                Printf.printf "Invalid Body Expression Type: %s at line %d\n" invalid data.line_number;
                 raise Ast_error
     in
 
@@ -371,8 +376,7 @@ let parse_ast (file_contents : string list) : ast =
                 Printf.printf "Unexpected inherits: %s" x;
                 raise Ast_error
         in
-        let body_exprs = parse_int (List.hd data.file_contents) in
-        let data = pop_data_lines data 1 in
+        let data, body_exprs = parse_int data in
         let _class = {
             name = class_name;
             inherits = inherits;
@@ -392,6 +396,7 @@ let parse_ast (file_contents : string list) : ast =
     in
 
     let data = {
+        line_number = 1;
         file_contents = file_contents;
     } in
 

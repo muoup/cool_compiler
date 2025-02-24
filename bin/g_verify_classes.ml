@@ -83,6 +83,5 @@ let verify_classes (ast : ast) : unit =
 
   check_for_main ast;
   illegal_inheritance ast;
-  check_inherits ast;
   find_duplicates ast;
   check_cycles (convert_ast_class_list ast)
