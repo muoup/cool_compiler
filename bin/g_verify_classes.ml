@@ -31,6 +31,9 @@ let verify_classes (ast : ast) : unit =
   let rec find_duplicates = function
       | [] -> ()
       | { name; _ } :: rest ->
+      if (name.name = "SELF_TYPE") then (
+        error_and_exit name.line_number "class named SELF_TYPE"
+      );
       if Hashtbl.mem seen name.name then (
           error_and_exit name.line_number ("Class " ^ name.name ^ " redefined.")
       ) else (
