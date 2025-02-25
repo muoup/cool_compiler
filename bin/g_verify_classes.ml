@@ -27,23 +27,6 @@ let verify_classes (ast : ast) : unit =
         illegal_inheritance rest
   in
 
-  let extract_inherited_names (ast : ast) : string list =
-    List.filter_map (fun cls -> 
-      match cls.inherits with
-      | Some id -> Some id.name
-      | None -> None
-    ) ast
-  in
-  let rec check_inherits = function
-  | [] ->  ()
-  | { name; inherits; _ } :: rest ->
-  if (Option.is_some inherits) then (
-  if not (List.mem name.name (extract_inherited_names ast) || (Option.get inherits).name = "IO") then
-    error_and_exit name.line_number ("class " ^ name.name ^ " inherits from unknown class " ^ (Option.get inherits).name);
-    check_inherits rest    
-  )
-  in
-
   let seen = Hashtbl.create (List.length ast) in
   let rec find_duplicates = function
       | [] -> ()

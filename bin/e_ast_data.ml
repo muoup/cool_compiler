@@ -2,6 +2,7 @@ open D_ast
 open A_util
 
 module StringMap = Map.Make(String)
+module StringSet = Set.Make(String)
 
 type class_data = {
     class_ref   : ast_class;
@@ -50,6 +51,21 @@ let generate_ast_data (ast : ast) : ast_data =
 
                 ()
             in
+
+            let has_duplicate_names (params : ast_param list) : bool =
+                let rec aux (seen : StringSet.t) (rest : ast_param list) : bool =
+                  match rest with
+                  | [] -> false
+                  | { name = { name = param_name; _ }; _ } :: tail ->
+                      if StringSet.mem param_name seen then true
+                      else aux (StringSet.add param_name seen) tail
+                in
+                aux StringSet.empty params
+            in
+
+            if (has_duplicate_names _method.params) then (
+                error_and_exit _method.name.line_number ("Duplicate parameters in method " ^ _method.name.name);
+            );
 
             List.iter (self_type_param_test) _method.params;
 
