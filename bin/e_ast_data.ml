@@ -2,6 +2,7 @@ open D_ast
 open A_util
 
 module StringMap = Map.Make(String)
+module StringSet = Set.Make(String)
 
 type class_data = {
     class_ref   : ast_class;
@@ -45,11 +46,27 @@ let generate_ast_data (ast : ast) : ast_data =
             ;
 
             let self_type_param_test (param : ast_param) =
-                if param._type.name = "SELF_TYPE" then
-                    error_and_exit param.name.line_number "SELF_TYPE cannot be used in a method parameter";
-
+                if param._type.name = "SELF_TYPE" then 
+                    error_and_exit param.name.line_number "SELF_TYPE cannot be used in a method parameter"; 
+                if param.name.name = "self" then 
+                    error_and_exit param.name.line_number ("A parameter cannot be named " ^ param.name.name);
                 ()
             in
+
+            let has_duplicate_names (params : ast_param list) : bool =
+                let rec aux (seen : StringSet.t) (rest : ast_param list) : bool =
+                  match rest with
+                  | [] -> false
+                  | { name = { name = param_name; _ }; _ } :: tail ->
+                      if StringSet.mem param_name seen then true
+                      else aux (StringSet.add param_name seen) tail
+                in
+                aux StringSet.empty params
+            in
+
+            if (has_duplicate_names _method.params) then (
+                error_and_exit _method.name.line_number ("Duplicate parameters in method " ^ _method.name.name);
+            );
 
             List.iter (self_type_param_test) _method.params;
 
@@ -63,8 +80,11 @@ let generate_ast_data (ast : ast) : ast_data =
             in
 
             if StringMap.mem name.name map then
-                error_and_exit name.line_number "Duplicate attribute definition" 
-            ;
+                error_and_exit name.line_number "Duplicate attribute definition";
+
+            if (name.name = "self") then
+                error_and_exit name.line_number "An attribute cannot be named self";
+        
 
             StringMap.add name.name attribute map
         in

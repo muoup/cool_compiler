@@ -1,4 +1,7 @@
 class Main inherits IO {
+	x : Int <- 5;
+	self : Int <- 5;
+
     main() : SELF_TYPE {
 	{
 	    out_string((new Object).type_name().substr(4,1)).
