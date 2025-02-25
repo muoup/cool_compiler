@@ -69,7 +69,7 @@ let rec verify_inherited_attributes (data : inheritance_data) (class_name : stri
         if Option.is_some (StringSet.find_opt name.name data.inherited_attributes) then
             error_and_exit name.line_number "Attempt to override an inherited attribute"
         ;
-
+            (* Attribute named self *)
         { data with inherited_attributes = StringSet.add name.name data.inherited_attributes }
     in
 

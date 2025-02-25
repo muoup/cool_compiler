@@ -6,4 +6,8 @@ class Main inherits IO {
 	    out_string("\n");
 	}
     };
+
+	x(self : Int) : Int {
+		2
+	};
 };

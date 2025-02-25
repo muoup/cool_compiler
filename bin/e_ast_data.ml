@@ -46,9 +46,10 @@ let generate_ast_data (ast : ast) : ast_data =
             ;
 
             let self_type_param_test (param : ast_param) =
-                if param._type.name = "SELF_TYPE" then
-                    error_and_exit param.name.line_number "SELF_TYPE cannot be used in a method parameter";
-
+                if param._type.name = "SELF_TYPE" then 
+                    error_and_exit param.name.line_number "SELF_TYPE cannot be used in a method parameter"; 
+                if param.name.name = "self" then 
+                    error_and_exit param.name.line_number ("A parameter cannot be named " ^ param.name.name);
                 ()
             in
 
