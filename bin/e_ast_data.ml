@@ -80,8 +80,11 @@ let generate_ast_data (ast : ast) : ast_data =
             in
 
             if StringMap.mem name.name map then
-                error_and_exit name.line_number "Duplicate attribute definition" 
-            ;
+                error_and_exit name.line_number "Duplicate attribute definition";
+
+            if (name.name = "self") then
+                error_and_exit name.line_number "An attribute cannot be named self";
+        
 
             StringMap.add name.name attribute map
         in

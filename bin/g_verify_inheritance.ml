@@ -67,9 +67,8 @@ let rec verify_inherited_attributes (data : inheritance_data) (class_name : stri
         in
 
         if Option.is_some (StringSet.find_opt name.name data.inherited_attributes) then
-            error_and_exit name.line_number "Attempt to override an inherited attribute"
-        ;
-            (* Attribute named self *)
+            error_and_exit name.line_number "Attempt to override an inherited attribute";
+        
         { data with inherited_attributes = StringSet.add name.name data.inherited_attributes }
     in
 
@@ -86,17 +85,17 @@ let abort_method : ast_method = {
     }
     
     let type_name_method : ast_method = {
-    name = { name = "type_name"; line_number = 0 };
-    params = [];
-    _type = { name = "String"; line_number = 0 };
-    body = { ident = { name = "type_name"; line_number = 0 }; data = Unreachable };
+        name = { name = "type_name"; line_number = 0 };
+        params = [];
+        _type = { name = "String"; line_number = 0 };
+        body = { ident = { name = "type_name"; line_number = 0 }; data = Unreachable };
     }
     
     let copy_method : ast_method = {
-    name = { name = "copy"; line_number = 0 };
-    params = [];
-    _type = { name = "SELF_TYPE"; line_number = 0 };
-    body = { ident = { name = "copy"; line_number = 0 }; data = Unreachable };
+        name = { name = "copy"; line_number = 0 };
+        params = [];
+        _type = { name = "SELF_TYPE"; line_number = 0 };
+        body = { ident = { name = "copy"; line_number = 0 }; data = Unreachable };
     }
     
     let object_methods : ast_method list = [ abort_method; type_name_method; copy_method;]
