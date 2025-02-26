@@ -50,5 +50,5 @@ let () =
 
     G_verify_classes.verify_classes ast;
     G_verify_inheritance.verify_inheritance ast_data;
-
+    let _ = G_typecheck.verify_ast ast in
     F_output.output_ast ast_data (change_file_extension file_name "cl-type")
