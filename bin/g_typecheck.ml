@@ -1,144 +1,143 @@
 open D_ast
 open A_util
 module AstIdentifierSet = Set.Make(String)
-type typed_ast_expression = {
-  _type: string;
-  ident: ast_identifier;
-  data: ast_expression_val
-}
 
-let rec verify_expression(expr : typed_ast_expression) : typed_ast_expression  = (
+let rec verify_expression(expr : ast_expression) : string  = (
   match expr.data with
 
     | Assign { var : ast_identifier; rhs : ast_expression } -> (
-        let typed_rhs = verify_expression {_type = "Unknown"; ident = rhs.ident; data = rhs.data} in
+        let rhs_type = verify_expression rhs in
         (* let var_type = lookup_in_symbol_table var  *)
         (* if rhs type > var type error *)
-        {_type = typed_rhs._type; ident = expr.ident; data = expr.data}
+          rhs_type
       )
 
     | DynamicDispatch { call_on : ast_expression; _method: ast_identifier; args : ast_expression list } -> (
-        {_type = "Unknown"; ident = expr.ident; data = expr.data}
+        "Unknown"
       )
 
     | StaticDispatch { call_on : ast_expression; _type : ast_identifier; _method : ast_identifier; args : ast_expression list } -> (
-        {_type = "Unknown"; ident = expr.ident; data = expr.data}
+      "Unknown"
       )
 
     | SelfDispatch { _method : ast_identifier; args : ast_expression list } -> (
-        {_type = "Unknown"; ident = expr.ident; data = expr.data}
+      "Unknown"
       )
 
     | If { predicate : ast_expression; _then : ast_expression; _else : ast_expression } -> (
-        let typed_predicate = verify_expression {_type = "Unknown"; ident = predicate.ident; data = predicate.data} in
-        if typed_predicate._type <> "Bool" then
-          error_and_exit typed_predicate.ident.line_number ("If statement has predicate of type" ^ typed_predicate._type ^ "instead of Bool");
-        let typed_then = verify_expression {_type = "Unknown"; ident = _then.ident; data = _then.data} in
-        let typed_else = verify_expression {_type = "Unknown"; ident = _else.ident; data = _else.data} in
+        let predicate_type = verify_expression predicate in
+        if predicate_type <> "Bool" then
+          error_and_exit expr.ident.line_number ("If statement has predicate of type " ^ predicate_type ^ " instead of Bool");
+        let then_type = verify_expression _then and
+        else_type = verify_expression _else in
         (* return type is LUB of then and else *)
-        {_type = "Unknown"; ident = expr.ident; data = expr.data}
+        "Unknown"
       )
 
     | While { predicate : ast_expression; body : ast_expression } -> (
-        let typed_predicate = verify_expression {_type = "Unknown"; ident = predicate.ident; data = predicate.data} in
-        if typed_predicate._type <> "Bool" then
-          error_and_exit typed_predicate.ident.line_number ("While loop has predicate of type" ^ typed_predicate._type ^ "instead of Bool");
-        let _ = verify_expression {_type = "Unknown"; ident = body.ident; data = body.data} in
-        {_type = "Object"; ident = expr.ident; data = expr.data}
+        let predicate_type = verify_expression predicate in
+        if predicate_type <> "Bool" then
+          error_and_exit predicate.ident.line_number ("While loop has predicate of type" ^ predicate_type ^ "instead of Bool");
+        let _ = verify_expression body in
+        "Object"
       )
 
     | Block { body : ast_expression list } -> (
-        {_type = "Unknown"; ident = expr.ident; data = expr.data}
+        (* I think return type is LUB of all expression *)
+        "Unknown"
       )
 
     | New { _class : ast_identifier } -> (
         (* Add to symbol table *)
-        {_type = _class.name; ident = expr.ident; data = expr.data}
+        (* If self type, return correct class *)
+        _class.name
       )
 
     | IsVoid { expr : ast_expression } -> (
-        let typed_expr = verify_expression {_type = "Unknown"; ident = expr.ident; data = expr.data} in
-        {_type = "Bool"; ident = typed_expr.ident; data = typed_expr.data}
+        let _ = verify_expression expr in
+        "Bool"
       )
 
     | BinOp { left : ast_expression; right : ast_expression; op : ast_bin_op_type } -> (
-        let typed_left = verify_expression {_type = "Unknown"; ident = left.ident; data = left.data} in
-        let typed_right = verify_expression {_type = "Unknown"; ident = right.ident; data = right.data} in
+        let left_type = verify_expression left and
+        right_type = verify_expression right in
         let xor a b = (a || b) && not (a && b) in
         if (op = Plus || op = Minus || op = Times || op = Divide) then (
-          if (typed_left._type <> "Int") then (
-            error_and_exit typed_left.ident.line_number 
-              ("Left side of an arithmetic operator must have type Int, not" ^ typed_left._type);
+          if (left_type <> "Int") then (
+            error_and_exit expr.ident.line_number 
+              ("Left side of an arithmetic operator must have type Int, not " ^ left_type);
           )
-          else if (typed_right._type <> "Int") then (
-            error_and_exit typed_right.ident.line_number 
-              ("Left side of an arithmetic operator must have type Int, not" ^ typed_right._type);
+          else if (right_type <> "Int") then (
+            error_and_exit expr.ident.line_number 
+              ("Left side of an arithmetic operator must have type Int, not " ^ right_type);
           )
           else 
-            {_type = "Int"; ident = expr.ident; data = expr.data}
+            "Int"
         )
 
         else if (op = LT || op = LE || op = EQ) then (
-          if (xor (typed_left._type = "Int") (typed_right._type = "Int")) then
-            error_and_exit typed_left.ident.line_number "An Int may only be compared with another Int";
-          if (xor (typed_left._type = "String") (typed_right._type = "String")) then
-            error_and_exit typed_left.ident.line_number "A String may only be compared with another String";
-          if (xor (typed_left._type = "Bool") (typed_right._type = "Bool")) then
-            error_and_exit typed_left.ident.line_number "An Int may only be compared with another Int";
-          {_type = "Bool"; ident = expr.ident; data = expr.data}
+          if (xor (left_type = "Int") (right_type = "Int")) then
+            error_and_exit expr.ident.line_number "An Int may only be compared with another Int";
+          if (xor (left_type = "String") (right_type = "String")) then
+            error_and_exit expr.ident.line_number "A String may only be compared with another String";
+          if (xor (left_type = "Bool") (right_type = "Bool")) then
+            error_and_exit expr.ident.line_number "An Int may only be compared with another Int";
+          "Bool"
         ) else (
-          {_type = "Unknown"; ident = expr.ident; data = expr.data}
+          (* TODO throw error *)
+          "Unknown"
         )
       )
 
     | UnOp { expr : ast_expression; op : ast_un_op_type } -> (
-        let typed_expr = verify_expression {_type = "Unknown"; ident = expr.ident; data = expr.data} in
+        let expr_type = verify_expression expr in
         if op = Negate then (
-          if typed_expr._type <> "Int" then 
-            error_and_exit typed_expr.ident.line_number ("Negate operator can only be used on Int, not " ^ typed_expr._type);
+          if expr_type <> "Int" then 
+            error_and_exit expr.ident.line_number ("Negate operator can only be used on Int, not " ^ expr_type);
         );
         if op = Not then (
-          if typed_expr._type <> "Bool" then 
-            error_and_exit typed_expr.ident.line_number ("Not operator can only be used on Bool, not " ^ typed_expr._type);
+          if expr_type <> "Bool" then 
+            error_and_exit expr.ident.line_number ("Not operator can only be used on Bool, not " ^ expr_type);
         );
-        {_type = typed_expr._type; ident = typed_expr.ident; data = typed_expr.data}
+        expr_type
       )
 
     | Integer _ -> (
-        {_type = "Int"; ident = expr.ident; data = expr.data}
+        "Int"
       )
 
     | String _ -> (
-        {_type = "String"; ident = expr.ident; data = expr.data}
+        "String"
       )
 
     | Identifier ast_identifier -> (
         (* Look up type in symbol table and return that *)
-        {_type = "Unknown"; ident = expr.ident; data = expr.data}
+        "Unknown"
       )
 
     | Let { bindings : ast_let_binding_type list; _in : ast_expression } -> (
-        {_type = "Unknown"; ident = expr.ident; data = expr.data}
+        "Unknown"
       )
 
     | True -> (
-        {_type = "Bool"; ident = expr.ident; data = expr.data}
+        "Bool"
       )
 
     | False -> (
-        {_type = "Bool"; ident = expr.ident; data = expr.data}
+        "Bool"
       )
 
     | Case { expression : ast_expression; mapping_list : ast_case_mapping list } -> (
-        {_type = "Unknown"; ident = expr.ident; data = expr.data}
+        "Unknown"
       )
 
     | Unit -> (
-        {_type = "Unit"; ident = expr.ident; data = expr.data}
+      (* TODO is this correct? *)
+        "Unit"
       )
 
     | Unreachable -> (
-        error_and_exit expr.ident.line_number ("An unexpected type of expression " ^ expr._type ^  " was reached";)
+        error_and_exit expr.ident.line_number "An unexpected type of expressio was reached";
       )
 
 )
@@ -148,14 +147,9 @@ let verify_parameter(param : ast_param) : ast_param = (
 )
 
 let verify_method(mthd : ast_method) : ast_method = (
-  (* I'm not exactly sure of the necessary output format so I'm doing this manipulation to make progress on getting code working.
-     As interactions get more clear, this should be cleaned ups *)
   let mthd = {mthd with params = List.map verify_parameter mthd.params} in
-  let untyped_body = {_type = "Unknown"; ident = mthd.body.ident; data = mthd.body.data} in
-  let typechecked_body = verify_expression untyped_body in
-  let new_body = {ident = typechecked_body.ident; data = typechecked_body.data} in
-  let mthd = {mthd with body = new_body} in
-  mthd
+  let method_type = verify_expression mthd.body in
+  {mthd with _type = {name = method_type; line_number = mthd.name.line_number}}
 )
 
 let verify_attribute_no_init(attribute : ast_attribute) : ast_attribute = (
