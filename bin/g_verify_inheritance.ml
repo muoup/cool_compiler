@@ -61,7 +61,7 @@ let rec verify_inherited_attributes (data : inheritance_data) (class_name : stri
         | AttributeNoInit { name; _type } -> 
                 verify_type data.classes _type;
                 name
-        | AttributeInit   { name; _type } ->
+        | AttributeInit   { name; _type; _ } ->
                 verify_type data.classes _type;
                 name
         in
