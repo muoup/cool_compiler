@@ -11,6 +11,7 @@ type class_data = {
     methods     : ast_method     StringMap.t;
     sub_classes : ast_identifier list;
 }
+
 type class_map = class_data StringMap.t
 
 type ast_data = {
