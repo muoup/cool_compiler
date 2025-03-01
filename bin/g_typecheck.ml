@@ -2,6 +2,7 @@ open D_ast
 open A_util
 open E_symbol_map
 module AstIdentifierSet = Set.Make(String)
+module StringMap = Map.Make(String)
 
 (* TODO
 Make sure symbol table is correctly updated everywhere, including attributes (IT IS DEFINITELY NOT RIGHT NOW)
@@ -11,6 +12,8 @@ Maintain some class hierarchy
 Implement join / |_| and <= type operators
 Typecheck dispatch (no I definitely didn't leave the hardest to last)
 *)
+type method_signature = { name : ast_identifier; params : ast_param list; _type : ast_identifier}
+type method_environment = method_signature StringMap.t
 let st = "SELF_TYPE"
 
 let join (types : string list) : string = "Unimplemented join"
@@ -176,34 +179,52 @@ let verify_method(mthd : ast_method) (curr_class : ast_identifier) (symbol_map :
   {mthd with _type = {name = method_type; line_number = mthd.name.line_number}}
 )
 
-let verify_attribute_no_init(attribute : ast_attribute) : ast_attribute = (
-  attribute
-)
-
-let verify_attribute_init(attribute : ast_attribute) : ast_attribute = (
-  attribute
-)
-
-let verify_attribute(attribute : ast_attribute) : ast_attribute = (
+let verify_attribute(attribute : ast_attribute) (curr_class : ast_identifier) (symbols : symbol_map) = (
   match attribute with
   | AttributeNoInit { name : ast_identifier; _type  : ast_identifier } -> 
     (
-      let attribute = verify_attribute_no_init attribute in
-      attribute
+      (* Do nothing, has already been added to the symbol table   *)
     ) 
   | AttributeInit { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; } -> (
-      let attribute = verify_attribute_init attribute in
-      attribute
+      let _ = verify_expression init curr_class symbols in
+      ()
     )
 )
 
+let rec construct_class_symbol_map (attributes : ast_attribute list) (curr : symbol_map) : symbol_map = 
+  (* No duplicate attributes are ensured by previous checks *)
+  match attributes with
+  | [] -> (
+    curr
+  )
+  | attribute :: rest -> (
+    match attribute with
+    | AttributeNoInit { name : ast_identifier; _type  : ast_identifier } -> 
+      (
+        let curr = add_symbol name.name _type.name curr in
+        Printf.printf "%s is type %s\n" name.name (get_symbol name.name curr);
+        construct_class_symbol_map rest curr
+      ) 
+    | AttributeInit { name : ast_identifier; _type  : ast_identifier; _ } -> 
+      (
+        let curr = add_symbol name.name _type.name curr in
+        Printf.printf "%s is type %s\n" name.name (get_symbol name.name curr);
+        construct_class_symbol_map rest curr
+      )  
+  )
+
 let verify_class(cls : ast_class) : ast_class = (
-  let cls = { cls with attributes = List.map verify_attribute cls.attributes} in
-  let cls = { cls with methods = List.map (fun mthd -> verify_method mthd cls.name (new_symbol_map ())) cls.methods} in
+  let empty_symbol_map = new_symbol_map () in
+  let class_symbol_map = construct_class_symbol_map cls.attributes empty_symbol_map in
+  List.iter (fun a -> verify_attribute a cls.name (class_symbol_map)) cls.attributes;
+  (* Printf.printf "num is type %s" (get_symbol "num" class_symbol_map); *)
+  (* Printf.printf "compII is type %s" (get_symbol "compII" class_symbol_map); *)
+  let cls = { cls with methods = List.map (fun mthd -> verify_method mthd cls.name (class_symbol_map)) cls.methods} in
   cls
 )
 
 let verify_ast (ast : ast) : ast =  (
+  (* let ast_data = E_ast_data.generate_ast_data ast in *)
   let ast = List.map verify_class ast in
   ast
 )
