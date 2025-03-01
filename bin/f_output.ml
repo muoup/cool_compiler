@@ -9,6 +9,9 @@ let output_ast (ast : E_ast_data.ast_data) (file_path : string) : unit =
         output_number ident.line_number;
         output_line ident.name;
     in
+    let output_type (t : string) =
+        output_number t
+    in
     let output_list (l: 'a list) (for_each : 'a -> unit) =  
         output_number (List.length l);
         List.iter for_each l
@@ -20,7 +23,8 @@ let output_ast (ast : E_ast_data.ast_data) (file_path : string) : unit =
         match expr.data with
         | Assign            { var; rhs } ->
             output_identifier   var;
-            output_expression   rhs
+            output_expression   rhs;
+            output_type         "Object"
         | DynamicDispatch   { call_on; _method; args } ->
             output_expression   call_on;
             output_identifier   _method;
@@ -89,6 +93,7 @@ let output_ast (ast : E_ast_data.ast_data) (file_path : string) : unit =
             output_number       (List.length mapping_list);
             List.iter           output_case_mapping mapping_list
         | Unreachable -> output_line "unreachable"
+        | Internal    -> output_line "internal"
         | _ -> Printf.printf "Unhandled Expression!\n"; exit 1
     in
 
@@ -119,5 +124,25 @@ let output_ast (ast : E_ast_data.ast_data) (file_path : string) : unit =
 
         StringMap.iter output_class ast.classes
     in
+
+    let output_implementation_map =
+        output_line "implementation_map";
+        output_number (StringMap.cardinal ast.implementations);
+
+        let output_implementation _ (implementation_data : E_ast_data.implementation_data) : unit =
+            let output_method (_method : D_ast.ast_method) : unit =
+                output_line _method.name.name;
+                output_line _method._type.name;
+                output_expression _method.body
+            in
+
+            let methods = E_ast_data.get_methods ast.classes implementation_data.class_name in
+
+            output_line implementation_data.class_name;
+            output_number (List.length methods);
+            List.iter output_method methods
+        in
+
+        StringMap.iter output_implementation ast.implementations
 
     output_class_map

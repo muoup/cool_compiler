@@ -49,6 +49,7 @@ and ast_expression_val =
     | Case                  of { expression : ast_expression; mapping_list : ast_case_mapping list }
     | Unit
     | Unreachable
+    | Internal
 
 and ast_param =               { name : ast_identifier; _type : ast_identifier }
 

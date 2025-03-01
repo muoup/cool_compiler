@@ -39,6 +39,24 @@ let rec is_subtype_of (classes : class_map) (lhs : ast_identifier) (rhs : ast_id
     | "Object", _             -> false
     | _, _                    -> is_subtype_of classes (supertype_of classes lhs) rhs
 
+let get_static_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
+    let class_data = StringMap.find class_name classes in
+    StringMap.find_opt method_name class_data.methods
+
+let rec get_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
+    let class_data = StringMap.find class_name classes in
+    let _method = StringMap.find_opt method_name class_data.methods in
+
+    match _method with
+    | Some _method -> Some _method
+    | None -> match class_data.class_ref.inherits with
+        | None -> None
+        | Some inherit_from -> 
+            if inherit_from.name = "Object" then
+                None
+            else
+                static_dispatch classes inherit_from.name method_name
+
 let generate_ast_data (ast : ast) : ast_data =
     let map_fold (classes : class_map) (_class : ast_class) =
         let method_fold (map : ast_method StringMap.t) (_method : ast_method) =
