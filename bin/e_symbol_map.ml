@@ -1,5 +1,3 @@
-open D_ast
-
 module Symbol_data = Hashtbl.Make(struct
     type t = string
     let equal = String.equal
