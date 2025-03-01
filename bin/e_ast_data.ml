@@ -26,8 +26,8 @@ let rec get_attributes (classes : class_map) (class_name : ast_identifier) : ast
     | None -> self_attributes
     | Some inherit_from -> (get_attributes classes inherit_from) @ self_attributes
 
-let supertype_of (classes : class_map) (class_name : ast_identifier) : ast_identifier =
-    let instance = (StringMap.find class_name.name classes).class_ref.inherits in
+let supertype_of (classes : class_map) (class_name : string) : ast_identifier =
+    let instance = (StringMap.find class_name classes).class_ref.inherits in
 
     match instance with
     | None -> (StringMap.find "Object" classes).class_ref.name
@@ -56,6 +56,24 @@ let rec get_dispatch (classes : class_map) (class_name : string) (method_name : 
                 None
             else
                 static_dispatch classes inherit_from.name method_name
+
+let join_classes (classes : class_map) (lhs : string) (rhs : string) =
+    let rec create_lhs_tree (set : StringSet.t) (class_name : string) : StringSet.t =
+        let set = StringSet.add class_name set in
+
+        match class_name with
+        | "Object" -> set
+        | _        -> create_lhs_tree set (supertype_of classes class_name).name
+    in
+
+    let lhs_tree = create_lhs_tree StringSet.empty lhs in
+
+    let rec find_common_ancestor (class_name : string) : string =
+        if StringSet.mem class_name lhs_tree then class_name
+        else find_common_ancestor (supertype_of classes class_name).name
+    in
+
+    find_common_ancestor rhs
 
 let generate_ast_data (ast : ast) : ast_data =
     let map_fold (classes : class_map) (_class : ast_class) =
