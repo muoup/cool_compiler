@@ -14,7 +14,7 @@ let output_ast (ast : E_ast_data.ast_data) (file_path : string) : unit =
         List.iter for_each l
     in
 
-    let rec output_expression (expr : D_ast.ast_expression) =
+    let rec output_expression (expr : D_ast.ast_expression) : string =
         output_identifier   expr.ident;
 
         match expr.data with

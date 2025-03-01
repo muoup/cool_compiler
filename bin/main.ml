@@ -34,7 +34,7 @@ let () =
                 _print_contents xs
     in
 
-    (* E_symbol_map._basic_sym_map_test (); *)
+    E_symbol_map._basic_sym_map_test ();
     
     let file_name = Sys.argv.(1) in
     let file_contents = get_file_contents file_name in

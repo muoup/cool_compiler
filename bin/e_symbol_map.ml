@@ -32,7 +32,7 @@ let add_symbol (var_name : string) (var_type : string) (map : symbol_map) : symb
     let new_scope = (var_name :: hd) :: tl in
     let new_map = { scoped_data = new_scope; data = map.data } in
 
-    Symbol_data.add map.data var_name var_type;
+    Symbol_data.add new_map.data var_name var_type;
 
     new_map
 
@@ -48,9 +48,8 @@ let _basic_sym_map_test () =
 
     let a = get_symbol "a" map in
     let b = get_symbol "b" map in
-
+    
     assert (a = "Int");
-
     assert (b = "String");
 
     let map = push_scope map in
