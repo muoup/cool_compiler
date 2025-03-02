@@ -188,14 +188,8 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
 
 )
 
-let verify_parameter(param : ast_param) : ast_param = (
-  param
-)
-
 let verify_method(mthd : ast_method) (curr_class : ast_identifier) (symbol_map : symbol_map)
   (method_env : class_methods_map): ast_method = (
-  let mthd = {mthd with params = List.map verify_parameter mthd.params} in
-
   let rec add_params_to_symbol_table (params : ast_param list) (map : symbol_map) : symbol_map = 
     match params with 
     | [] -> ( symbol_map )
