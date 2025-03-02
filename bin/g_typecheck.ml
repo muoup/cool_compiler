@@ -5,26 +5,29 @@ module AstIdentifierSet = Set.Make(String)
 module StringMap = Map.Make(String)
 
 (* TODO
-Make sure symbol table is correctly updated everywhere, including attributes (IT IS DEFINITELY NOT RIGHT NOW)
+Make sure symbol table is correctly updated everywhere
 Define "method environment M that is global to the entire program and defines for every class C
 the signatures of all of the methods of C (including any inherited methods)."
-Maintain some class hierarchy
-Implement join / |_| and <= type operators
 Typecheck dispatch (no I definitely didn't leave the hardest to last)
 *)
-type method_signature = { name : ast_identifier; params : ast_param list; _type : ast_identifier}
-type method_environment = method_signature StringMap.t
+type method_data = { 
+    methods : ast_method StringMap.t;
+}
+type class_methods_map = method_data StringMap.t
+
 let st = "SELF_TYPE"
 
 let join (types : string list) : string = "Unimplemented join"
 
 let lthan_eq (t1 : string) (t2 : string) : bool = true
 
-let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (symbol_map : symbol_map): string  = (
+let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (symbol_map : symbol_map)
+  (method_env : class_methods_map) : string  = (
+
   match expr.data with
 
     | Assign { var : ast_identifier; rhs : ast_expression } -> (
-        let rhs_type = verify_expression rhs curr_class symbol_map in
+        let rhs_type = verify_expression rhs curr_class symbol_map method_env in
         let var_type = try get_symbol var.name symbol_map with Not_found -> 
         (error_and_exit var.line_number ("Identifier " ^ var.name ^ " was not initialized to a type")) in
 
@@ -48,24 +51,24 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | If { predicate : ast_expression; _then : ast_expression; _else : ast_expression } -> (
-        let predicate_type = verify_expression predicate curr_class symbol_map in
+        let predicate_type = verify_expression predicate curr_class symbol_map method_env in
         if predicate_type <> "Bool" then
           error_and_exit expr.ident.line_number ("If statement has predicate of type " ^ predicate_type ^ " instead of Bool");
-        let then_type = verify_expression _then curr_class symbol_map and
-        else_type = verify_expression _else curr_class symbol_map in
+        let then_type = verify_expression _then curr_class symbol_map method_env and
+        else_type = verify_expression _else curr_class symbol_map method_env in
         join [then_type; else_type]
       )
 
     | While { predicate : ast_expression; body : ast_expression } -> (
-        let predicate_type = verify_expression predicate curr_class symbol_map in
+        let predicate_type = verify_expression predicate curr_class symbol_map method_env in
         if predicate_type <> "Bool" then
           error_and_exit predicate.ident.line_number ("While loop has predicate of type" ^ predicate_type ^ "instead of Bool");
-        let _ = verify_expression body curr_class symbol_map in
+        let _ = verify_expression body curr_class symbol_map method_env in
         "Object"
       )
 
     | Block { body : ast_expression list } -> (
-        let all_types = List.map (fun e -> verify_expression e curr_class symbol_map) body in
+        let all_types = List.map (fun e -> verify_expression e curr_class symbol_map method_env) body in
         join all_types
       )
 
@@ -74,13 +77,13 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | IsVoid { expr : ast_expression } -> (
-        let _ = verify_expression expr curr_class symbol_map in
+        let _ = verify_expression expr curr_class symbol_map method_env in
         "Bool"
       )
 
     | BinOp { left : ast_expression; right : ast_expression; op : ast_bin_op_type } -> (
-        let left_type = verify_expression left curr_class symbol_map and
-        right_type = verify_expression right curr_class symbol_map in
+        let left_type = verify_expression left curr_class symbol_map method_env and
+        right_type = verify_expression right curr_class symbol_map method_env in
         let xor a b = (a || b) && not (a && b) in
         if (op = Plus || op = Minus || op = Times || op = Divide) then (
           if (left_type <> "Int") then (
@@ -109,7 +112,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | UnOp { expr : ast_expression; op : ast_un_op_type } -> (
-        let expr_type = verify_expression expr curr_class symbol_map in
+        let expr_type = verify_expression expr curr_class symbol_map method_env in
         if op = Negate then (
           if expr_type <> "Int" then 
             error_and_exit expr.ident.line_number ("Negate operator can only be used on Int, not " ^ expr_type);
@@ -173,20 +176,22 @@ let verify_parameter(param : ast_param) : ast_param = (
   param
 )
 
-let verify_method(mthd : ast_method) (curr_class : ast_identifier) (symbol_map : symbol_map): ast_method = (
+let verify_method(mthd : ast_method) (curr_class : ast_identifier) (symbol_map : symbol_map)
+  (method_env : class_methods_map): ast_method = (
   let mthd = {mthd with params = List.map verify_parameter mthd.params} in
-  let method_type = verify_expression mthd.body curr_class symbol_map in
+  let method_type = verify_expression mthd.body curr_class symbol_map method_env in
   {mthd with _type = {name = method_type; line_number = mthd.name.line_number}}
 )
 
-let verify_attribute(attribute : ast_attribute) (curr_class : ast_identifier) (symbols : symbol_map) = (
+let verify_attribute(attribute : ast_attribute) (curr_class : ast_identifier) (symbols : symbol_map) 
+ (method_env : class_methods_map)= (
   match attribute with
   | AttributeNoInit { name : ast_identifier; _type  : ast_identifier } -> 
     (
       (* Do nothing, has already been added to the symbol table   *)
     ) 
   | AttributeInit { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; } -> (
-      let _ = verify_expression init curr_class symbols in
+      let _ = verify_expression init curr_class symbols method_env in
       ()
     )
 )
@@ -213,18 +218,23 @@ let rec construct_class_symbol_map (attributes : ast_attribute list) (curr : sym
       )  
   )
 
-let verify_class(cls : ast_class) : ast_class = (
+let verify_class(cls : ast_class) (method_env : class_methods_map) : ast_class = (
   let empty_symbol_map = new_symbol_map () in
   let class_symbol_map = construct_class_symbol_map cls.attributes empty_symbol_map in
-  List.iter (fun a -> verify_attribute a cls.name (class_symbol_map)) cls.attributes;
+  List.iter (fun a -> verify_attribute a cls.name (class_symbol_map) method_env) cls.attributes;
   (* Printf.printf "num is type %s" (get_symbol "num" class_symbol_map); *)
   (* Printf.printf "compII is type %s" (get_symbol "compII" class_symbol_map); *)
-  let cls = { cls with methods = List.map (fun mthd -> verify_method mthd cls.name (class_symbol_map)) cls.methods} in
+  let cls = { cls with methods = List.map (fun mthd -> verify_method mthd cls.name (class_symbol_map) method_env) cls.methods} in
   cls
 )
 
-let verify_ast (ast : ast) : ast =  (
-  (* let ast_data = E_ast_data.generate_ast_data ast in *)
-  let ast = List.map verify_class ast in
+let extract_method_map (cm : E_ast_data.class_map) : class_methods_map =
+  StringMap.map (fun (c : E_ast_data.class_data) -> { methods = c.methods }) cm
+
+let verify_ast (ast : ast) (class_data : E_ast_data.class_map) : ast =  (
+  (* It feels like there should be a way to define this globally and not have to
+  pass it through everywhere, spend time figuring that out when everything is done *)
+  let method_environment = extract_method_map class_data in
+  let ast = List.map (fun c -> verify_class c method_environment) ast in
   ast
 )
