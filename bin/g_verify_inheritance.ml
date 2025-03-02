@@ -98,15 +98,10 @@ let abort_method : ast_method = {
         body = { ident = { name = "copy"; line_number = 0 }; data = Unreachable };
     }
     
-    let object_methods : ast_method list = [ abort_method; type_name_method; copy_method;]
-
-    
 let verify_inheritance (data : ast_data) : unit =
-    (* 100% a way to do this with fold or something *)
-    let object_inherited_methods = StringMap.empty in
-    let object_inherited_methods = StringMap.add abort_method.name.name abort_method object_inherited_methods in
-    let object_inherited_methods = StringMap.add type_name_method.name.name type_name_method object_inherited_methods in
-    let object_inherited_methods = StringMap.add copy_method.name.name copy_method object_inherited_methods in
+    let object_inherited_methods = List.fold_left (fun acc (name, method_) -> StringMap.add name method_ acc) 
+    StringMap.empty [ (abort_method.name.name, abort_method); (type_name_method.name.name, type_name_method); 
+      (copy_method.name.name, copy_method) ] in
     let verify_data = { classes = data.classes; inherited_methods = object_inherited_methods; inherited_attributes = StringSet.empty } in
  
     verify_inherited_methods verify_data "Object";
