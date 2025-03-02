@@ -138,12 +138,31 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | Let { bindings : ast_let_binding_type list; _in : ast_expression } -> (
-      (* TODO *)
-      (* 1. typecheck ast_let_binding_type
-         2. put all the variables defined in let into the symbol table
-         3. typecheck in with the new symbol table
-         4. remove those variables from the symbol table *)
-        "Unknown"
+      let rec typecheck_bindings (bindings : ast_let_binding_type list) (map : symbol_map) : symbol_map = (
+      match bindings with 
+      | [] -> (
+          map
+        )
+      | bd :: rest -> (
+        match bd with
+        LetBindingNoInit { variable : ast_identifier; _type : ast_identifier; } -> (
+          if (_type.name = st) then
+            add_symbol variable.name curr_class.name map
+          else
+            add_symbol variable.name _type.name map
+          )
+    |   LetBindingInit { variable : ast_identifier; _type : ast_identifier; value : ast_expression; } -> (
+          let real_type = if (_type.name = st) then curr_class.name else _type.name in
+          let value_type = verify_expression value curr_class map method_env in
+          if real_type <> value_type then
+            error_and_exit variable.line_number ("Variable " ^ variable.name ^ " of type " ^ _type.name ^ "
+             cannot be assigned to expression of type " ^ value_type);
+            add_symbol variable.name real_type map
+          )
+        )
+      ) in 
+      let updated_symbol_table = typecheck_bindings bindings symbol_map in
+      verify_expression _in curr_class updated_symbol_table method_env
       )
 
     | True -> (
@@ -177,6 +196,16 @@ let verify_parameter(param : ast_param) : ast_param = (
 let verify_method(mthd : ast_method) (curr_class : ast_identifier) (symbol_map : symbol_map)
   (method_env : class_methods_map): ast_method = (
   let mthd = {mthd with params = List.map verify_parameter mthd.params} in
+
+  let rec add_params_to_symbol_table (params : ast_param list) (map : symbol_map) : symbol_map = 
+    match params with 
+    | [] -> ( symbol_map )
+    | param :: rest -> (
+      let map = add_symbol param.name.name param._type.name map in
+      add_params_to_symbol_table rest map
+    )
+  in
+  let symbol_map = add_params_to_symbol_table mthd.params symbol_map in
   let method_type = verify_expression mthd.body curr_class symbol_map method_env in
   {mthd with _type = {name = method_type; line_number = mthd.name.line_number}}
 )
