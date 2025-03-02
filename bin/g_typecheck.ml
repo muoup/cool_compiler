@@ -6,8 +6,6 @@ module StringMap = Map.Make(String)
 
 (* TODO
 Make sure symbol table is correctly updated everywhere
-Define "method environment M that is global to the entire program and defines for every class C
-the signatures of all of the methods of C (including any inherited methods)."
 Typecheck dispatch (no I definitely didn't leave the hardest to last)
 *)
 type method_data = { 
@@ -207,13 +205,11 @@ let rec construct_class_symbol_map (attributes : ast_attribute list) (curr : sym
     | AttributeNoInit { name : ast_identifier; _type  : ast_identifier } -> 
       (
         let curr = add_symbol name.name _type.name curr in
-        Printf.printf "%s is type %s\n" name.name (get_symbol name.name curr);
         construct_class_symbol_map rest curr
       ) 
     | AttributeInit { name : ast_identifier; _type  : ast_identifier; _ } -> 
       (
         let curr = add_symbol name.name _type.name curr in
-        Printf.printf "%s is type %s\n" name.name (get_symbol name.name curr);
         construct_class_symbol_map rest curr
       )  
   )
@@ -222,8 +218,6 @@ let verify_class(cls : ast_class) (method_env : class_methods_map) : ast_class =
   let empty_symbol_map = new_symbol_map () in
   let class_symbol_map = construct_class_symbol_map cls.attributes empty_symbol_map in
   List.iter (fun a -> verify_attribute a cls.name (class_symbol_map) method_env) cls.attributes;
-  (* Printf.printf "num is type %s" (get_symbol "num" class_symbol_map); *)
-  (* Printf.printf "compII is type %s" (get_symbol "compII" class_symbol_map); *)
   let cls = { cls with methods = List.map (fun mthd -> verify_method mthd cls.name (class_symbol_map) method_env) cls.methods} in
   cls
 )
@@ -233,7 +227,7 @@ let extract_method_map (cm : E_ast_data.class_map) : class_methods_map =
 
 let verify_ast (ast : ast) (class_data : E_ast_data.class_map) : ast =  (
   (* It feels like there should be a way to define this globally and not have to
-  pass it through everywhere, spend time figuring that out when everything is done *)
+  pass it through everywhere - I'll spend time figuring that out when everything is done *)
   let method_environment = extract_method_map class_data in
   let ast = List.map (fun c -> verify_class c method_environment) ast in
   ast
