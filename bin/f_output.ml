@@ -3,10 +3,13 @@ open E_symbol_map
 open D_ast
 
 module StringMap = Map.Make(String)
+module StringSet = Set.Make(String)
 
 type output_context = {
     classes : class_map;
     vars : symbol_map;
+
+    current_method : string;
     current_class : string;
 }
 
@@ -67,7 +70,10 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
         List.fold_left (fun x y -> join_classes context.classes x y) (List.hd types) (List.tl types)
     | Unit -> "Object"
     | Unreachable -> "Object"
-    | Internal -> "Object"
+    | Internal _ ->
+        let _method = get_dispatch context.classes context.current_class context.current_method in
+
+        (Option.get _method)._type.name
 
 let output_ast (ast : ast_data) (file_path : string) : unit =
     let oc = open_out file_path in
@@ -110,10 +116,14 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             output_list         args    (fun x -> output_expression x context)
         | If                { predicate; _then; _else } ->
             output_expression   predicate context;
+            let context = { context with vars = push_scope context.vars } in
             output_expression   _then    context;
+            let context = { context with vars = pop_scope context.vars } in
+            let context = { context with vars = push_scope context.vars } in
             output_expression   _else   context
         | While             { predicate; body } -> 
             output_expression   predicate context;
+            let context = { context with vars = push_scope context.vars } in
             output_expression   body    context
         | Block             { body } ->
             output_list         body    (fun x -> output_expression x context)
@@ -153,7 +163,7 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             output_number       (List.length bindings);
             List.iter           output_binding bindings
         | Case                  { expression; mapping_list } ->
-            output_expression   expression;
+            output_expression   expression context;
 
             let output_case_mapping (mapping : D_ast.ast_case_mapping) =
                 output_identifier   mapping.name;
@@ -163,8 +173,9 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
 
             output_number       (List.length mapping_list);
             List.iter           output_case_mapping mapping_list
-        | Unreachable -> output_line "unreachable"
-        | Internal    -> output_line "internal"
+        | Unreachable -> ()
+        | Internal data -> 
+            output_line data
         | _ -> Printf.printf "Unhandled Expression!\n"; exit 1
     in
 
@@ -172,7 +183,7 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
         output_line "class_map";
         output_number (StringMap.cardinal ast.classes);
 
-        let context = { classes = ast.classes; vars = new_symbol_map (); current_class = "" } in
+        let context = { classes = ast.classes; vars = new_symbol_map (); current_class = ""; current_method = "" } in
 
         let output_class _ (class_data : E_ast_data.class_data) : unit =
             let output_attribute (_attr : D_ast.ast_attribute) : unit =
@@ -199,31 +210,82 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
     in
 
     let output_implementation_map () =
-        let context = { classes = ast.classes; vars = symbol_table; current_class = "" } in
+        let context = { classes = ast.classes; vars = symbol_table; current_class = ""; current_method = "" } in
 
         let output_class _ (class_data : class_data) : unit =
             let output_parameters (params : ast_param list) : unit =
                 let output_parameter (param : ast_param) : unit =
                     output_line param.name.name;
-                    output_line param._type.name
                 in
 
                 output_number (List.length params);
                 List.iter output_parameter params
             in
             
-            let output_method (_method : ast_method) : unit =
+            let output_method (class_name : string) (_method : ast_method) : unit =
                 output_line _method.name.name;
                 output_parameters _method.params;
-                output_line _method._type.name;
-                output_expression _method.body { context with current_class = class_data.class_ref.name.name }
+                output_line class_name;
+                output_expression _method.body { context with current_class = class_data.class_ref.name.name; current_method = _method.name.name };
+            in
+
+            let rec get_unique_methods (class_data : class_data) (methods : StringSet.t) : (string * string list) list =
+                let unique_methods = List.filter
+                    (fun (_method : ast_method) -> not (StringSet.mem _method.name.name methods))
+                    (List.map snd @@ StringMap.bindings class_data.methods)
+                in
+
+                let unique_names = List.map
+                    (fun (_method : ast_method) -> _method.name.name)
+                    unique_methods
+                in
+
+                let methods = List.fold_left
+                    (fun methods name -> StringSet.add name methods)
+                    methods
+                    unique_names
+                in
+
+                if class_data.class_ref.name.name = "Object" then [("Object", unique_names)] else
+
+                let parent = match class_data.class_ref.inherits with
+                | Some parent -> parent.name
+                | None -> "Object"
+                in
+
+                let object_data = StringMap.find parent ast.classes in
+                (class_data.class_ref.name.name, unique_names) :: (get_unique_methods object_data methods)
             in
 
             let _class = class_data.class_ref in
+            let unique_methods = get_unique_methods class_data StringSet.empty in
+            
+            (* [class_name * [methods]] -> [class_name * methods]*)
+            let flatten =
+                List.flatten @@
+                List.map
+                    (fun (class_name, methods) -> List.map (fun _method -> (class_name, _method)) methods)
+                    (List.rev unique_methods)
+            in
+
+            let ordered_methods = flatten in
+
+            Printf.printf "Ordered Methods of %s:\n" _class.name.name;
+            List.iter 
+                (fun (class_name, _method) -> Printf.printf "%s %s\n" class_name _method) 
+                ordered_methods;
+            Printf.printf "\n";
 
             output_line _class.name.name;
-            output_number (List.length _class.methods);
-            List.iter output_method _class.methods
+            output_number @@ List.length ordered_methods;
+
+            List.iter
+                (fun (class_name, _method) ->
+                    let class_data = StringMap.find class_name ast.classes in
+                    let _method = StringMap.find _method class_data.methods in
+                    output_method class_name _method    
+                ) 
+                ordered_methods
         in
 
         output_line "implementation_map";
@@ -249,4 +311,4 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
         StringMap.iter output_class ast.classes
     in
 
-    output_parent_map ()
+    output_implementation_map ()

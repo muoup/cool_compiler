@@ -81,7 +81,6 @@ let get_static_dispatch (classes : class_map) (class_name : string) (method_name
 
 let rec get_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
     let class_data = StringMap.find class_name classes in
-    Printf.printf "Class Name: %s\n" class_name;
     let _method = StringMap.find_opt method_name class_data.methods in
 
     match _method with
