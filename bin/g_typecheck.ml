@@ -4,10 +4,6 @@ open E_symbol_map
 module AstIdentifierSet = Set.Make(String)
 module StringMap = Map.Make(String)
 
-(* TODO
-Make sure symbol table is correctly updated everywhere
-Typecheck dispatch (no I definitely didn't leave the hardest to last)
-*)
 type method_data = { 
     methods : ast_method StringMap.t;
 }
@@ -36,7 +32,6 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | DynamicDispatch { call_on : ast_expression; _method: ast_identifier; args : ast_expression list } -> (
-      (* TODO *)
         "Unknown"
       )
 
@@ -174,8 +169,12 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | Case { expression : ast_expression; mapping_list : ast_case_mapping list } -> (
-      (* TODO *)
-        "Unknown"
+        let _ = verify_expression expression curr_class symbol_map method_env in
+        let verify_mapping (mapping : ast_case_mapping) : string = (
+          let updated_symbol_table = add_symbol mapping.name.name mapping._type.name symbol_map in
+          verify_expression mapping.maps_to curr_class updated_symbol_table method_env
+        ) in
+        join (List.map verify_mapping mapping_list)
       )
 
     | Unit -> (
