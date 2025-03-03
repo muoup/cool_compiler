@@ -110,22 +110,22 @@ let native_identifier (str : string) : ast_identifier =
 let generate_object_methods : ast_method list =
     [
         { name = native_identifier "abort"; params = []; _type = native_identifier "Object"; body = { ident = native_identifier "internal"; data = Internal "Object.abort" } };
+        { name = native_identifier "copy"; params = []; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "Object.copy" } };
         { name = native_identifier "type_name"; params = []; _type = native_identifier "String"; body = { ident = native_identifier "internal"; data = Internal "Object.type_name" } };
-        { name = native_identifier "copy"; params = []; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "Object.copy" } }
     ]
 
 let generate_io_methods : ast_method list = 
     [
-        { name = native_identifier "out_string"; params = [{ name = native_identifier "x"; _type = native_identifier "String" }]; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "IO.out_string" } };
-        { name = native_identifier "out_int"; params = [{ name = native_identifier "x"; _type = native_identifier "Int" }]; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "IO.out_int" } };
+        { name = native_identifier "in_int"; params = []; _type = native_identifier "Int"; body = { ident = native_identifier "internal"; data = Internal "IO.in_int" } };
         { name = native_identifier "in_string"; params = []; _type = native_identifier "String"; body = { ident = native_identifier "internal"; data = Internal "IO.in_string" } };
-        { name = native_identifier "in_int"; params = []; _type = native_identifier "Int"; body = { ident = native_identifier "internal"; data = Internal "IO.in_int" } }
+        { name = native_identifier "out_int"; params = [{ name = native_identifier "x"; _type = native_identifier "Int" }]; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "IO.out_int" } };
+        { name = native_identifier "out_string"; params = [{ name = native_identifier "x"; _type = native_identifier "String" }]; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "IO.out_string" } };
     ]
 
 let generate_string_methods : ast_method list =
     [
-        { name = native_identifier "length"; params = []; _type = native_identifier "Int"; body = { ident = native_identifier "internal"; data = Internal "String.length" } };
         { name = native_identifier "concat"; params = [{ name = native_identifier "s"; _type = native_identifier "String" }]; _type = native_identifier "String"; body = { ident = native_identifier "internal"; data = Internal "String.concat" } };
+        { name = native_identifier "length"; params = []; _type = native_identifier "Int"; body = { ident = native_identifier "internal"; data = Internal "String.length" } };
         { name = native_identifier "substr"; params = [{ name = native_identifier "i"; _type = native_identifier "Int" }; { name = native_identifier "l"; _type = native_identifier "Int" }]; _type = native_identifier "String"; body = { ident = native_identifier "internal"; data = Internal "String.substr" } }
     ]
 

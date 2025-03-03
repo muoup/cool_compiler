@@ -27,6 +27,10 @@ let () =
     in
 
     (* E_symbol_map._basic_sym_map_test (); *)
+
+    if Array.length Sys.argv < 2 then
+        Printf.printf "Usage: %s <file_name>\n" Sys.argv.(0)
+    ;
     
     let file_name = Sys.argv.(1) in
     let file_contents = get_file_contents file_name in

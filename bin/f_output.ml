@@ -72,7 +72,7 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
         if ident.name = "self" then "SELF_TYPE"
         else get_symbol ident.name context.vars
     | True | False -> "Bool"
-    | Let { bindings; _in } -> "Object"
+    | Let { bindings; _in } -> get_expr_type context _in
     | Case { mapping_list } -> 
         let types = List.map (fun (x : ast_case_mapping) -> x._type.name) mapping_list in
         List.fold_left (fun x y -> join_classes context.classes x y) (List.hd types) (List.tl types)
@@ -85,50 +85,42 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
 
 let rec get_attributes (context : output_context) (class_name : string) : ast_attribute list =
     let _class = StringMap.find class_name context.classes in
-    let self_attributes =
-        List.map snd @@ StringMap.bindings _class.attributes
-    in
+    let self_attributes = _class.class_ref.attributes in
 
     match _class.class_ref.inherits with
     | None -> self_attributes
     | Some inherit_from -> get_attributes context inherit_from.name @ self_attributes
 
 let get_methods (context : output_context) (class_name : string) : (string * string) list =
-    let rec get_unique_methods (class_data : class_data) (methods : StringSet.t) : (string * string list) list =
-        let unique_methods = List.filter
-            (fun (_method : ast_method) -> not (StringSet.mem _method.name.name methods))
-            (List.map snd @@ StringMap.bindings class_data.methods)
+    let rec unique_methods_rec (class_name : string) (acc : StringSet.t) : (string * string) list =
+        let class_data = StringMap.find class_name context.classes in
+        let methods = class_data.class_ref.methods in
+
+        let unique =
+            List.filter_map
+                (fun (x : ast_method) -> 
+                    match StringSet.mem x.name.name acc with
+                    | true -> None
+                    | false -> Some (class_name, x.name.name)
+                )
+                methods
         in
 
-        let unique_names = List.map
-            (fun (_method : ast_method) -> _method.name.name)
-            unique_methods
+        if class_name = "Object" then unique else
+
+        let acc = List.fold_left
+            (fun acc (_, name) -> StringSet.add name acc)
+            acc
+            unique
         in
 
-        let methods = List.fold_left
-            (fun methods name -> StringSet.add name methods)
-            methods
-            unique_names
-        in
-
-        if class_data.class_ref.name.name = "Object" then [("Object", unique_names)] else
-
-        let parent = match class_data.class_ref.inherits with
-        | Some parent -> parent.name
-        | None -> "Object"
-        in
-
-        let object_data = StringMap.find parent context.classes in
-        (class_data.class_ref.name.name, unique_names) :: (get_unique_methods object_data methods)
+        match class_data.class_ref.inherits with
+        | None -> (unique_methods_rec "Object" acc) @ unique
+        | Some inherit_from -> (unique_methods_rec inherit_from.name acc) @ unique
     in
 
-    let unique_methods = get_unique_methods (StringMap.find class_name context.classes) StringSet.empty in
-    let as_method_list = List.map
-        (fun (class_name, methods) -> List.map (fun _method -> (class_name, _method)) methods)
-        (List.rev unique_methods)
-    in
-
-    List.flatten as_method_list
+    unique_methods_rec class_name StringSet.empty
+    
 
 let output_ast (ast : ast_data) (file_path : string) : unit =
     let oc = open_out file_path in
@@ -240,7 +232,12 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
 
     let output_method (context : output_context) (class_name : string) (method_name : string) : unit =
         let _method = StringMap.find method_name (StringMap.find class_name ast.classes).methods in
-        let context = { context with current_method = method_name } in
+        let _vars = List.fold_left
+            (fun vars (param : ast_param) -> add_symbol param.name.name param._type.name vars)
+            context.vars
+            _method.params
+        in
+        let context = { context with current_method = method_name; vars = _vars } in
 
         output_line method_name;
         output_parameters _method.params;
@@ -249,9 +246,6 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
     in
 
     let output_class_map (context : output_context) : unit =
-        output_line "class_map";
-        output_number (StringMap.cardinal ast.classes);
-
         let output_attribute (_attr : ast_attribute) (context : output_context) : unit =
             match _attr with
             | AttributeNoInit   { name; _type } ->
@@ -268,12 +262,14 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
         let output_class _ (class_data : class_data) : unit =
             let context = { context with current_class = class_data.class_ref.name.name } in
             let attributes = get_attributes context class_data.class_ref.name.name in
-
+                        
             output_line class_data.class_ref.name.name;
             output_number (List.length attributes);
             List.iter (fun _attr -> output_attribute _attr context) attributes
         in
 
+        output_line "class_map";
+        output_number (StringMap.cardinal ast.classes);
         StringMap.iter output_class context.classes
     in
 
@@ -324,15 +320,21 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             | Some parent -> 
                 output_line "inherits";
                 output_identifier parent
-            | None -> ()
+            | None ->
+                output_line "no_inherits"
             );
 
             let output_body_expr (member : class_member) =
                 match member with
-                | Method _method -> 
+                | Method _method ->
                     output_line "method";
                     output_identifier _method.name;
-                    output_parameters _method.params;
+                    output_number (List.length _method.params);
+                    List.iter 
+                        (fun (param : ast_param) -> 
+                            output_identifier param.name;
+                            output_identifier param._type) 
+                        _method.params;
                     output_identifier _method._type;
 
                     let context = { context with current_method = _method.name.name } in
@@ -386,7 +388,19 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
 
         (* Exclude 5 intrinsic class types *)
         output_number (StringMap.cardinal ast.classes - 5);
-        StringMap.iter (fun _ class_data -> output_filter class_data) ast.classes
+
+        let class_list = List.map snd @@ StringMap.bindings ast.classes in
+        let sorted_list = List.sort
+            (fun class1 class2 ->
+                let line1 = class1.class_ref.name.line_number in
+                let line2 = class2.class_ref.name.line_number in
+
+                compare line1 line2
+            )
+            class_list
+        in
+
+        List.iter output_filter sorted_list
     in
 
     let context = { classes = ast.classes; vars = new_symbol_map (); current_class = ""; current_method = "" } in

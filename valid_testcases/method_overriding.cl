@@ -3,7 +3,7 @@ class Base {
 };
 
 class Derived inherits Base {
-	init(x : Object, y : Object) : Object { 0 };
+	init(x : Object, y : Object) : Int { 1 };
 };
 
 class Main {
