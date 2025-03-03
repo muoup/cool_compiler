@@ -6,7 +6,7 @@ end)
 
 type symbol_map = {
     data : string Symbol_data.t;
-    scoped_data : string list list
+    scoped_data : (string list) list
 }
 
 let new_symbol_map () : symbol_map =
@@ -36,6 +36,9 @@ let add_symbol (var_name : string) (var_type : string) (map : symbol_map) : symb
 
 let get_symbol (var_name : string) (map : symbol_map) : string =
     Symbol_data.find map.data var_name
+
+let get_symbol_opt (var_name : string) (map : symbol_map) : string option =
+    Symbol_data.find_opt map.data var_name
 
 let _basic_sym_map_test () =
     let map = new_symbol_map () in
