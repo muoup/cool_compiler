@@ -31,6 +31,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         rhs_type
       )
 
+      (* Most of the code of the three dispatches can be combined *)
     | DynamicDispatch { call_on : ast_expression; _method: ast_identifier; args : ast_expression list } -> (
         let call_on_type = verify_expression call_on curr_class symbol_map method_env in
         let rec get_arg_types (arguments: ast_expression list) (arg_type_list : string list) : string list =  
@@ -42,9 +43,9 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
               get_arg_types rest arg_type_list
           )
         in
-
         let arg_types : string list = [] in
         let arg_types = get_arg_types args arg_types in
+
         let all_class_methods = try StringMap.find call_on_type method_env with Not_found -> (
           error_and_exit call_on.ident.line_number ("Class " ^ call_on_type ^ " does not have associated methods" );
         ) in
@@ -65,14 +66,82 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         in
         List.iter2 check_arg_type arg_types method_to_call_on.params;
 
-        method_to_call_on._type.name
+        let return_type = if method_to_call_on._type.name = st then curr_class.name else method_to_call_on._type.name in
+        return_type
       )
 
     | StaticDispatch { call_on : ast_expression; _type : ast_identifier; _method : ast_identifier; args : ast_expression list } -> (
-        "Unknown"
+        let call_on_type = verify_expression call_on curr_class symbol_map method_env in
+        if (not (lthan_eq call_on_type _type.name)) then
+          error_and_exit 0 "s";
+        let rec get_arg_types (arguments: ast_expression list) (arg_type_list : string list) : string list =  
+          match arguments with 
+          |  [] -> (arg_type_list)
+          |  a :: rest -> (
+              let a_type = verify_expression a curr_class symbol_map method_env in
+              let arg_type_list = (arg_type_list @ [a_type]) in
+              get_arg_types rest arg_type_list
+          )
+        in
+        let arg_types : string list = [] in
+        let arg_types = get_arg_types args arg_types in
+
+        let all_class_methods = try StringMap.find _type.name method_env with Not_found -> (
+          error_and_exit call_on.ident.line_number ("Class " ^ _type.name ^ " does not have associated methods" );
+        ) in
+        let method_to_call_on = try StringMap.find _method.name all_class_methods.methods with Not_found -> (
+          error_and_exit call_on.ident.line_number ("Class " ^ _type.name ^ " does not have or inherit method " 
+          ^ _method.name );
+        ) in
+        Printf.printf "Method %s with %d params called with %d args on line %d\n" method_to_call_on.name.name
+        (List.length method_to_call_on.params) (List.length arg_types) _method.line_number;
+
+        if (List.length method_to_call_on.params <> List.length arg_types) then
+          error_and_exit _method.line_number "Argument and parameter length mismatch";
+        let check_arg_type (arg_type : string) (param : ast_param) : unit = 
+          Printf.printf "Comparing parameter %s with type %s with argument with type %s on line number %d \n" 
+          param.name.name param._type.name arg_type _method.line_number;
+          if (not (lthan_eq arg_type param._type.name)) then 
+            error_and_exit _method.line_number ("Argument and parameter type mismatch: " ^ arg_type ^ " is not <= " ^ param._type.name);
+        in
+        List.iter2 check_arg_type arg_types method_to_call_on.params;
+
+        let return_type = if method_to_call_on._type.name = st then curr_class.name else method_to_call_on._type.name in
+        return_type
       )
 
     | SelfDispatch { _method : ast_identifier; args : ast_expression list } -> (
+      let rec get_arg_types (arguments: ast_expression list) (arg_type_list : string list) : string list =  
+        match arguments with 
+        |  [] -> (arg_type_list)
+        |  a :: rest -> (
+            let a_type = verify_expression a curr_class symbol_map method_env in
+            let arg_type_list = (arg_type_list @ [a_type]) in
+            get_arg_types rest arg_type_list
+        )
+      in
+      let arg_types : string list = [] in
+      let arg_types = get_arg_types args arg_types in
+
+      let all_class_methods = try StringMap.find curr_class.name method_env with Not_found -> (
+        error_and_exit curr_class.line_number ("Class " ^ curr_class.name ^ " does not have associated methods" );
+      ) in
+      let method_to_call_on = try StringMap.find _method.name all_class_methods.methods with Not_found -> (
+        error_and_exit curr_class.line_number ("Class " ^ curr_class.name ^ " does not have or inherit method " 
+        ^ _method.name );
+      ) in
+      Printf.printf "Method %s with %d params called with %d args on line %d\n" method_to_call_on.name.name
+      (List.length method_to_call_on.params) (List.length arg_types) _method.line_number;
+
+      if (List.length method_to_call_on.params <> List.length arg_types) then
+        error_and_exit _method.line_number "Argument and parameter length mismatch";
+      let check_arg_type (arg_type : string) (param : ast_param) : unit = 
+        Printf.printf "Comparing parameter %s with type %s with argument with type %s on line number %d \n" 
+        param.name.name param._type.name arg_type _method.line_number;
+        if (not (lthan_eq arg_type param._type.name)) then 
+          error_and_exit _method.line_number ("Argument and parameter type mismatch: " ^ arg_type ^ " is not <= " ^ param._type.name);
+      in
+      List.iter2 check_arg_type arg_types method_to_call_on.params;
         curr_class.name
       )
 
