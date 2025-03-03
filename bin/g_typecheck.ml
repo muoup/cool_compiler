@@ -142,17 +142,23 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match bd with
         LetBindingNoInit { variable : ast_identifier; _type : ast_identifier; } -> (
           if (_type.name = st) then
-            add_symbol variable.name curr_class.name map
-          else
-            add_symbol variable.name _type.name map
+            let new_map = add_symbol variable.name curr_class.name map in
+            typecheck_bindings rest new_map
+          else (
+            let new_map = add_symbol variable.name _type.name map in
+            typecheck_bindings rest new_map
+          )
           )
     |   LetBindingInit { variable : ast_identifier; _type : ast_identifier; value : ast_expression; } -> (
           let real_type = if (_type.name = st) then curr_class.name else _type.name in
           let value_type = verify_expression value curr_class map method_env in
-          if real_type <> value_type then
+          if real_type <> value_type then (
             error_and_exit variable.line_number ("Variable " ^ variable.name ^ " of type " ^ _type.name ^ 
             " cannot be assigned to expression of type " ^ value_type);
-            add_symbol variable.name real_type map
+          ) else (
+            let new_map = add_symbol variable.name real_type map in
+            typecheck_bindings rest new_map
+          )
           )
         )
       ) in 
