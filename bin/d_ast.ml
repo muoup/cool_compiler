@@ -63,6 +63,11 @@ and ast_attribute =
     | AttributeNoInit       of { name : ast_identifier; _type  : ast_identifier }
     | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; }
 
+and ast_body_expr =
+    | Method                of ast_method
+    | AttributeNoInit       of ast_attribute
+    | AttributeInit         of ast_attribute
+
 and ast_class = {
     name        : ast_identifier;
     inherits    : ast_identifier option;

@@ -55,7 +55,7 @@ let rec get_dispatch (classes : class_map) (class_name : string) (method_name : 
             if inherit_from.name = "Object" then
                 None
             else
-                static_dispatch classes inherit_from.name method_name
+                get_dispatch classes inherit_from.name method_name
 
 let join_classes (classes : class_map) (lhs : string) (rhs : string) =
     let rec create_lhs_tree (set : StringSet.t) (class_name : string) : StringSet.t =
