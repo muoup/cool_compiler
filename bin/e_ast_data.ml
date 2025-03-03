@@ -27,7 +27,13 @@ let rec get_attributes (classes : class_map) (class_name : string) : ast_attribu
     | Some inherit_from -> (get_attributes classes inherit_from.name) @ self_attributes
 
 let supertype_of (classes : class_map) (class_name : string) : ast_identifier =
-    let instance = (StringMap.find class_name classes).class_ref.inherits in
+    let instance = 
+        match StringMap.find_opt class_name classes with
+        | None -> 
+            Printf.printf "Class %s not found\n" class_name;
+            raise Not_found
+        | Some class_ -> class_.class_ref.inherits
+    in
 
     match instance with
     | None -> (StringMap.find "Object" classes).class_ref.name
@@ -57,7 +63,7 @@ let rec get_dispatch (classes : class_map) (class_name : string) (method_name : 
             else
                 get_dispatch classes inherit_from.name method_name
 
-let join_classes (classes : class_map) (lhs : string) (rhs : string) =
+let join_classes (current_class : string) (classes : class_map) (lhs : string) (rhs : string) =
     let rec create_lhs_tree (set : StringSet.t) (class_name : string) : StringSet.t =
         let set = StringSet.add class_name set in
 
@@ -66,14 +72,21 @@ let join_classes (classes : class_map) (lhs : string) (rhs : string) =
         | _        -> create_lhs_tree set (supertype_of classes class_name).name
     in
 
-    let lhs_tree = create_lhs_tree StringSet.empty lhs in
 
-    let rec find_common_ancestor (class_name : string) : string =
-        if StringSet.mem class_name lhs_tree then class_name
-        else find_common_ancestor (supertype_of classes class_name).name
-    in
+    match lhs, rhs with
+    | "SELF_TYPE", "SELF_TYPE" -> "SELF_TYPE"
+    | _, _                     ->
+        let lhs = if lhs = "SELF_TYPE" then current_class else lhs in
+        let rhs = if rhs = "SELF_TYPE" then current_class else rhs in
+         
+        let lhs_tree = create_lhs_tree StringSet.empty lhs in
 
-    find_common_ancestor rhs
+        let rec find_common_ancestor (class_name : string) : string =
+            if StringSet.mem class_name lhs_tree then class_name
+            else find_common_ancestor (supertype_of classes class_name).name
+        in
+
+        find_common_ancestor rhs
 
 let get_static_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
     let class_data = StringMap.find class_name classes in

@@ -11,7 +11,7 @@ type class_member =
 
 type output_context = {
     classes : class_map;
-    vars : symbol_map;
+    vars : string Symbol_data.t;
 
     current_method : string;
     current_class : string;
@@ -28,6 +28,19 @@ let get_member_line (member : class_member) : int =
 let upgrade_type (context : output_context) (type_ : string) : string =
     if type_ = "SELF_TYPE" then context.current_class
     else type_
+
+let add_variable (context : output_context) (name : string) (type_ : string) : unit =
+    Symbol_data.add context.vars name type_
+
+let remove_variable (context : output_context) (name : string) : unit =
+    Symbol_data.remove context.vars name
+
+let find_variable (context : output_context) (name : string) : string =
+    match Symbol_data.find_opt context.vars name with
+    | Some type_ -> type_
+    | None -> 
+        Printf.printf "Variable %s not found\n" name;
+        raise (Failure "Variable not found")
 
 let rec get_expr_type (context : output_context) (expr : ast_expression) : string =
     match expr.data with
@@ -46,7 +59,7 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
         let then_type = get_expr_type context _then in
         let else_type = get_expr_type context _else in
 
-        join_classes context.classes then_type else_type
+        join_classes context.current_class context.classes then_type else_type
     | While { predicate; _ } -> "Object"
     | Block { body } ->
         let rec last_type (l : ast_expression list) =
@@ -73,22 +86,41 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
     | String _ -> "String"
     | Identifier ident ->
         if ident.name = "self" then "SELF_TYPE"
-        else
-            (match get_symbol_opt ident.name context.vars with
-            | Some x -> x
-            | None -> 
-                (* Output symbol_table *)
-                Printf.printf "Error: Identifier %s at line %d not found in symbol table\n" ident.name ident.line_number;
-                Printf.printf "Symbol table:\n";
-                Symbol_data.iter (fun x y -> Printf.printf "%s -> %s\n" x y) context.vars.data;
-                Printf.printf "Symbol table end\n";
-                raise (Failure "Identifier not found in symbol table")
-            )
+        else find_variable context ident.name
     | True | False -> "Bool"
-    | Let { bindings; _in } -> get_expr_type context _in
+    | Let { bindings; _in } ->
+        List.iter 
+            (fun (binding : ast_let_binding_type) -> 
+                match binding with
+                | LetBindingNoInit { variable; _type } -> add_variable context variable.name _type.name
+                | LetBindingInit { variable; _type; value } -> add_variable context variable.name _type.name
+            )
+            bindings;
+        
+        let type_ = get_expr_type context _in in
+
+        List.iter 
+            (fun (binding : ast_let_binding_type) -> 
+                match binding with
+                | LetBindingNoInit { variable; _type } -> remove_variable context variable.name
+                | LetBindingInit { variable; _type; value } -> remove_variable context variable.name
+            )
+            bindings;
+
+        type_
     | Case { mapping_list } -> 
-        let types = List.map (fun (x : ast_case_mapping) -> get_expr_type context x.maps_to) mapping_list in
-        List.fold_left (fun x y -> join_classes context.classes x y) (List.hd types) (List.tl types)
+        let type_of (ast : ast_case_mapping) : string =
+            add_variable context ast.name.name ast._type.name;
+            let type_ = get_expr_type context ast.maps_to in
+            remove_variable context ast.name.name;
+            type_
+        in
+
+        let types = List.map type_of @@ List.tl mapping_list in
+        List.fold_left 
+            (fun x y -> join_classes context.current_class context.classes x y) 
+            (type_of @@ List.hd mapping_list) 
+            types
     | Unit -> "Object"
     | Unreachable -> "Object"
     | Internal _ ->
@@ -133,7 +165,6 @@ let get_methods (context : output_context) (class_name : string) : (string * str
     in
 
     unique_methods_rec class_name StringSet.empty
-    
 
 let output_ast (ast : ast_data) (file_path : string) : unit =
     let oc = open_out file_path in
@@ -175,17 +206,11 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             output_list         args    (fun x -> output_expression x context)
         | If                { predicate; _then; _else } ->
             output_expression   predicate context;
-            let _vars = push_scope context.vars in
-            output_expression   _then    { context with vars = _vars };
-            let _vars = pop_scope _vars in
-            let _vars = push_scope _vars in
-            output_expression   _else   { context with vars = _vars };
-            let _ = pop_scope _vars in ()
+            output_expression   _then    context;
+            output_expression   _else    context
         | While             { predicate; body } -> 
             output_expression   predicate context;
-            let _vars = push_scope context.vars in
-            output_expression   body    { context with vars = _vars };
-            let _ = pop_scope context.vars in ()
+            output_expression   body    context
         | Block             { body } ->
             output_list         body    (fun x -> output_expression x context)
         | New               { _class } ->
@@ -213,10 +238,9 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                     output_identifier   variable;
                     output_identifier   _type;
 
-                    let _vars = push_scope context.vars in
-                    let _vars = add_symbol variable.name _type.name _vars in
-                    output_expression   _in { context with vars = _vars };
-                    let _ = pop_scope _vars in
+                    add_variable       context variable.name _type.name;
+                    output_expression   _in context;
+                    remove_variable    context variable.name;
                     
                     ()
                 | LetBindingInit        { variable; _type; value } ->
@@ -225,10 +249,9 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                     output_identifier   _type;
                     output_expression   value context;
 
-                    let _vars = push_scope context.vars in                    
-                    let _vars = add_symbol variable.name _type.name _vars in
-                    output_expression   _in { context with vars = _vars };
-                    let _ = pop_scope _vars in
+                    add_variable       context variable.name _type.name;
+                    output_expression   _in context;
+                    remove_variable    context variable.name;
 
                     ()
             in
@@ -241,7 +264,12 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             let output_case_mapping (mapping : D_ast.ast_case_mapping) =
                 output_identifier   mapping.name;
                 output_identifier   mapping._type;
-                output_expression   mapping.maps_to { context with vars = add_symbol mapping.name.name mapping._type.name context.vars }
+
+                add_variable context mapping.name.name mapping._type.name;
+                output_expression   mapping.maps_to context;
+                remove_variable context mapping.name.name;
+
+                ()
             in
 
             output_number       (List.length mapping_list);
@@ -287,42 +315,31 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
     let output_implementation_map (context : output_context) =
         let output_method (context : output_context) (class_name : string) (method_name : string) : unit =
             let _method = StringMap.find method_name (StringMap.find class_name ast.classes).methods in
-            let _vars = push_scope context.vars in
-            let _vars = List.fold_left
-                (fun vars (param : ast_param) -> add_symbol param.name.name param._type.name _vars)
-                _vars
-                _method.params
-            in
             let context = { context with 
                 current_method = method_name; 
-                current_class = class_name;
-                vars = _vars } in
+                current_class = class_name } in
+
+            List.iter 
+                (fun (param : ast_param) -> 
+                    add_variable context param.name.name param._type.name; ()) 
+                    _method.params;
 
             output_line method_name;
             output_parameters _method.params;
             output_line class_name;        
             output_expression _method.body context;
-
-            let _ = pop_scope context.vars in
             ()
         in
 
         let output_class _ (class_data : class_data) : unit =
-            let _vars = push_scope context.vars in
-            let _vars = List.fold_left
-                (fun vars (attr : ast_attribute) -> 
-                    match attr with
-                    | AttributeNoInit { name; _type } -> add_symbol name.name _type.name _vars
-                    | AttributeInit { name; _type; _ } -> add_symbol name.name _type.name _vars
+           List.iter (fun (attr : ast_attribute) -> 
+                match attr with
+                | AttributeNoInit { name; _type } -> add_variable context name.name _type.name
+                | AttributeInit { name; _type; _ } -> add_variable context name.name _type.name
                 )
-                _vars
-                class_data.class_ref.attributes
-            in
+                class_data.class_ref.attributes;
 
-            let context = { context with 
-                current_class = class_data.class_ref.name.name;
-                vars = _vars
-                } in
+            let context = { context with current_class = class_data.class_ref.name.name; } in
 
             let _class = class_data.class_ref in
             let ordered_methods = get_methods context _class.name.name in
@@ -333,8 +350,6 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             List.iter
                 (fun (class_name, _method) -> output_method context class_name _method)
                 ordered_methods;
-
-            let _ = pop_scope context.vars in
 
             ()
         in
@@ -364,27 +379,25 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
 
     let output_annotated_ast (context : output_context) =
         let output_class (class_data : class_data) =
+            let context = { context with 
+                current_class = class_data.class_ref.name.name;
+                vars = Symbol_data.create 10
+            } in
+
             let output_body_expr (context : output_context) (member : class_member) =
                 match member with
                 | Method _method ->
                     output_line "method";
                     output_identifier _method.name;
                     output_number (List.length _method.params);
-                    let _vars = push_scope context.vars in
-                    let _vars = List.fold_left 
-                        (fun (_vars : symbol_map) (param : ast_param) -> 
+                    List.iter 
+                        (fun (param : ast_param) -> 
                             output_identifier param.name;
                             output_identifier param._type;
-                            add_symbol param.name.name param._type.name _vars
-                            )
-                        _vars 
-                        _method.params
-                    in
+                            add_variable context param.name.name param._type.name)
+                        _method.params;
                     output_identifier _method._type;
-
-                    let context = { context with current_method = _method.name.name; vars = _vars } in
-                    output_expression _method.body context;
-                    let _ = pop_scope _vars in ()
+                    output_expression _method.body { context with current_method = _method.name.name }
                 | Attribute attr ->
                     (match attr with
                     | AttributeNoInit { name; _type } ->
@@ -399,20 +412,15 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             in
 
             let context = { context with 
-                current_class = class_data.class_ref.name.name;
-                vars = push_scope context.vars } in
+                current_class = class_data.class_ref.name.name } in
 
-            let _vars = List.fold_left
-                (fun vars (attr : ast_attribute) -> 
-                    match attr with
-                    | AttributeNoInit { name; _type } -> add_symbol name.name _type.name vars
-                    | AttributeInit { name; _type; _ } -> add_symbol name.name _type.name vars
+            List.iter (fun (attr : ast_attribute) -> 
+                match attr with
+                | AttributeNoInit { name; _type } -> add_variable context name.name _type.name
+                | AttributeInit { name; _type; _ } -> add_variable context name.name _type.name
                 )
-                context.vars
-                class_data.class_ref.attributes
-            in
+                class_data.class_ref.attributes;
 
-            let context = { context with vars = _vars } in
             output_identifier class_data.class_ref.name;
 
             (match class_data.class_ref.inherits with
@@ -449,8 +457,6 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
 
             output_number (List.length sorted);
             List.iter (output_body_expr context) sorted;
-
-            let _ = pop_scope context.vars in ()
         in
 
         let output_filter (class_data : class_data) =
@@ -478,16 +484,16 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
 
     let context = {
         classes = ast.classes;
-        vars = new_symbol_map ();
+        vars = Symbol_data.create 10;
         current_method = "";
         current_class = "";
     } in
 
-    output_class_map { context with vars = new_symbol_map () };
+    output_class_map { context with vars = Symbol_data.create 10 };
     Printf.printf "==== Class Map Outputted ====\n";
-    output_implementation_map { context with vars = new_symbol_map () };
+    output_implementation_map { context with vars = Symbol_data.create 10 };
     Printf.printf "==== Implementation Map Outputted ====\n";
-    output_parent_map { context with vars = new_symbol_map () };
+    output_parent_map { context with vars = Symbol_data.create 10 }; 
     Printf.printf "==== Parent Map Outputted ====\n";
-    output_annotated_ast { context with vars = new_symbol_map () };
+    output_annotated_ast { context with vars = Symbol_data.create 10 }; 
     Printf.printf "==== Annotated AST Outputted ====\n"
