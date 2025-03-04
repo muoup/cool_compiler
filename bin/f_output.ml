@@ -1,9 +1,16 @@
 open E_ast_data
-open E_symbol_map
 open D_ast
 
 module StringMap = Map.Make(String)
 module StringSet = Set.Make(String)
+
+module Symbol_data = Hashtbl.Make(
+    struct
+        type t = string
+        let equal = String.equal
+        let hash = Hashtbl.hash
+    end
+)
 
 type class_member =
     | Method        of ast_method
@@ -25,8 +32,8 @@ let get_member_line (member : class_member) : int =
         | AttributeNoInit { name; _type } -> name.line_number
         | AttributeInit { name; _type; init } -> name.line_number)
 
-let upgrade_type (context : output_context) (type_ : string) : string =
-    if type_ = "SELF_TYPE" then context.current_class
+let upgrade_type (type_ : string) (self_type : string) : string =
+    if type_ = "SELF_TYPE" then self_type
     else type_
 
 let add_variable (context : output_context) (name : string) (type_ : string) : unit =
@@ -38,9 +45,7 @@ let remove_variable (context : output_context) (name : string) : unit =
 let find_variable (context : output_context) (name : string) : string =
     match Symbol_data.find_opt context.vars name with
     | Some type_ -> type_
-    | None -> 
-        Printf.printf "Variable %s not found\n" name;
-        raise (Failure "Variable not found")
+    | None -> raise (Failure ("Variable not found: " ^ name))
 
 let rec get_expr_type (context : output_context) (expr : ast_expression) : string =
     match expr.data with
@@ -48,10 +53,10 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
     | DynamicDispatch { call_on; _method; _ } -> 
         let class_name = get_expr_type context call_on in
         let dispatch = (get_dispatch context.classes class_name _method.name) in
-        (Option.get dispatch)._type.name
+        upgrade_type (Option.get dispatch)._type.name @@ get_expr_type context call_on
     | StaticDispatch { call_on; _type; _method; _ } -> 
         let dispatch = (get_static_dispatch context.classes _type.name _method.name) in
-        (Option.get dispatch)._type.name
+        upgrade_type (Option.get dispatch)._type.name @@ get_expr_type context call_on
     | SelfDispatch { _method; _ } -> 
         let dispatch = (get_dispatch context.classes context.current_class _method.name) in
         (Option.get dispatch)._type.name
@@ -127,14 +132,6 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
         let _method = get_dispatch context.classes context.current_class context.current_method in
 
         (Option.get _method)._type.name
-
-let rec get_attributes (context : output_context) (class_name : string) : ast_attribute list =
-    let _class = StringMap.find class_name context.classes in
-    let self_attributes = _class.class_ref.attributes in
-
-    match _class.class_ref.inherits with
-    | None -> self_attributes
-    | Some inherit_from -> get_attributes context inherit_from.name @ self_attributes
 
 let get_methods (context : output_context) (class_name : string) : (string * string) list =
     let rec unique_methods_rec (class_name : string) (acc : StringSet.t) : (string * string) list =
@@ -290,15 +287,28 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             | AttributeNoInit   { name; _type } ->
                     output_line "no_initializer";
                     output_line name.name;
-                    output_line _type.name
+                    output_line _type.name;
+
+                    add_variable context name.name _type.name
             | AttributeInit     { name; _type; init } ->
                     output_line "initializer";
                     output_line name.name;
                     output_line _type.name;
-                    output_expression init context
+                    output_expression init context;
+
+                    add_variable context name.name _type.name
         in
 
         let output_class _ (class_data : class_data) : unit =
+            let rec get_attributes (context : output_context) (class_name : string) : ast_attribute list =
+                let _class = StringMap.find class_name context.classes in
+                let self_attributes = _class.class_ref.attributes in
+
+                match _class.class_ref.inherits with
+                | None -> self_attributes
+                | Some inherit_from -> get_attributes context inherit_from.name @ self_attributes
+            in
+
             let context = { context with current_class = class_data.class_ref.name.name } in
             let attributes = get_attributes context class_data.class_ref.name.name in
                         
@@ -384,35 +394,45 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                 vars = Symbol_data.create 10
             } in
 
-            let output_body_expr (context : output_context) (member : class_member) =
+            let output_body_expr (member : class_member) =
                 match member with
                 | Method _method ->
+                    let context = { context with current_method = _method.name.name } in
+
                     output_line "method";
                     output_identifier _method.name;
                     output_number (List.length _method.params);
+
                     List.iter 
                         (fun (param : ast_param) -> 
                             output_identifier param.name;
                             output_identifier param._type;
                             add_variable context param.name.name param._type.name)
                         _method.params;
+                    
                     output_identifier _method._type;
-                    output_expression _method.body { context with current_method = _method.name.name }
+                    output_expression _method.body context;
+
+                    List.iter 
+                        (fun (param : ast_param) -> 
+                            remove_variable context param.name.name)
+                        _method.params
                 | Attribute attr ->
                     (match attr with
                     | AttributeNoInit { name; _type } ->
                         output_line "attribute_no_init";
                         output_identifier name;
-                        output_identifier _type
+                        output_identifier _type;
+
+                        add_variable context name.name _type.name
                     | AttributeInit { name; _type; init } ->
                         output_line "attribute_init";
                         output_identifier name;
                         output_identifier _type;
-                        output_expression init context)
+                        output_expression init context;
+                        
+                        add_variable context name.name _type.name)
             in
-
-            let context = { context with 
-                current_class = class_data.class_ref.name.name } in
 
             List.iter (fun (attr : ast_attribute) -> 
                 match attr with
@@ -456,7 +476,7 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             in
 
             output_number (List.length sorted);
-            List.iter (output_body_expr context) sorted;
+            List.iter (output_body_expr) sorted;
         in
 
         let output_filter (class_data : class_data) =
@@ -490,10 +510,6 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
     } in
 
     output_class_map { context with vars = Symbol_data.create 10 };
-    Printf.printf "==== Class Map Outputted ====\n";
     output_implementation_map { context with vars = Symbol_data.create 10 };
-    Printf.printf "==== Implementation Map Outputted ====\n";
     output_parent_map { context with vars = Symbol_data.create 10 }; 
-    Printf.printf "==== Parent Map Outputted ====\n";
-    output_annotated_ast { context with vars = Symbol_data.create 10 }; 
-    Printf.printf "==== Annotated AST Outputted ====\n"
+    output_annotated_ast { context with vars = Symbol_data.create 10 }

@@ -163,7 +163,8 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
     | Unreachable -> (
         error_and_exit expr.ident.line_number "An unexpected type of expression was reached";
       )
-
+      
+    | Internal _ -> "Object"
 )
 
 let verify_parameter(param : ast_param) : ast_param = (
