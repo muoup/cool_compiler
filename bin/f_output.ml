@@ -32,10 +32,6 @@ let get_member_line (member : class_member) : int =
         | AttributeNoInit { name; _type } -> name.line_number
         | AttributeInit { name; _type; init } -> name.line_number)
 
-let upgrade_type (type_ : string) (self_type : string) : string =
-    if type_ = "SELF_TYPE" then self_type
-    else type_
-
 let add_variable (context : output_context) (name : string) (type_ : string) : unit =
     Symbol_data.add context.vars name type_
 
@@ -59,9 +55,7 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
         upgrade_type (Option.get dispatch)._type.name @@ get_expr_type context call_on
     | StaticDispatch { call_on; _type; _method; _ } -> 
         let dispatch = 
-            (get_static_dispatch context.classes 
-             (upgrade_type _type.name context.current_class)
-             _method.name) in
+            (get_static_dispatch context.classes _type.name _method.name) in
         upgrade_type (Option.get dispatch)._type.name @@ get_expr_type context call_on
     | SelfDispatch { _method; _ } -> 
         let dispatch = (get_dispatch context.classes context.current_class _method.name) in

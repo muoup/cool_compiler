@@ -18,12 +18,30 @@ type ast_data = {
 }
 
 let rec get_attributes (classes : class_map) (class_name : string) : ast_attribute list =
-    let _class = StringMap.find class_name classes in
+    let _class = match StringMap.find_opt class_name classes with
+    | None -> raise (Failure ("Class " ^ class_name ^ " not found"))
+    | Some class_ -> class_
+    in
+
     let self_attributes = _class.class_ref.attributes in
 
     match _class.class_ref.inherits with
     | None -> self_attributes
     | Some inherit_from -> (get_attributes classes inherit_from.name) @ self_attributes
+
+let rec get_methods (classes : class_map) (class_name : string) : ast_method list =
+    let _class = match StringMap.find_opt class_name classes with
+    | None -> raise (Failure ("Class " ^ class_name ^ " not found"))
+    | Some class_ -> class_
+    in
+    
+    let self_methods = _class.class_ref.methods
+    in
+
+    match class_name, _class.class_ref.inherits with
+    | "Object", _ -> self_methods
+    | _, None -> get_methods classes "Object" @ self_methods
+    | _, Some inherit_from -> (get_methods classes inherit_from.name) @ self_methods
 
 let supertype_of (classes : class_map) (class_name : string) : ast_identifier =
     let instance = 
@@ -39,9 +57,15 @@ let supertype_of (classes : class_map) (class_name : string) : ast_identifier =
 
 let rec is_subtype_of (classes : class_map) (lhs : string) (rhs : string) : bool =
     match lhs, rhs with
-    | x, y        when x = y  -> true
-    | "Object", _             -> false
-    | _, _                    -> is_subtype_of classes (supertype_of classes lhs).name rhs
+    | x, y        when x = y    -> true
+    | "Object", _               -> false
+    | "SELF_TYPE", _            -> false
+    | _, "SELF_TYPE"            -> false
+    | _, _                      -> is_subtype_of classes (supertype_of classes lhs).name rhs
+
+let upgrade_type (type_ : string) (self_type : string) : string =
+    if type_ = "SELF_TYPE" then self_type
+    else type_
 
 let join_classes (current_class : string) (classes : class_map) (lhs : string) (rhs : string) =
     let rec create_lhs_tree (set : StringSet.t) (class_name : string) : StringSet.t =
@@ -69,26 +93,25 @@ let join_classes (current_class : string) (classes : class_map) (lhs : string) (
         find_common_ancestor rhs
 
 let get_static_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
-    let class_data = StringMap.find class_name classes in
+    let class_data = match StringMap.find_opt class_name classes with
+    | None -> raise (Failure ("Class " ^ class_name ^ " not found"))
+    | Some class_ -> class_
+    in
+
     StringMap.find_opt method_name class_data.methods
 
 let rec get_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
-    let class_data = StringMap.find class_name classes in
-    let _method = StringMap.find_opt method_name class_data.methods in
+    let class_data = match StringMap.find_opt class_name classes with
+    | None -> raise (Failure ("Class " ^ class_name ^ " not found"))
+    | Some class_ -> class_
+    in
 
-    match _method with
-    | Some _method -> Some _method
-    | None -> 
-        if class_name = "Object" then
-            None
-        else
+    let _methods = StringMap.find_opt method_name class_data.methods in
 
-        let inherits = match class_data.class_ref.inherits with
-        | None -> "Object"
-        | Some inherit_from -> inherit_from.name
-        in
-
-        get_dispatch classes inherits method_name
+    match class_name, _methods with
+    | "Object", None   -> None
+    | _,        None   -> get_dispatch classes (supertype_of classes class_name).name method_name
+    | _,        Some _ -> _methods
 
 let generate_ast_data (ast : ast) : ast_data =
     let map_fold (classes : class_map) (_class : ast_class) =

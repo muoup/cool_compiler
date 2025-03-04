@@ -32,29 +32,5 @@ let add_symbol (var_name : string) (var_type : string) (map : symbol_map) : symb
 let get_symbol (var_name : string) (map : symbol_map) : string =
     Hashtbl.find map.data var_name
 
-let _basic_sym_map_test () =
-  let map = new_symbol_map () in
-
-  let map = push_scope map in
-  let map = add_symbol "a" "Int" map in
-  let map = add_symbol "b" "String" map in
-
-  let a = get_symbol "a" map in
-  let b = get_symbol "b" map in
-
-  assert (a = "Int");
-
-  assert (b = "String");
-
-  let map = push_scope map in
-  let map = add_symbol "a" "String" map in
-
-  let a = get_symbol "a" map in
-  assert (a = "String");
-
-  let map = pop_scope map in
-
-  let a = get_symbol "a" map in
-  assert (a = "Int");
-
-  Printf.printf "Symbol Map Test Passed\n"
+let has_symbol (var_name : string) (map : symbol_map) : bool =
+    Hashtbl.mem map.data var_name
