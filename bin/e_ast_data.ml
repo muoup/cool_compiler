@@ -30,8 +30,7 @@ let supertype_of (classes : class_map) (class_name : string) : ast_identifier =
     let instance = 
         match StringMap.find_opt class_name classes with
         | None -> 
-            Printf.printf "Class %s not found\n" class_name;
-            raise Not_found
+            raise (Failure ("Class " ^ class_name ^ " not found"))
         | Some class_ -> class_.class_ref.inherits
     in
 
@@ -44,24 +43,6 @@ let rec is_subtype_of (classes : class_map) (lhs : string) (rhs : string) : bool
     | x, y        when x = y  -> true
     | "Object", _             -> false
     | _, _                    -> is_subtype_of classes (supertype_of classes lhs).name rhs
-
-let get_static_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
-    let class_data = StringMap.find class_name classes in
-    StringMap.find_opt method_name class_data.methods
-
-let rec get_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
-    let class_data = StringMap.find class_name classes in
-    let _method = StringMap.find_opt method_name class_data.methods in
-
-    match _method with
-    | Some _method -> Some _method
-    | None -> match class_data.class_ref.inherits with
-        | None -> None
-        | Some inherit_from -> 
-            if inherit_from.name = "Object" then
-                None
-            else
-                get_dispatch classes inherit_from.name method_name
 
 let join_classes (current_class : string) (classes : class_map) (lhs : string) (rhs : string) =
     let rec create_lhs_tree (set : StringSet.t) (class_name : string) : StringSet.t =
@@ -99,7 +80,8 @@ let rec get_dispatch (classes : class_map) (class_name : string) (method_name : 
     match _method with
     | Some _method -> Some _method
     | None -> 
-        if class_name = "Object" then None
+        if class_name = "Object" then
+            None
         else
 
         let inherits = match class_data.class_ref.inherits with

@@ -52,10 +52,16 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
     | Assign { rhs; _ } -> get_expr_type context rhs
     | DynamicDispatch { call_on; _method; _ } -> 
         let class_name = get_expr_type context call_on in
-        let dispatch = (get_dispatch context.classes class_name _method.name) in
+        let dispatch = 
+            (get_dispatch context.classes 
+             (upgrade_type class_name context.current_class) 
+             _method.name) in
         upgrade_type (Option.get dispatch)._type.name @@ get_expr_type context call_on
     | StaticDispatch { call_on; _type; _method; _ } -> 
-        let dispatch = (get_static_dispatch context.classes _type.name _method.name) in
+        let dispatch = 
+            (get_static_dispatch context.classes 
+             (upgrade_type _type.name context.current_class)
+             _method.name) in
         upgrade_type (Option.get dispatch)._type.name @@ get_expr_type context call_on
     | SelfDispatch { _method; _ } -> 
         let dispatch = (get_dispatch context.classes context.current_class _method.name) in
@@ -95,7 +101,7 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
     | True | False -> "Bool"
     | Let { bindings; _in } ->
         List.iter 
-            (fun (binding : ast_let_binding_type) -> 
+            (fun (binding : ast_let_binding_type) ->
                 match binding with
                 | LetBindingNoInit { variable; _type } -> add_variable context variable.name _type.name
                 | LetBindingInit { variable; _type; value } -> add_variable context variable.name _type.name
@@ -133,35 +139,13 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
 
         (Option.get _method)._type.name
 
-let get_methods (context : output_context) (class_name : string) : (string * string) list =
-    let rec unique_methods_rec (class_name : string) (acc : StringSet.t) : (string * string) list =
-        let class_data = StringMap.find class_name context.classes in
-        let methods = class_data.class_ref.methods in
+let rec get_attributes (context : output_context) (class_name : string) : ast_attribute list =
+    let _class = StringMap.find class_name context.classes in
+    let self_attributes = _class.class_ref.attributes in
 
-        let unique =
-            List.filter_map
-                (fun (x : ast_method) -> 
-                    match StringSet.mem x.name.name acc with
-                    | true -> None
-                    | false -> Some (class_name, x.name.name)
-                )
-                methods
-        in
-
-        if class_name = "Object" then unique else
-
-        let acc = List.fold_left
-            (fun acc (_, name) -> StringSet.add name acc)
-            acc
-            unique
-        in
-
-        match class_data.class_ref.inherits with
-        | None -> (unique_methods_rec "Object" acc) @ unique
-        | Some inherit_from -> (unique_methods_rec inherit_from.name acc) @ unique
-    in
-
-    unique_methods_rec class_name StringSet.empty
+    match _class.class_ref.inherits with
+    | None -> self_attributes (* Object has no attributes *)
+    | Some inherit_from -> get_attributes context inherit_from.name @ self_attributes
 
 let output_ast (ast : ast_data) (file_path : string) : unit =
     let oc = open_out file_path in
@@ -236,9 +220,6 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                     output_identifier   _type;
 
                     add_variable       context variable.name _type.name;
-                    output_expression   _in context;
-                    remove_variable    context variable.name;
-                    
                     ()
                 | LetBindingInit        { variable; _type; value } ->
                     output_line         "let_binding_init";
@@ -247,14 +228,20 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                     output_expression   value context;
 
                     add_variable       context variable.name _type.name;
-                    output_expression   _in context;
-                    remove_variable    context variable.name;
-
                     ()
             in
 
             output_number       (List.length bindings);
-            List.iter           output_binding bindings
+            List.iter           output_binding bindings;
+            output_expression   _in context;
+
+            List.iter 
+                (fun (binding : ast_let_binding_type) -> 
+                    match binding with
+                    | LetBindingNoInit { variable; _type } -> remove_variable context variable.name
+                    | LetBindingInit { variable; _type; value } -> remove_variable context variable.name
+                )
+                bindings
         | Case                  { expression; mapping_list } ->
             output_expression   expression context;
 
@@ -300,15 +287,6 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
         in
 
         let output_class _ (class_data : class_data) : unit =
-            let rec get_attributes (context : output_context) (class_name : string) : ast_attribute list =
-                let _class = StringMap.find class_name context.classes in
-                let self_attributes = _class.class_ref.attributes in
-
-                match _class.class_ref.inherits with
-                | None -> self_attributes
-                | Some inherit_from -> get_attributes context inherit_from.name @ self_attributes
-            in
-
             let context = { context with current_class = class_data.class_ref.name.name } in
             let attributes = get_attributes context class_data.class_ref.name.name in
                         
@@ -323,6 +301,31 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
     in
 
     let output_implementation_map (context : output_context) =
+        let rec method_order (class_name : string) : (string * string) list =
+            let _class = StringMap.find class_name context.classes in
+            
+            let super_methods = match class_name, _class.class_ref.inherits with
+            | "Object", _ -> []
+            | _, Some parent -> method_order parent.name
+            | _, None        -> method_order "Object"
+            in
+
+            List.fold_left
+                (fun acc (_method : ast_method) ->
+                    if List.exists (fun (_, method_name) -> method_name = _method.name.name) acc then
+                        List.map
+                            (fun (super_class_name, method_name) ->
+                                if method_name = _method.name.name then 
+                                    (class_name, method_name) 
+                                else 
+                                    (super_class_name, method_name))
+                            acc
+                    else acc @ [(class_name, _method.name.name)]
+                )
+                super_methods
+                _class.class_ref.methods
+        in
+
         let output_method (context : output_context) (class_name : string) (method_name : string) : unit =
             let _method = StringMap.find method_name (StringMap.find class_name ast.classes).methods in
             let context = { context with 
@@ -338,21 +341,26 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
             output_parameters _method.params;
             output_line class_name;        
             output_expression _method.body context;
-            ()
+
+            List.iter 
+                (fun (param : ast_param) -> 
+                    remove_variable context param.name.name; ())
+                    _method.params
         in
 
         let output_class _ (class_data : class_data) : unit =
-           List.iter (fun (attr : ast_attribute) -> 
+            let context = { context with current_class = class_data.class_ref.name.name; } in
+
+            List.iter (fun (attr : ast_attribute) -> 
                 match attr with
                 | AttributeNoInit { name; _type } -> add_variable context name.name _type.name
                 | AttributeInit { name; _type; _ } -> add_variable context name.name _type.name
                 )
-                class_data.class_ref.attributes;
-
-            let context = { context with current_class = class_data.class_ref.name.name; } in
+                @@ get_attributes context class_data.class_ref.name.name
+            ;
 
             let _class = class_data.class_ref in
-            let ordered_methods = get_methods context _class.name.name in
+            let ordered_methods = method_order _class.name.name in
 
             output_line _class.name.name;
             output_number @@ List.length ordered_methods;
@@ -439,7 +447,8 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                 | AttributeNoInit { name; _type } -> add_variable context name.name _type.name
                 | AttributeInit { name; _type; _ } -> add_variable context name.name _type.name
                 )
-                class_data.class_ref.attributes;
+                @@ get_attributes context class_data.class_ref.name.name
+            ;
 
             output_identifier class_data.class_ref.name;
 
