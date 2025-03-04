@@ -77,6 +77,7 @@ let rec verify_inherited_attributes (data : inheritance_data) (class_name : stri
 
     List.iter (fun (sub_class : ast_identifier) -> verify_inherited_attributes new_data sub_class.name) class_.sub_classes
 
+<<<<<<< HEAD
     
 let verify_inheritance (data : ast_data) : unit =
     let object_inherited_methods = StringMap.empty in

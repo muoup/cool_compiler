@@ -6,7 +6,6 @@ module StringSet = Set.Make(String)
 
 type class_data = {
     class_ref   : ast_class;
-
     attributes  : ast_attribute  StringMap.t;
     methods     : ast_method     StringMap.t;
     sub_classes : ast_identifier list;

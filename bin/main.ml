@@ -18,7 +18,7 @@ let get_file_contents file_dir : string list =
         close_in handle;
         contents
     with
-    | e -> Printf.printf "Cannot open file: %s\n" file_dir; exit 1
+    | _ -> Printf.printf "Cannot open file: %s\n" file_dir; exit 1
 
 let () = 
     (* Code courtesy of stack overflow user ivg's answer to question id: 70978234 *)
@@ -39,5 +39,5 @@ let () =
 
     G_verify_classes.verify_classes ast;
     G_verify_inheritance.verify_inheritance ast_data;
-    (* let _ = G_typecheck.verify_ast ast in *)
+    let _ = G_typecheck.verify_ast ast ast_data.classes in
     F_output.output_ast ast_data (change_file_extension file_name "cl-type")
