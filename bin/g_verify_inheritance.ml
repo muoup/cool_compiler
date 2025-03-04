@@ -77,31 +77,10 @@ let rec verify_inherited_attributes (data : inheritance_data) (class_name : stri
 
     List.iter (fun (sub_class : ast_identifier) -> verify_inherited_attributes new_data sub_class.name) class_.sub_classes
 
-let abort_method : ast_method = {
-    name = { name = "abort"; line_number = 0 };
-    params = [];
-    _type = { name = "Object"; line_number = 0 };
-    body = { ident = { name = "abort"; line_number = 0 }; data = Unreachable };
-    }
-    
-    let type_name_method : ast_method = {
-        name = { name = "type_name"; line_number = 0 };
-        params = [];
-        _type = { name = "String"; line_number = 0 };
-        body = { ident = { name = "type_name"; line_number = 0 }; data = Unreachable };
-    }
-    
-    let copy_method : ast_method = {
-        name = { name = "copy"; line_number = 0 };
-        params = [];
-        _type = { name = "SELF_TYPE"; line_number = 0 };
-        body = { ident = { name = "copy"; line_number = 0 }; data = Unreachable };
-    }
+<<<<<<< HEAD
     
 let verify_inheritance (data : ast_data) : unit =
-    let object_inherited_methods = List.fold_left (fun acc (name, method_) -> StringMap.add name method_ acc) 
-    StringMap.empty [ (abort_method.name.name, abort_method); (type_name_method.name.name, type_name_method); 
-      (copy_method.name.name, copy_method) ] in
+    let object_inherited_methods = StringMap.empty in
     let verify_data = { classes = data.classes; inherited_methods = object_inherited_methods; inherited_attributes = StringSet.empty } in
  
     verify_inherited_methods verify_data "Object";

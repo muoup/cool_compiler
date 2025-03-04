@@ -17,26 +17,78 @@ type ast_data = {
     classes : class_map
 }
 
-let rec get_attributes (classes : class_map) (class_name : ast_identifier) : ast_attribute list =
-    let _class = StringMap.find class_name.name classes in
+let rec get_attributes (classes : class_map) (class_name : string) : ast_attribute list =
+    let _class = StringMap.find class_name classes in
     let self_attributes = _class.class_ref.attributes in
 
     match _class.class_ref.inherits with
     | None -> self_attributes
-    | Some inherit_from -> (get_attributes classes inherit_from) @ self_attributes
+    | Some inherit_from -> (get_attributes classes inherit_from.name) @ self_attributes
 
-let supertype_of (classes : class_map) (class_name : ast_identifier) : ast_identifier =
-    let instance = (StringMap.find class_name.name classes).class_ref.inherits in
+let supertype_of (classes : class_map) (class_name : string) : ast_identifier =
+    let instance = 
+        match StringMap.find_opt class_name classes with
+        | None -> 
+            raise (Failure ("Class " ^ class_name ^ " not found"))
+        | Some class_ -> class_.class_ref.inherits
+    in
 
     match instance with
     | None -> (StringMap.find "Object" classes).class_ref.name
     | Some class_ -> class_
 
-let rec is_subtype_of (classes : class_map) (lhs : ast_identifier) (rhs : ast_identifier) : bool =
-    match lhs.name, rhs.name with
+let rec is_subtype_of (classes : class_map) (lhs : string) (rhs : string) : bool =
+    match lhs, rhs with
     | x, y        when x = y  -> true
     | "Object", _             -> false
-    | _, _                    -> is_subtype_of classes (supertype_of classes lhs) rhs
+    | _, _                    -> is_subtype_of classes (supertype_of classes lhs).name rhs
+
+let join_classes (current_class : string) (classes : class_map) (lhs : string) (rhs : string) =
+    let rec create_lhs_tree (set : StringSet.t) (class_name : string) : StringSet.t =
+        let set = StringSet.add class_name set in
+
+        match class_name with
+        | "Object" -> set
+        | _        -> create_lhs_tree set (supertype_of classes class_name).name
+    in
+
+
+    match lhs, rhs with
+    | "SELF_TYPE", "SELF_TYPE" -> "SELF_TYPE"
+    | _, _                     ->
+        let lhs = if lhs = "SELF_TYPE" then current_class else lhs in
+        let rhs = if rhs = "SELF_TYPE" then current_class else rhs in
+         
+        let lhs_tree = create_lhs_tree StringSet.empty lhs in
+
+        let rec find_common_ancestor (class_name : string) : string =
+            if StringSet.mem class_name lhs_tree then class_name
+            else find_common_ancestor (supertype_of classes class_name).name
+        in
+
+        find_common_ancestor rhs
+
+let get_static_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
+    let class_data = StringMap.find class_name classes in
+    StringMap.find_opt method_name class_data.methods
+
+let rec get_dispatch (classes : class_map) (class_name : string) (method_name : string) : ast_method option =
+    let class_data = StringMap.find class_name classes in
+    let _method = StringMap.find_opt method_name class_data.methods in
+
+    match _method with
+    | Some _method -> Some _method
+    | None -> 
+        if class_name = "Object" then
+            None
+        else
+
+        let inherits = match class_data.class_ref.inherits with
+        | None -> "Object"
+        | Some inherit_from -> inherit_from.name
+        in
+
+        get_dispatch classes inherits method_name
 
 let generate_ast_data (ast : ast) : ast_data =
     let map_fold (classes : class_map) (_class : ast_class) =
@@ -103,7 +155,7 @@ let generate_ast_data (ast : ast) : ast_data =
 
     let populate_data (classes : class_map) (class_ : ast_class) : class_map =
         if class_.name.name <> "Object" then
-            let supertype = (supertype_of classes class_.name) in
+            let supertype = (supertype_of classes class_.name.name) in
             
             if not (StringMap.mem supertype.name classes) then error_and_exit supertype.line_number "Unknown inherited class";
 

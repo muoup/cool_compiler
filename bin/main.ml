@@ -25,11 +25,17 @@ let () =
     let change_file_extension (path : string) (new_extension : string) : string =
         Filename.remove_extension path ^ "." ^ new_extension
     in
+
+    (* E_symbol_map._basic_sym_map_test (); *)
+
+    if Array.length Sys.argv < 2 then
+        Printf.printf "Usage: %s <file_name>\n" Sys.argv.(0)
+    ;
+    
     let file_name = Sys.argv.(1) in
     let file_contents = get_file_contents file_name in
     let ast = D_ast.parse_ast file_contents in 
     let ast_data = E_ast_data.generate_ast_data ast in
-
 
     G_verify_classes.verify_classes ast;
     G_verify_inheritance.verify_inheritance ast_data;

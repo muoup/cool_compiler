@@ -49,6 +49,7 @@ and ast_expression_val =
     | Case                  of { expression : ast_expression; mapping_list : ast_case_mapping list }
     | Unit
     | Unreachable
+    | Internal              of string
 
 and ast_param =               { name : ast_identifier; _type : ast_identifier }
 
@@ -61,6 +62,11 @@ and ast_method =               { name : ast_identifier; params : ast_param list;
 and ast_attribute =
     | AttributeNoInit       of { name : ast_identifier; _type  : ast_identifier }
     | AttributeInit         of { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; }
+
+and ast_body_expr =
+    | Method                of ast_method
+    | AttributeNoInit       of ast_attribute
+    | AttributeInit         of ast_attribute
 
 and ast_class = {
     name        : ast_identifier;
@@ -101,13 +107,35 @@ let parse_int (data : parser_data) : (parser_data * int) =
 let native_identifier (str : string) : ast_identifier =
     { name = str; line_number = 0 }
 
+let generate_object_methods : ast_method list =
+    [
+        { name = native_identifier "abort"; params = []; _type = native_identifier "Object"; body = { ident = native_identifier "internal"; data = Internal "Object.abort" } };
+        { name = native_identifier "copy"; params = []; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "Object.copy" } };
+        { name = native_identifier "type_name"; params = []; _type = native_identifier "String"; body = { ident = native_identifier "internal"; data = Internal "Object.type_name" } };
+    ]
+
+let generate_io_methods : ast_method list = 
+    [
+        { name = native_identifier "in_int"; params = []; _type = native_identifier "Int"; body = { ident = native_identifier "internal"; data = Internal "IO.in_int" } };
+        { name = native_identifier "in_string"; params = []; _type = native_identifier "String"; body = { ident = native_identifier "internal"; data = Internal "IO.in_string" } };
+        { name = native_identifier "out_int"; params = [{ name = native_identifier "x"; _type = native_identifier "Int" }]; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "IO.out_int" } };
+        { name = native_identifier "out_string"; params = [{ name = native_identifier "x"; _type = native_identifier "String" }]; _type = native_identifier "SELF_TYPE"; body = { ident = native_identifier "internal"; data = Internal "IO.out_string" } };
+    ]
+
+let generate_string_methods : ast_method list =
+    [
+        { name = native_identifier "concat"; params = [{ name = native_identifier "s"; _type = native_identifier "String" }]; _type = native_identifier "String"; body = { ident = native_identifier "internal"; data = Internal "String.concat" } };
+        { name = native_identifier "length"; params = []; _type = native_identifier "Int"; body = { ident = native_identifier "internal"; data = Internal "String.length" } };
+        { name = native_identifier "substr"; params = [{ name = native_identifier "i"; _type = native_identifier "Int" }; { name = native_identifier "l"; _type = native_identifier "Int" }]; _type = native_identifier "String"; body = { ident = native_identifier "internal"; data = Internal "String.substr" } }
+    ]
+
 let generate_native_classes : ast_class list =
     [
-        { name = native_identifier "Object"; inherits = None; attributes = []; methods = [] };
-        { name = native_identifier "String"; inherits = None; attributes = []; methods = [] };
+        { name = native_identifier "Object"; inherits = None; attributes = []; methods = generate_object_methods };
+        { name = native_identifier "String"; inherits = None; attributes = []; methods = generate_string_methods };
         { name = native_identifier "Int"   ; inherits = None; attributes = []; methods = [] };
         { name = native_identifier "Bool"  ; inherits = None; attributes = []; methods = [] };
-        { name = native_identifier "IO"    ; inherits = None; attributes = []; methods = [] }
+        { name = native_identifier "IO"    ; inherits = None; attributes = []; methods = generate_io_methods }
     ]
 
 let parse_list (data : parser_data) (mapping : parser_data -> (parser_data * 'a)) : (parser_data * 'a list) =
