@@ -1,4 +1,15 @@
-class Base {};
+class Base inherits IO{
+	a: Int;
+	b: String;
+
+	somethingrandom(k : Object) : Object {
+		if (isvoid k) then 
+			a
+		else
+			b
+		fi
+	};
+};
 
 class Main {
 	main() : Object {

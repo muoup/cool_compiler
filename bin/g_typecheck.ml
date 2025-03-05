@@ -175,9 +175,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | Identifier ast_identifier -> (
-      if ast_identifier.name = "self" then
-        "SELF_TYPE"
-      else
+      if ast_identifier.name = "self" then st else
 
       try get_symbol ast_identifier.name symbol_map
         with Not_found -> 

@@ -1,15 +1,16 @@
-class Base {
-	get_val() : Int {
-		0
+class TestClass {
+	i : Int;
+
+	init(o : Object) : TestClass {
+		{
+			i <- o;
+			self;
+		}
 	};
 };
 
-class Derived inherits Base {
-	get_val() : String {
-		"Hello, world!"
+class Main inherits IO {
+	main() : Object {
+		(new TestClass).init(1)
 	};
-};
-
-class Main {
-	main() : Object { 0 };
 };
