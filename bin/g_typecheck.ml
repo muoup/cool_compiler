@@ -227,18 +227,17 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | Case { expression : ast_expression; mapping_list : ast_case_mapping list } -> (
-        let rec check_for_duplicates (types : string list) : unit = 
-          match types with
+        let rec check_for_duplicates (ml : ast_case_mapping list) (seen : string list) : unit = 
+          match ml with
           | [] -> ()
           | x :: rest -> (
-            if List.mem x rest then
-              error_and_exit expr.ident.line_number ("Duplicate case mapping for type " ^ x);
-            check_for_duplicates rest
+            if List.mem x._type.name seen then
+              error_and_exit x.name.line_number ("Duplicate case mapping for type " ^ x._type.name);
+            let seen = x._type.name :: seen in
+            check_for_duplicates rest seen
           )
         in
-
-        let mapping_types = List.map (fun (m : ast_case_mapping) -> m._type.name) mapping_list in
-        check_for_duplicates mapping_types;
+        check_for_duplicates mapping_list [];
 
         let _ = verify_expression expression curr_class symbol_map ast_data in
         let verify_mapping (mapping : ast_case_mapping) : string = (
@@ -300,7 +299,7 @@ let verify_attribute(attribute : ast_attribute) (curr_class : ast_identifier) (s
       
       if not (is_subtype_of ast_data.classes init_type _type.name) then
         error_and_exit name.line_number ("Attribute " ^ name.name ^ " of type " ^ _type.name ^ 
-        " cannot be assigned to expression of type " ^ (get_symbol name.name symbols))
+        " cannot be assigned to expression of type " ^ init_type)
     )
 )
 
