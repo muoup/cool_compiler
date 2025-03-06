@@ -26,7 +26,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match params, types with
         | [], [] -> ()
         | p :: rest_p, t :: rest_t -> (
-            if not (is_subtype_of classes (upgrade_type t curr_class.name) p._type.name) then
+            if not (is_subtype_of classes curr_class.name t p._type.name) then
               error_and_exit p.name.line_number ("Parameter " ^ p.name.name ^ " of type " ^ p._type.name ^
               " cannot be assigned to type " ^ t)
             else
@@ -45,7 +45,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         let var_type = try get_symbol var.name symbol_map with Not_found -> 
         (error_and_exit var.line_number ("Identifier " ^ var.name ^ " was not initialized to a type")) in
 
-        if (not (is_subtype_of ast_data.classes rhs_type var_type)) then 
+        if (not (is_subtype_of ast_data.classes curr_class.name rhs_type var_type)) then 
           error_and_exit var.line_number ("Cannot assign variable " ^ var.name ^ " of type " ^ var_type 
           ^ " to an expression of type " ^ rhs_type);
         rhs_type
@@ -65,6 +65,12 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
     | StaticDispatch { call_on : ast_expression; _type : ast_identifier; _method : ast_identifier; args : ast_expression list } -> (
         let call_on_type = verify_expression call_on curr_class symbol_map ast_data in
         let method_name = _method.name in
+
+        if not (StringMap.mem _type.name ast_data.classes) then
+          error_and_exit expr.ident.line_number ("Class " ^ _type.name ^ " not found");
+
+        if not (is_subtype_of ast_data.classes curr_class.name call_on_type _type.name) then
+          error_and_exit expr.ident.line_number ("Cannot dispatch to class " ^ _type.name ^ " from class " ^ call_on_type);
         
         match get_static_dispatch ast_data.classes _type.name method_name with
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ call_on_type)
@@ -280,8 +286,7 @@ let verify_method(mthd : ast_method) (curr_class : ast_identifier) (symbol_map :
   let method_type = verify_expression mthd.body curr_class symbol_map ast_data in
 
   if method_type <> "INTERNAL" &&
-     not (is_subtype_of ast_data.classes method_type mthd._type.name) &&
-     not (is_subtype_of ast_data.classes (upgrade_type method_type curr_class.name) mthd._type.name) then
+     not (is_subtype_of ast_data.classes curr_class.name method_type mthd._type.name) then
     error_and_exit mthd.name.line_number (curr_class.name ^ "." ^ mthd.name.name ^ " of type " ^ mthd._type.name ^ 
     " cannot be assigned to expression of type " ^ method_type);
 
@@ -298,7 +303,7 @@ let verify_attribute(attribute : ast_attribute) (curr_class : ast_identifier) (s
   | AttributeInit { name : ast_identifier; _type  : ast_identifier; init  : ast_expression; } -> (
       let init_type = verify_expression init curr_class symbols ast_data in
       
-      if not (is_subtype_of ast_data.classes init_type _type.name) then
+      if not (is_subtype_of ast_data.classes curr_class.name init_type _type.name) then
         error_and_exit name.line_number ("Attribute " ^ name.name ^ " of type " ^ _type.name ^ 
         " cannot be assigned to expression of type " ^ (get_symbol name.name symbols))
     )

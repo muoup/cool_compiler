@@ -55,13 +55,13 @@ let supertype_of (classes : class_map) (class_name : string) : ast_identifier =
     | None -> (StringMap.find "Object" classes).class_ref.name
     | Some class_ -> class_
 
-let rec is_subtype_of (classes : class_map) (lhs : string) (rhs : string) : bool =
+let rec is_subtype_of (classes : class_map) (current_class : string) (lhs : string) (rhs : string) : bool =
     match lhs, rhs with
     | x, y        when x = y    -> true
     | "Object", _               -> false
-    | "SELF_TYPE", _            -> false
+    | "SELF_TYPE", _            -> is_subtype_of classes current_class current_class rhs
     | _, "SELF_TYPE"            -> false
-    | _, _                      -> is_subtype_of classes (supertype_of classes lhs).name rhs
+    | _, _                      -> is_subtype_of classes current_class (supertype_of classes lhs).name rhs
 
 let upgrade_type (type_ : string) (self_type : string) : string =
     if type_ = "SELF_TYPE" then self_type
