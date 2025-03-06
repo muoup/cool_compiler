@@ -11,8 +11,10 @@ type method_data = {
 }
 type class_methods_map = method_data StringMap.t
 
-let st = "SELF_TYPE"
-
+(*
+  Typechecking routine. All expression-related typechecking is done here. Returns the type of the expression
+  if it is valid or raises an error if it is not.
+ *)
 let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (symbol_map : symbol_map)
   (ast_data : ast_data) : string  = (
 
@@ -76,7 +78,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ call_on_type)
         | Some dispatch -> 
             verify_method_params dispatch args ast_data.classes expr.ident.line_number;
-            upgrade_type dispatch._type.name curr_class.name
+            dispatch._type.name
       )
 
     | SelfDispatch { _method : ast_identifier; args : ast_expression list } -> (
@@ -121,7 +123,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | New { _class : ast_identifier } -> (
-        if _class.name = st then curr_class.name else _class.name
+        upgrade_type _class.name curr_class.name
       )
 
     | IsVoid { expr : ast_expression } -> (
@@ -181,7 +183,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | Identifier ast_identifier -> (
-      if ast_identifier.name = "self" then st else
+      if ast_identifier.name = "self" then "SELF_TYPE" else
 
       try get_symbol ast_identifier.name symbol_map
         with Not_found -> 
@@ -198,17 +200,14 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match bd with
         LetBindingNoInit { variable : ast_identifier; _type : ast_identifier; } -> (
           if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
-          if (_type.name = st) then
-            let new_map = add_symbol variable.name curr_class.name map in
-            typecheck_bindings rest new_map
-          else (
-            let new_map = add_symbol variable.name _type.name map in
-            typecheck_bindings rest new_map
-          )
+          let real_type = upgrade_type _type.name curr_class.name in
+          let new_map = add_symbol variable.name real_type map in
+          typecheck_bindings rest new_map  
+        
           )
     |   LetBindingInit { variable : ast_identifier; _type : ast_identifier; value : ast_expression; } -> (
           if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
-          let real_type = if (_type.name = st) then curr_class.name else _type.name in
+          let real_type  = upgrade_type _type.name curr_class.name in
           let value_type = verify_expression value curr_class map ast_data in
           if not (is_subtype_of ast_data.classes curr_class.name value_type real_type) then (
             error_and_exit variable.line_number ("Variable " ^ variable.name ^ " of type " ^ _type.name ^ 
@@ -233,17 +232,22 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | Case { expression : ast_expression; mapping_list : ast_case_mapping list } -> (
-        let rec check_for_duplicates (ml : ast_case_mapping list) (seen : string list) : unit = 
-          match ml with
+        let rec check_for_duplicates (types : ast_identifier list) : unit = 
+          match types with
           | [] -> ()
           | x :: rest -> (
-            if List.mem x._type.name seen then
-              error_and_exit x.name.line_number ("Duplicate case mapping for type " ^ x._type.name);
-            let seen = x._type.name :: seen in
-            check_for_duplicates rest seen
+            let mem = List.find_opt (fun (y : ast_identifier) -> (y.name = x.name)) rest in
+
+            if Option.is_some mem then
+              let decl = Option.get mem in
+                error_and_exit decl.line_number ("Duplicate case mapping for type " ^ decl.name)
+            else
+              check_for_duplicates rest
           )
         in
-        check_for_duplicates mapping_list [];
+
+        let mapping_types = List.map (fun (m : ast_case_mapping) -> m._type) mapping_list in
+        check_for_duplicates mapping_types;
 
         let _ = verify_expression expression curr_class symbol_map ast_data in
         let verify_mapping (mapping : ast_case_mapping) : string = (
