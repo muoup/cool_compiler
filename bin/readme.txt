@@ -50,6 +50,8 @@ The final bad test case tests our comparisons, which had caused us problems.
 Although the method int_or_object in reality always returns an int, since a and b are 
 both ints, its declared return type of object should make comparisons between it and an int illegal. We also
 threw in an isvoid comparison and an IO inheritance to make sure that didn't break our code.
-Our good test case checks that we inherit IO methods correctly, which had caused us problems. It also makes sure
-our while loops don't break when given an expression.
+
+Our good test case checks that we inherit IO methods correctly, which had caused us problems. It uses both out_ and in_string,
+and then uses the result in an expression of another method.
+It also makes sure our while loops don't break when given an expression as a predicate
 
