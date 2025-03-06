@@ -22,21 +22,21 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       args
     in
 
-    let rec typecheck (params : ast_param list) (types : string list) : unit =
-        match params, types with
-        | [], [] -> ()
-        | p :: rest_p, t :: rest_t -> (
+    let rec typecheck (params : ast_param list) (types : string list) (args : ast_expression list): unit =
+        match params, types, args with
+        | [], [], [] -> ()
+        | p :: rest_p, t :: rest_t, a :: rest_a -> (
             if not (is_subtype_of classes curr_class.name t p._type.name) then
-              error_and_exit p.name.line_number ("Parameter " ^ p.name.name ^ " of type " ^ p._type.name ^
+              error_and_exit a.ident.line_number ("Parameter " ^ p.name.name ^ " of type " ^ p._type.name ^
               " cannot be assigned to type " ^ t)
             else
-              typecheck rest_p rest_t
+              typecheck rest_p rest_t rest_a
         )
-        | _, _ ->
+        | _, _, _ ->
             error_and_exit _method.name.line_number "Incorrect number of arguments passed to method"
     in
 
-    typecheck _method.params _types
+    typecheck _method.params _types args
   in
 
   match expr.data with
