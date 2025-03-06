@@ -1,9 +1,9 @@
 class Base inherits IO{
 	a: Int;
-	b: String;
+	b: Int;
 
-	somethingrandom(k : Object) : Object {
-		if (isvoid k) then 
+	int_or_object(non_void_arg : Object) : Object {
+		if (isvoid non_void_arg) then 
 			a
 		else
 			b
@@ -14,8 +14,8 @@ class Base inherits IO{
 class Main {
 	main() : Object {
 		let object : Base <- new Base in
-		let int : Int <- 0 in
-		if int = object then
+		let i : Int <- 0 in
+		if o = object.int_or_object(2) then
 			1
 		else
 			0

@@ -9,7 +9,7 @@ class TestClass {
 	};
 };
 
-class Main inherits IO {
+class Main {
 	main() : Object {
 		(new TestClass).init(1)
 	};
