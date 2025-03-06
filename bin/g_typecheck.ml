@@ -76,7 +76,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ call_on_type)
         | Some dispatch -> 
             verify_method_params dispatch args ast_data.classes;
-            upgrade_type dispatch._type.name curr_class.name
+            dispatch._type.name
       )
 
     | SelfDispatch { _method : ast_identifier; args : ast_expression list } -> (
@@ -233,17 +233,21 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | Case { expression : ast_expression; mapping_list : ast_case_mapping list } -> (
-        let rec check_for_duplicates (types : string list) : unit = 
+        let rec check_for_duplicates (types : ast_identifier list) : unit = 
           match types with
           | [] -> ()
           | x :: rest -> (
-            if List.mem x rest then
-              error_and_exit expr.ident.line_number ("Duplicate case mapping for type " ^ x);
-            check_for_duplicates rest
+            let mem = List.find_opt (fun (y : ast_identifier) -> (y.name = x.name)) rest in
+
+            if Option.is_some mem then
+              let decl = Option.get mem in
+                error_and_exit decl.line_number ("Duplicate case mapping for type " ^ decl.name)
+            else
+              check_for_duplicates rest
           )
         in
 
-        let mapping_types = List.map (fun (m : ast_case_mapping) -> m._type.name) mapping_list in
+        let mapping_types = List.map (fun (m : ast_case_mapping) -> m._type) mapping_list in
         check_for_duplicates mapping_types;
 
         let _ = verify_expression expression curr_class symbol_map ast_data in
