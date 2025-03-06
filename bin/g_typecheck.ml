@@ -210,7 +210,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
           if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
           let real_type = if (_type.name = st) then curr_class.name else _type.name in
           let value_type = verify_expression value curr_class map ast_data in
-          if real_type <> value_type then (
+          if not (is_subtype_of ast_data.classes curr_class.name value_type real_type) then (
             error_and_exit variable.line_number ("Variable " ^ variable.name ^ " of type " ^ _type.name ^ 
             " cannot be assigned to expression of type " ^ value_type);
           ) else (
