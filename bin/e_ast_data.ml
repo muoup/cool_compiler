@@ -4,6 +4,9 @@ open A_util
 module StringMap = Map.Make(String)
 module StringSet = Set.Make(String)
 
+(*
+    Centralized information regarding the AST, used for type checking and output.
+ *)
 type class_data = {
     class_ref   : ast_class;
     attributes  : ast_attribute  StringMap.t;
