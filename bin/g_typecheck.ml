@@ -16,13 +16,13 @@ let st = "SELF_TYPE"
 let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (symbol_map : symbol_map)
   (ast_data : ast_data) : string  = (
 
-  let verify_method_params (_method : ast_method) (args : ast_expression list) (classes : class_map) : unit =
-    let _types = List.map
-      (fun e -> verify_expression e curr_class symbol_map ast_data)
-      args
-    in
+  let verify_method_params (_method : ast_method) (args : ast_expression list) (classes : class_map)
+  (arg_param_num_mismatch_line_num : int) : unit =
+    let _types = List.map (fun e -> verify_expression e curr_class symbol_map ast_data) args in
 
     let rec typecheck (params : ast_param list) (types : string list) (args : ast_expression list): unit =
+        if (List.length params <> List.length args) then 
+          error_and_exit arg_param_num_mismatch_line_num "Incorrect number of arguments passed to method";
         match params, types, args with
         | [], [], [] -> ()
         | p :: rest_p, t :: rest_t, a :: rest_a -> (
@@ -58,7 +58,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match get_dispatch ast_data.classes (upgrade_type call_on_type curr_class.name) method_name with
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ call_on_type)
         | Some dispatch -> 
-            verify_method_params dispatch args ast_data.classes;
+            verify_method_params dispatch args ast_data.classes expr.ident.line_number;
             upgrade_type dispatch._type.name call_on_type
       )
 
@@ -75,7 +75,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match get_static_dispatch ast_data.classes _type.name method_name with
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ call_on_type)
         | Some dispatch -> 
-            verify_method_params dispatch args ast_data.classes;
+            verify_method_params dispatch args ast_data.classes expr.ident.line_number;
             upgrade_type dispatch._type.name curr_class.name
       )
 
@@ -85,7 +85,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match get_dispatch ast_data.classes curr_class.name method_name with
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ curr_class.name)
         | Some dispatch -> 
-            verify_method_params dispatch args ast_data.classes;
+            verify_method_params dispatch args ast_data.classes expr.ident.line_number;
             dispatch._type.name
       )
 
