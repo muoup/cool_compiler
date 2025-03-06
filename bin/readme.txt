@@ -53,5 +53,5 @@ threw in an isvoid comparison and an IO inheritance to make sure that didn't bre
 
 Our good test case checks that we inherit IO methods correctly, which had caused us problems. It uses both out_ and in_string,
 and then uses the result in an expression of another method.
-It also makes sure our while loops don't break when given an expression as a predicate
+It also makes sure our while loops don't break when given an expression as a predicate.
 
