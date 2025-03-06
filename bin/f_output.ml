@@ -4,6 +4,17 @@ open D_ast
 module StringMap = Map.Make(String)
 module StringSet = Set.Make(String)
 
+(*
+    Originally this was a more proper symbol table implementation that allowed scoping (i.e.
+    pushing and popping scopes where popping a scope would automatically remove all variables
+    added in that scope). The problem with this though is moreso a skill issue than anything else,
+    because of the immutability of the symbol table, I would often misplace the reference and end
+    up with misaligned scopes.
+
+    Given COOL's compiler-friendliness just treating each case individually is much simpler, where
+    I can just add and remove variables when parsing expressions without needing a automatic scoping
+    method for doing so.
+ *)
 module Symbol_data = Hashtbl.Make(
     struct
         type t = string
@@ -43,6 +54,18 @@ let find_variable (context : output_context) (name : string) : string =
     | Some type_ -> type_
     | None -> raise (Failure ("Variable not found: " ^ name))
 
+(* 
+    This is very similar in functionality to the expression verification procedure in g_typecheck, this
+    exists for two reasons:
+        1. Typechecking and output were written in parallel, I didn't realize I could reuse that code,
+        however this probably was the less headache-inducing option given the inevitable problems with
+        trying to get a procedure of this size to work in two different contexts.
+
+        2. For things such as SELF_TYPE, it feels as though having two separate procedures makes this
+        process easier as well, given that there is a very specific set of rules for how the AST needs
+        to be outputted, and there is some utility in treating SELF_TYPE as it's parent class when
+        doing typechecking.
+*)
 let rec get_expr_type (context : output_context) (expr : ast_expression) : string =
     match expr.data with
     | Assign { rhs; _ } -> get_expr_type context rhs
@@ -133,17 +156,10 @@ let rec get_expr_type (context : output_context) (expr : ast_expression) : strin
 
         (Option.get _method)._type.name
 
-let rec get_attributes (context : output_context) (class_name : string) : ast_attribute list =
-    let _class = StringMap.find class_name context.classes in
-    let self_attributes = _class.class_ref.attributes in
-
-    match _class.class_ref.inherits with
-    | None -> self_attributes (* Object has no attributes *)
-    | Some inherit_from -> get_attributes context inherit_from.name @ self_attributes
-
 let output_ast (ast : ast_data) (file_path : string) : unit =
     let oc = open_out file_path in
 
+    (* Auxillary methods for printing to a file *)
     let output_line (line : string) = Printf.fprintf oc "%s\n" line in
     let output_number (num : int) = Printf.fprintf oc "%d\n" num in
     let output_identifier (ident : D_ast.ast_identifier) =
@@ -257,11 +273,6 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
         | _ -> Printf.printf "Unhandled Expression!\n"; exit 1
     in
 
-    let output_parameters (params : ast_param list) : unit =
-        output_number (List.length params);
-        List.iter (fun (param : ast_param) -> output_line param.name.name) params
-    in
-
     let output_class_map (context : output_context) : unit =
         let output_attribute (_attr : ast_attribute) (context : output_context) : unit =
             match _attr with
@@ -282,7 +293,7 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
 
         let output_class _ (class_data : class_data) : unit =
             let context = { context with current_class = class_data.class_ref.name.name } in
-            let attributes = get_attributes context class_data.class_ref.name.name in
+            let attributes = get_attributes context.classes class_data.class_ref.name.name in
                         
             output_line class_data.class_ref.name.name;
             output_number (List.length attributes);
@@ -332,7 +343,10 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                     _method.params;
 
             output_line method_name;
-            output_parameters _method.params;
+            
+            output_number (List.length _method.params);
+            List.iter (fun (param : ast_param) -> output_line param.name.name) _method.params;
+
             output_line class_name;        
             output_expression _method.body context;
 
@@ -350,7 +364,7 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                 | AttributeNoInit { name; _type } -> add_variable context name.name _type.name
                 | AttributeInit { name; _type; _ } -> add_variable context name.name _type.name
                 )
-                @@ get_attributes context class_data.class_ref.name.name
+                @@ get_attributes context.classes class_data.class_ref.name.name
             ;
 
             let _class = class_data.class_ref in
@@ -441,7 +455,7 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
                 | AttributeNoInit { name; _type } -> add_variable context name.name _type.name
                 | AttributeInit { name; _type; _ } -> add_variable context name.name _type.name
                 )
-                @@ get_attributes context class_data.class_ref.name.name
+                @@ get_attributes context.classes class_data.class_ref.name.name
             ;
 
             output_identifier class_data.class_ref.name;

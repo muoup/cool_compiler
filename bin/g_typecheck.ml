@@ -11,8 +11,10 @@ type method_data = {
 }
 type class_methods_map = method_data StringMap.t
 
-let st = "SELF_TYPE"
-
+(*
+  Typechecking routine. All expression-related typechecking is done here. Returns the type of the expression
+  if it is valid or raises an error if it is not.
+ *)
 let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (symbol_map : symbol_map)
   (ast_data : ast_data) : string  = (
 
@@ -121,7 +123,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | New { _class : ast_identifier } -> (
-        if _class.name = st then curr_class.name else _class.name
+        upgrade_type _class.name curr_class.name
       )
 
     | IsVoid { expr : ast_expression } -> (
@@ -199,16 +201,13 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       | bd :: rest -> (
         match bd with
         LetBindingNoInit { variable : ast_identifier; _type : ast_identifier; } -> (
-          if (_type.name = st) then
-            let new_map = add_symbol variable.name curr_class.name map in
-            typecheck_bindings rest new_map
-          else (
-            let new_map = add_symbol variable.name _type.name map in
-            typecheck_bindings rest new_map
-          )
+          let real_type = upgrade_type _type.name curr_class.name in
+          let new_map = add_symbol variable.name real_type map in
+          typecheck_bindings rest new_map  
+        
           )
     |   LetBindingInit { variable : ast_identifier; _type : ast_identifier; value : ast_expression; } -> (
-          let real_type = if (_type.name = st) then curr_class.name else _type.name in
+          let real_type  = upgrade_type _type.name curr_class.name in
           let value_type = verify_expression value curr_class map ast_data in
           if real_type <> value_type then (
             error_and_exit variable.line_number ("Variable " ^ variable.name ^ " of type " ^ _type.name ^ 

@@ -3,21 +3,21 @@ open A_util
 module StringMap = Map.Make(String)
 
 let main_flag = ref false
-let rec check_for_main (ast : ast) =
-match ast with 
-| [] -> if not !main_flag then (
-  error_and_exit 0 "class Main not found";
-)
-| { name; _ } :: rest ->
-if name.name = "Main" then
-  main_flag := true
-else
-  check_for_main rest
+  let rec check_for_main (ast : ast) =
+    match ast with 
+    | [] -> if not !main_flag then (
+      error_and_exit 0 "class Main not found";
+    )
+    | { name; _ } :: rest ->
+  if name.name = "Main" then
+    main_flag := true
+  else
+    check_for_main rest
 
 let rec illegal_inheritance (ast : ast) = 
   match ast with
-| [] -> ()
-| { name; inherits; _ } :: rest ->
+  | [] -> ()
+  | { name; inherits; _ } :: rest ->
   if (Option.is_some inherits) then
       if (Option.get inherits).name = "Bool" || (Option.get inherits).name = "Int" || (Option.get inherits).name = "String" then (
           error_and_exit (Option.get inherits).line_number ("class " ^ name.name ^ " inherits from " ^ (Option.get inherits).name)
@@ -65,6 +65,8 @@ let check_cycles lst =
 let verify_classes (ast : ast) = 
   check_for_main ast;
   illegal_inheritance ast;
+
   let tbl = Hashtbl.create (List.length ast) in
   find_duplicates ast tbl;
+  
   check_cycles (convert_ast_class_list ast)
