@@ -199,6 +199,9 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       | bd :: rest -> (
         match bd with
         LetBindingNoInit { variable : ast_identifier; _type : ast_identifier; } -> (
+           if not ((StringMap.mem _type.name ast_data.classes) || _type.name = "SELF_TYPE") then  
+             error_and_exit variable.line_number ("Unknown type " ^ _type.name); 
+
           if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
           let real_type = upgrade_type _type.name curr_class.name in
           let new_map = add_symbol variable.name real_type map in
@@ -206,6 +209,9 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         
           )
     |   LetBindingInit { variable : ast_identifier; _type : ast_identifier; value : ast_expression; } -> (
+          if not ((StringMap.mem _type.name ast_data.classes) || _type.name = "SELF_TYPE") then  
+             error_and_exit variable.line_number ("Unknown type " ^ _type.name);
+
           if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
           let real_type  = upgrade_type _type.name curr_class.name in
           let value_type = verify_expression value curr_class map ast_data in
