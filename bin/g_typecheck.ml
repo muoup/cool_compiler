@@ -197,6 +197,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       | bd :: rest -> (
         match bd with
         LetBindingNoInit { variable : ast_identifier; _type : ast_identifier; } -> (
+          if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
           if (_type.name = st) then
             let new_map = add_symbol variable.name curr_class.name map in
             typecheck_bindings rest new_map
@@ -206,6 +207,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
           )
           )
     |   LetBindingInit { variable : ast_identifier; _type : ast_identifier; value : ast_expression; } -> (
+          if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
           let real_type = if (_type.name = st) then curr_class.name else _type.name in
           let value_type = verify_expression value curr_class map ast_data in
           if real_type <> value_type then (
