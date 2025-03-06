@@ -34,7 +34,8 @@ it stumbles into in the set. Finally, the last main algorithm needed to be imple
 example of the convenience of a functional language, as the routine was a simple recursive pattern match that pushed
 the left-side type up its inheritance tree until it either reached the right-side, or Object in which case it can be said
 that it is not a subtype, along with "upgrading" or perhaps more accurately specifying SELF_TYPE to the current class being parsed
-when needed.
+when needed. Finding the right application of these methods was again a similar trial-and-error to that of PA2C2, however
+with the algorithms and proper data structures set up, finishing up the typechecker was much more manageable.
 
 Our four test cases attempt to test a wide breadth of the Cool language features. The first bad test case
 is some self and static dispatch trickery, where we have a class B which has a method copy1. B inherits A,
