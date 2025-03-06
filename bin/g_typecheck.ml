@@ -123,7 +123,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | New { _class : ast_identifier } -> (
-        upgrade_type _class.name curr_class.name
+        _class.name
       )
 
     | IsVoid { expr : ast_expression } -> (
@@ -200,6 +200,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match bd with
         LetBindingNoInit { variable : ast_identifier; _type : ast_identifier; } -> (
           if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
+
           let real_type = upgrade_type _type.name curr_class.name in
           let new_map = add_symbol variable.name real_type map in
           typecheck_bindings rest new_map  
@@ -209,6 +210,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
           if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
           let real_type  = upgrade_type _type.name curr_class.name in
           let value_type = verify_expression value curr_class map ast_data in
+
           if not (is_subtype_of ast_data.classes curr_class.name value_type real_type) then (
             error_and_exit variable.line_number ("Variable " ^ variable.name ^ " of type " ^ _type.name ^ 
             " cannot be assigned to expression of type " ^ value_type);
