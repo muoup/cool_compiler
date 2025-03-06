@@ -26,8 +26,6 @@ let () =
         Filename.remove_extension path ^ "." ^ new_extension
     in
 
-    (* E_symbol_map._basic_sym_map_test (); *)
-
     if Array.length Sys.argv < 2 then
         Printf.printf "Usage: %s <file_name>\n" Sys.argv.(0)
     ;

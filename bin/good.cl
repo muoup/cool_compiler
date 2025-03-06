@@ -1,13 +1,16 @@
-class Base {
-	init() : Object { 0 };
-};
-
-class Derived inherits Base {
-	init() : Object {
-		self@Base.init()
+class Main inherits IO{
+	main() : Object {
+		let b : Bool <- prompt() in
+		while not b loop 
+			b <- prompt() 
+		pool
 	};
-};
 
-class Main {
-	main() : Object { 0 };
+	prompt() : Bool {
+		{
+		out_string("Speak, friend, and enter:\n");
+		let x : String <- in_string() in
+		if x = "friend" then true else false fi;
+		}
+   };
 };

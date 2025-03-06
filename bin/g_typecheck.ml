@@ -18,27 +18,27 @@ type class_methods_map = method_data StringMap.t
 let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (symbol_map : symbol_map)
   (ast_data : ast_data) : string  = (
 
-  let verify_method_params (_method : ast_method) (args : ast_expression list) (classes : class_map) : unit =
-    let _types = List.map
-      (fun e -> verify_expression e curr_class symbol_map ast_data)
-      args
-    in
+  let verify_method_params (_method : ast_method) (args : ast_expression list) (classes : class_map)
+  (arg_param_num_mismatch_line_num : int) : unit =
+    let _types = List.map (fun e -> verify_expression e curr_class symbol_map ast_data) args in
 
-    let rec typecheck (params : ast_param list) (types : string list) : unit =
-        match params, types with
-        | [], [] -> ()
-        | p :: rest_p, t :: rest_t -> (
+    let rec typecheck (params : ast_param list) (types : string list) (args : ast_expression list): unit =
+        if (List.length params <> List.length args) then 
+          error_and_exit arg_param_num_mismatch_line_num "Incorrect number of arguments passed to method";
+        match params, types, args with
+        | [], [], [] -> ()
+        | p :: rest_p, t :: rest_t, a :: rest_a -> (
             if not (is_subtype_of classes curr_class.name t p._type.name) then
-              error_and_exit p.name.line_number ("Parameter " ^ p.name.name ^ " of type " ^ p._type.name ^
+              error_and_exit a.ident.line_number ("Parameter " ^ p.name.name ^ " of type " ^ p._type.name ^
               " cannot be assigned to type " ^ t)
             else
-              typecheck rest_p rest_t
+              typecheck rest_p rest_t rest_a
         )
-        | _, _ ->
+        | _, _, _ ->
             error_and_exit _method.name.line_number "Incorrect number of arguments passed to method"
     in
 
-    typecheck _method.params _types
+    typecheck _method.params _types args
   in
 
   match expr.data with
@@ -60,7 +60,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match get_dispatch ast_data.classes (upgrade_type call_on_type curr_class.name) method_name with
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ call_on_type)
         | Some dispatch -> 
-            verify_method_params dispatch args ast_data.classes;
+            verify_method_params dispatch args ast_data.classes expr.ident.line_number;
             upgrade_type dispatch._type.name call_on_type
       )
 
@@ -77,7 +77,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match get_static_dispatch ast_data.classes _type.name method_name with
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ call_on_type)
         | Some dispatch -> 
-            verify_method_params dispatch args ast_data.classes;
+            verify_method_params dispatch args ast_data.classes expr.ident.line_number;
             dispatch._type.name
       )
 
@@ -87,7 +87,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
         match get_dispatch ast_data.classes curr_class.name method_name with
         | None -> error_and_exit expr.ident.line_number ("Method " ^ method_name ^ " not found in class " ^ curr_class.name)
         | Some dispatch -> 
-            verify_method_params dispatch args ast_data.classes;
+            verify_method_params dispatch args ast_data.classes expr.ident.line_number;
             dispatch._type.name
       )
 
@@ -183,9 +183,7 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       )
 
     | Identifier ast_identifier -> (
-      if ast_identifier.name = "self" then
-        "SELF_TYPE"
-      else
+      if ast_identifier.name = "self" then "SELF_TYPE" else
 
       try get_symbol ast_identifier.name symbol_map
         with Not_found -> 
@@ -201,15 +199,17 @@ let rec verify_expression(expr : ast_expression) (curr_class : ast_identifier) (
       | bd :: rest -> (
         match bd with
         LetBindingNoInit { variable : ast_identifier; _type : ast_identifier; } -> (
+          if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
           let real_type = upgrade_type _type.name curr_class.name in
           let new_map = add_symbol variable.name real_type map in
           typecheck_bindings rest new_map  
         
           )
     |   LetBindingInit { variable : ast_identifier; _type : ast_identifier; value : ast_expression; } -> (
+          if variable.name = "self" then error_and_exit variable.line_number "Binding self in a let is not allowed";
           let real_type  = upgrade_type _type.name curr_class.name in
           let value_type = verify_expression value curr_class map ast_data in
-          if real_type <> value_type then (
+          if not (is_subtype_of ast_data.classes curr_class.name value_type real_type) then (
             error_and_exit variable.line_number ("Variable " ^ variable.name ^ " of type " ^ _type.name ^ 
             " cannot be assigned to expression of type " ^ value_type);
           ) else (
@@ -308,7 +308,7 @@ let verify_attribute(attribute : ast_attribute) (curr_class : ast_identifier) (s
       
       if not (is_subtype_of ast_data.classes curr_class.name init_type _type.name) then
         error_and_exit name.line_number ("Attribute " ^ name.name ^ " of type " ^ _type.name ^ 
-        " cannot be assigned to expression of type " ^ (get_symbol name.name symbols))
+        " cannot be assigned to expression of type " ^ init_type)
     )
 )
 
