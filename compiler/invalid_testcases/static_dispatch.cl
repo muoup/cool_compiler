@@ -4,7 +4,7 @@ class Base {
     };
 };
 
-class Derived inherits Base {
+class Derived inherits IO {
     talk(io : IO) : Object {
         io.out_string("Derived\n")
     };
