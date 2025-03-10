@@ -1,4 +1,3 @@
-(executable
  (public_name cool)
  (name main)
  (modules a_parser d_ast d_class_map d_impl_map d_parent_map main))
