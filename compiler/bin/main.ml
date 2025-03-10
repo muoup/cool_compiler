@@ -24,7 +24,7 @@ let get_file_contents file_dir : string list =
         close_in handle;
         contents
     with
-    | _ -> Printf.printf "Cannot open file: %s\n" file_dir; exit 1
+    | _ -> raise (Invalid_argument "File not found")
 
 let () = 
     (* Code courtesy of stack overflow user ivg's answer to question id: 70978234 *)
@@ -33,14 +33,23 @@ let () =
     in
 
     if Array.length Sys.argv < 2 then
-        Printf.printf "Usage: %s <file_name>\n" Sys.argv.(0)
+        raise (Invalid_argument "Please provide a file name as an argument")
     ;
-    
+
     let file_name = Sys.argv.(1) in
     let file_contents = get_file_contents file_name in
 
-    let parser_data : parser_data = { line_number = 0; file_contents = file_contents; } in
+    let data : parser_data = { line_number = 0; file_contents = file_contents; } in
     
-    let data, class_map = parse_class_map parser_data in
-    let ast = parse_ast parser_data in
+    Printf.printf "Parsing class map\n";
+    let data, class_map = parse_class_map data in
+
+    Printf.printf "Parsing implementation map\n";
+    let data, impl_map = parse_implementation_map data in
+
+    Printf.printf "Parsing parent map\n";
+    let data, parent_map = parse_parent_map data in
+
+    Printf.printf "Parsing AST\n";
+    let ast = parse_ast data in
     ()

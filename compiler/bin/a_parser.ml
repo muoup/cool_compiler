@@ -20,7 +20,7 @@ let parse_int (data : parser_data) : (parser_data * int) =
     match int_of_string_opt (List.hd data.file_contents) with
     | Some x -> (pop_data_lines data 1), x
     | None ->
-        Printf.printf "Unknown line number: %s at line %d\n" (List.hd data.file_contents) data.line_number;
+        Printf.printf "Unknown integer: %s at line %d\n" (List.hd data.file_contents) data.line_number;
         raise Ast_error
 
 let parse_identifier (data : parser_data) : (parser_data * ast_identifier) =

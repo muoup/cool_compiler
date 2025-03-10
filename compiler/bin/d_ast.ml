@@ -188,7 +188,7 @@ let rec parse_expression (data : parser_data) : (parser_data * ast_expression) =
                     data, LetBindingInit    { variable; _type; value }
             | "let_binding_no_init" ->
                     data, LetBindingNoInit  { variable; _type }
-            | x -> Printf.printf "Unknown let binding type: %s\n" x; exit 1
+            | x -> raise (Invalid_argument (Printf.sprintf "Invalid let binding type: %s" x))
         in
 
         let data, binding_list = parse_list data parse_let_binding in
@@ -211,9 +211,11 @@ let rec parse_expression (data : parser_data) : (parser_data * ast_expression) =
         data, Case { expression = expr; mapping_list = mappings }
     in
 
-    let data, expr_type = parse_identifier data in
-    let data, val_type  = parse_line data in
-    let data, expr_data = match expr_type.name with
+    let data, line_number = parse_int data in
+    let data, value_type = parse_line data in
+    let data, expr_type = parse_line data in
+
+    let data, expression = match expr_type with
     | "assign"              -> parse_assignment data
     | "dynamic_dispatch"    -> parse_dyn_dispatch data
     | "static_dispatch"     -> parse_static_dispatch data
@@ -239,12 +241,15 @@ let rec parse_expression (data : parser_data) : (parser_data * ast_expression) =
     | "false"               -> data, False
     | "let"                 -> parse_let data
     | "case"                -> parse_case data
+    | "internal"            -> 
+            let data, identifier = parse_line data in
+            data, Internal identifier
     | unsupported -> 
             Printf.printf "Unsupported expression: %s\n" unsupported;
             raise Ast_error
     in
 
-    data, { ident = expr_type; _type = val_type; data = expr_data }
+    data, { ident = { line_number = line_number; name = expr_type }; _type = value_type; data = expression }
 
 let parse_ast (data : parser_data) : (parser_data * ast) =
     let parse_parameters (data : parser_data) : (parser_data * ast_param list) =
