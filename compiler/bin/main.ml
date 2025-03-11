@@ -3,6 +3,8 @@ open D_ast
 open D_class_map
 open D_impl_map
 open D_parent_map
+open G_tac_data
+open J_tac_gen
 
 (* File IO *)
 let get_file_contents file_dir : string list =
@@ -41,15 +43,18 @@ let () =
 
     let data : parser_data = { line_number = 0; file_contents = file_contents; } in
     
-    Printf.printf "Parsing class map\n";
     let data, class_map = parse_class_map data in
-
-    Printf.printf "Parsing implementation map\n";
     let data, impl_map = parse_implementation_map data in
-
-    Printf.printf "Parsing parent map\n";
     let data, parent_map = parse_parent_map data in
+    let data, ast = parse_ast data in
 
-    Printf.printf "Parsing AST\n";
-    let ast = parse_ast data in
+    let tac_cmds = generate_tac class_map impl_map ast in
+
+    List.iter (print_tac_cmd @@ Printf.printf "%s\n") tac_cmds;
+
+    (* let output_file = change_file_extension file_name "tac" in
+    let output_handle = open_out output_file in
+
+    List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) tac_cmds; *)
+
     ()
