@@ -1,25 +1,51 @@
 open D_ast
 open D_class_map
 open D_impl_map
+open E_parser_data
 open G_tac_data
 open I_tac_expr_gen
 
-let generate_tac (class_map : class_data list) (impl_map : impl_class list) (ast : ast) : tac_cmd list =
-    let tac_ast_class (cls : ast_class) : tac_cmd list =
-        let _class = List.find (fun (data : class_data) -> data.name = cls.name.name) class_map in
-        let params = List.map (
-            fun (x : ast_attribute) -> 
-                match x with
-                | AttributeNoInit { name } -> name.name
-                | AttributeInit { name } -> name.name
-        ) _class.attributes in
+let generate_tac (data : parsed_data) : tac_cmd list =
+    let symbol_table = ref @@ StringTbl.create 10 in
+    StringTbl.add !symbol_table "self" "self";
 
-        let tac_ast_method (method_ : ast_method) : tac_cmd list =
-            let label = Printf.sprintf "%s_%s_0" cls.name.name method_.name.name in
-            TAC_label label :: tac_gen_expr_body method_.body params
-        in
-
-        List.concat (List.map tac_ast_method cls.methods)
+    let add_symbol (x : string) : unit =
+        StringTbl.add !symbol_table x x
     in
 
-    List.concat (List.map tac_ast_class ast)
+    let remove_symbol (x : string) : unit =
+        StringTbl.remove !symbol_table x
+    in
+
+    let tac_ast_class (cls : ast_class) : tac_cmd list =
+        let _class = List.find (fun (data : class_data) -> data.name = cls.name.name) data.class_map in
+        let _class_impl = List.find (fun (data : impl_class) -> data.name = cls.name.name) data.impl_map in
+
+        List.iter (fun (attr : attribute_data) -> add_symbol attr.name) _class.attributes;
+
+        let tac_ast_method (method_ : impl_method) : tac_cmd list =
+            let _method = List.find (fun (data : impl_method) -> data.name = method_.name) _class_impl.methods in
+
+            (* Not sure how to replicate a Rust matches! macro, but this should work *)
+            match method_.body.data with
+            | Internal _ -> []
+            | _ ->
+
+            List.iter (add_symbol) method_.formals;
+
+            let method_identifier = Printf.sprintf "%s_%s_0" cls.name.name method_.name in
+            let cmds = tac_gen_expr_body data cls method_.body symbol_table in
+
+            List.iter (remove_symbol) method_.formals;
+
+            TAC_label method_identifier :: cmds
+        in
+
+        let cmds = List.concat (List.map tac_ast_method _class_impl.methods) in
+
+        List.iter (fun (attr : attribute_data) -> remove_symbol attr.name) _class.attributes;
+
+        cmds
+    in
+
+    List.concat (List.map tac_ast_class data.ast)

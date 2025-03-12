@@ -3,6 +3,7 @@ open D_ast
 open D_class_map
 open D_impl_map
 open D_parent_map
+open E_parser_data
 open G_tac_data
 open J_tac_gen
 
@@ -48,13 +49,12 @@ let () =
     let data, parent_map = parse_parent_map data in
     let data, ast = parse_ast data in
 
-    let tac_cmds = generate_tac class_map impl_map ast in
+    let parsed_data : parsed_data = { ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; } in
 
-    List.iter (print_tac_cmd @@ Printf.printf "%s\n") tac_cmds;
+    let tac_cmds = generate_tac parsed_data in
 
-    (* let output_file = change_file_extension file_name "tac" in
-    let output_handle = open_out output_file in
-
-    List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) tac_cmds; *)
+    let output_handle = open_out @@ change_file_extension file_name "cl-tac" in
+    List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) tac_cmds;
+    close_out output_handle;
 
     ()

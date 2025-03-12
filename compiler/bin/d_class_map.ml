@@ -1,27 +1,33 @@
 open A_parser
 open D_ast
 
+type attribute_data = {
+    name : string;
+    _type : string;
+    init : ast_expression option;
+}
+
 type class_data = {
     name : string;
-    attributes : ast_attribute list;
+    attributes : attribute_data list;
 }
 
 let parse_class_map (data : parser_data) : parser_data * class_data list =
-    let parse_attribute (data : parser_data) : (parser_data * ast_attribute) =
-        let data, _type = parse_line data in
+    let parse_attribute (data : parser_data) : (parser_data * attribute_data) =
+        let data, attribute_ident = parse_line data in
 
-        match _type with
+        match attribute_ident with
         | "no_initializer" ->
-            let data, name = parse_identifier data in
-            let data, _type = parse_identifier data in
+            let data, name = parse_line data in
+            let data, _type = parse_line data in
 
-            (data, AttributeNoInit { name = name; _type = _type; })
+            (data, { name = name; _type = _type; init = None; })
         | "initializer" ->
-            let data, name = parse_identifier data in
-            let data, _type = parse_identifier data in
+            let data, name = parse_line data in
+            let data, _type = parse_line data in
             let data, expr = parse_expression data in
 
-            (data, AttributeInit { name = name; _type = _type; init = expr; })
+            (data, { name = name; _type = _type; init = Some expr; })
         | x -> raise (Invalid_argument ("Invalid attribute type: " ^ x))
     in
 
@@ -38,8 +44,4 @@ let parse_class_map (data : parser_data) : parser_data * class_data list =
         raise (Invalid_argument ("Expected class_map, got " ^ first_line))
     ;
 
-    let data, classes = parse_list data parse_class in
-    
-    data, List.map
-      (fun class_ -> { name = class_.name; attributes = class_.attributes; })
-      classes
+    parse_list data parse_class
