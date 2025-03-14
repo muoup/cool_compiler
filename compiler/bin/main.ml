@@ -5,6 +5,7 @@ open D_impl_map
 open D_parent_map
 open G_tac_data
 open J_tac_gen
+open K_tac_to_cfg
 
 (* File IO *)
 let get_file_contents file_dir : string list =
@@ -50,11 +51,14 @@ let () =
 
     let tac_cmds = generate_tac class_map impl_map ast in
 
-    List.iter (print_tac_cmd @@ Printf.printf "%s\n") tac_cmds;
+    (* List.iter (print_tac_cmd @@ Printf.printf "%s\n") tac_cmds; *)
+    let my_cfg = build_cfg tac_cmds in
+    print_cfg my_cfg;
 
-    (* let output_file = change_file_extension file_name "tac" in
-    let output_handle = open_out output_file in
 
-    List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) tac_cmds; *)
+    (* let output_file = change_file_extension file_name "cl-tac" in *)
+    (* let output_handle = open_out output_file in *)
+
+    (* List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) tac_cmds; *)
 
     ()
