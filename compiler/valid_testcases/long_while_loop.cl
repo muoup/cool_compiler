@@ -1,4 +1,4 @@
-class Main{
+class Main {
 	main() : Object {
         let i : Int in
         while i <= 10000 loop

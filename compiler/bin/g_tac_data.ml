@@ -13,10 +13,10 @@ type tac_cmd =
   | TAC_int     of tac_id * int
   | TAC_str     of tac_id * string
   | TAC_bool    of tac_id * bool
-  | TAC_ident   of tac_id * string
+  | TAC_ident   of tac_id * tac_id
 
-  | TAC_lnot    of tac_id * tac_id
-  | TAC_bnot    of tac_id * tac_id
+  | TAC_neg     of tac_id * tac_id
+  | TAC_not     of tac_id * tac_id
 
   | TAC_new     of tac_id * string
   | TAC_default of tac_id * string
@@ -46,8 +46,8 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_bool    (id, b) -> output (Printf.sprintf "%s <- bool %b" id b)
   | TAC_ident   (id, s) -> output (Printf.sprintf "%s <- %s" id s)
 
-  | TAC_lnot    (id, a) -> output (Printf.sprintf "%s <- ! %s" id a)
-  | TAC_bnot    (id, a) -> output (Printf.sprintf "%s <- ~ %s" id a)
+  | TAC_neg     (id, a) -> output (Printf.sprintf "%s <- ~ %s" id a)
+  | TAC_not     (id, a) -> output (Printf.sprintf "%s <- ~ %s" id a)
 
   | TAC_new     (id, s) -> output (Printf.sprintf "%s <- new %s" id s)
   | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" id s)

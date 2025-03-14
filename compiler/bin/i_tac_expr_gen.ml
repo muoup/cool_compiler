@@ -1,4 +1,8 @@
 open D_ast
+open D_class_map
+open D_impl_map
+open D_parent_map
+open E_parser_data
 open G_tac_data
 
 module StringTbl = Hashtbl.Make (struct
@@ -9,9 +13,8 @@ end)
 
 type symbol_table = tac_id StringTbl.t
 
-let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd list =
+let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : ast_expression) (symbol_table : symbol_table ref) : tac_cmd list =
     let tac_counter : int ref = ref 0 in
-    let symbol_table : symbol_table ref = ref @@ StringTbl.create 10 in
 
     let add_symbol (x : string) (id : tac_id) : unit =
         StringTbl.add !symbol_table x id
@@ -22,10 +25,10 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
     in
 
     let find_symbol (x : string) : tac_id =
-        StringTbl.find !symbol_table x
+        match StringTbl.find_opt !symbol_table x with
+        | Some id -> id
+        | None -> raise (Invalid_argument ("Symbol not found: " ^ x))
     in
-
-    List.iter (fun (x : string) -> add_symbol x x) params;
 
     let get_running_id () : tac_id =
         let id = !tac_counter in
@@ -44,22 +47,35 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
     
         match expr.data with
         | Assign            { var; rhs } ->
+            let var_id = find_symbol var.name in
             let (rhs_id, rhs_cmds) = rec_tac_gen rhs in
 
-            let assign_cmd = TAC_add (self_id, var.name, rhs_id) in
-            (self_id, rhs_cmds @ [assign_cmd])
+            let assign_cmd = TAC_ident (var_id, rhs_id) in
+
+            (var_id, rhs_cmds @ [assign_cmd])
         | DynamicDispatch   { call_on; _method; args } ->
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
 
-            let call_cmd = TAC_call (self_id, _method.name, args_ids) in
+            let dispatch = get_dispatch data call_on._type _method.name in
+
+            let call_cmd = TAC_call (self_id, dispatch, args_ids) in
             (self_id, obj_cmds @ List.concat args_cmds @ [call_cmd])
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
 
-            let call_cmd = TAC_call (self_id, _method.name, args_ids) in
+            let dispatch = get_dispatch data _type.name _method.name in
+
+            let call_cmd = TAC_call (self_id, dispatch, args_ids) in
             (self_id, obj_cmds @ List.concat args_cmds @ [call_cmd])
+        | SelfDispatch      { _method; args } ->
+            let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
+
+            let dispatch = get_dispatch data (_class.name.name) _method.name in
+
+            let call_cmd = TAC_call (self_id, dispatch, args_ids) in
+            (self_id, List.concat args_cmds @ [call_cmd])
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             let (then_id, then_cmds) = rec_tac_gen _then in
@@ -79,8 +95,8 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
             let label_merge = TAC_label merge_name in
 
             let condition = cond_cmds @ [bt_cmd; jmp_cmd] in
-            let then_ = [label_then] @ then_cmds @ [TAC_jmp merge_name] in
-            let else_ = [label_else] @ else_cmds @ [label_merge] in
+            let then_ = [label_then] @ then_cmds @ [TAC_ident (self_id, then_id)] @ [TAC_jmp merge_name] in
+            let else_ = [label_else] @ else_cmds @ [TAC_ident (self_id, else_id)] @ [label_merge] in
 
             (self_id, condition @ then_ @ else_)
         | While             { predicate; body } ->
@@ -89,17 +105,19 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
 
             let while_id = get_running_id () in
 
-            let while_name = while_id ^ "_while" in
+            let cond_name = while_id ^ "_cond" in
+            let body_name = while_id ^ "_body" in
             let merge_name = while_id ^ "_merge" in
 
-            let bt_cmd = TAC_bt (cond_id, while_name) in
+            let bt_cmd = TAC_bt (cond_id, body_name) in
             let jmp_cmd = TAC_jmp merge_name in
 
-            let label_while = TAC_label while_name in
+            let label_body = TAC_label body_name in
+            let label_cond = TAC_label cond_name in
             let label_merge = TAC_label merge_name in
 
-            let condition = [label_while] @ cond_cmds @ [bt_cmd; jmp_cmd] in
-            let body_ = body_cmds @ [TAC_jmp while_name] in
+            let condition = [label_cond] @ cond_cmds @ [bt_cmd; jmp_cmd] in
+            let body_ = label_body :: body_cmds @ [TAC_jmp cond_name] in
 
             (self_id, condition @ body_ @ [label_merge])
         | Block            { body } ->
@@ -130,7 +148,6 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
                 | Times     -> TAC_mul (self_id, lhs_id, rhs_id)
                 | Divide    -> TAC_div (self_id, lhs_id, rhs_id)
 
-                (* TODO: Short-circuit evaluation *)
                 | LT        -> TAC_lt  (self_id, lhs_id, rhs_id)
                 | LE        -> TAC_lte (self_id, lhs_id, rhs_id)
                 | EQ        -> TAC_eq  (self_id, lhs_id, rhs_id)
@@ -141,8 +158,8 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
             let (expr_id, expr_cmds) = rec_tac_gen expr in
 
             let cmd = match op with
-                | Not       -> TAC_lnot (self_id, expr_id)
-                | Negate    -> TAC_bnot (self_id, expr_id)
+                | Not       -> TAC_not (self_id, expr_id)
+                | Negate    -> TAC_neg (self_id, expr_id)
             in
 
             (self_id, expr_cmds @ [cmd])
@@ -150,9 +167,9 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
             (self_id, [TAC_int (self_id, i)])
         | String            s ->
             (self_id, [TAC_str (self_id, s)])
-        | True              -> 
+        | True                -> 
             (self_id, [TAC_bool (self_id, true)])
-        | False             ->
+        | False               ->
             (self_id, [TAC_bool (self_id, false)])
         | Identifier        ident ->
             let var_name = find_symbol ident.name in
@@ -189,7 +206,6 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
 
             (in_id, init_cmds @ in_cmds)
         | Case              { expression; mapping_list } ->
-            (* TODO: Case? Not sure how to approach it, and even cool --tac is not able to produce TAC? *)
             (self_id, [TAC_comment "Case not implemented"])
         | Internal         _ -> 
             (self_id, [TAC_comment "Internal expression not implemented"])
@@ -197,5 +213,5 @@ let tac_gen_expr_body (ast : ast_expression) (params : string list) : tac_cmd li
             (self_id, [TAC_comment ("expression not implemented: " ^ expr.ident.name)])
     in
 
-    let (tac_id, tac_cmds) = rec_tac_gen ast in
+    let (tac_id, tac_cmds) = rec_tac_gen method_body in
     tac_cmds @ [TAC_return tac_id]
