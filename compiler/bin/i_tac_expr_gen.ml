@@ -148,7 +148,6 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
                 | Times     -> TAC_mul (self_id, lhs_id, rhs_id)
                 | Divide    -> TAC_div (self_id, lhs_id, rhs_id)
 
-                (* TODO: Short-circuit evaluation *)
                 | LT        -> TAC_lt  (self_id, lhs_id, rhs_id)
                 | LE        -> TAC_lte (self_id, lhs_id, rhs_id)
                 | EQ        -> TAC_eq  (self_id, lhs_id, rhs_id)
@@ -168,9 +167,9 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
             (self_id, [TAC_int (self_id, i)])
         | String            s ->
             (self_id, [TAC_str (self_id, s)])
-        | True              -> 
+        | True                -> 
             (self_id, [TAC_bool (self_id, true)])
-        | False             ->
+        | False               ->
             (self_id, [TAC_bool (self_id, false)])
         | Identifier        ident ->
             let var_name = find_symbol ident.name in
@@ -207,7 +206,6 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
 
             (in_id, init_cmds @ in_cmds)
         | Case              { expression; mapping_list } ->
-            (* TODO: Case? Not sure how to approach it, and even cool --tac is not able to produce TAC? *)
             (self_id, [TAC_comment "Case not implemented"])
         | Internal         _ -> 
             (self_id, [TAC_comment "Internal expression not implemented"])
