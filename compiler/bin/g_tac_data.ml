@@ -47,12 +47,12 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_ident   (id, s) -> output (Printf.sprintf "%s <- %s" id s)
 
   | TAC_neg     (id, a) -> output (Printf.sprintf "%s <- ~ %s" id a)
-  | TAC_not     (id, a) -> output (Printf.sprintf "%s <- ~ %s" id a)
+  | TAC_not     (id, a) -> output (Printf.sprintf "%s <- not %s" id a)
 
   | TAC_new     (id, s) -> output (Printf.sprintf "%s <- new %s" id s)
   | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" id s)
   | TAC_isvoid  (id, a) -> output (Printf.sprintf "%s <- isvoid %s" id a)
-  | TAC_call    (id, s, args) -> output (Printf.sprintf "%s <- call %s %s" id s (String.concat " " (List.map (fun x -> Printf.sprintf "%s" x) args)))
+  | TAC_call    (id, s, args) -> output (Printf.sprintf "%s <- call %s %s" id s (String.concat " " args))
 
   | TAC_label     s -> output (Printf.sprintf "label %s" s)
   | TAC_jmp       s -> output (Printf.sprintf "jmp %s" s)

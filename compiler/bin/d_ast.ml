@@ -52,7 +52,7 @@ and ast_expression_val =
     | Unreachable
     | Internal              of string
 
-and ast_param =               { name : ast_identifier; _type : ast_identifier }
+and ast_param =                { name : ast_identifier; _type : ast_identifier }
 
 and ast_dispatch_type =
     | SelfDispatch
@@ -264,7 +264,6 @@ let parse_ast (data : parser_data) : (parser_data * ast) =
     in
 
     let parse_method (data : parser_data) : (parser_data * ast_method) =
-        (* Feels like there should be some way to do this with a monad *)
         let data, method_name   = parse_identifier data in
         let data, params        = parse_parameters data in
         let data, return_type   = parse_identifier data in
