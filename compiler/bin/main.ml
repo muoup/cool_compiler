@@ -7,27 +7,6 @@ open E_parser_data
 open G_tac_data
 open J_tac_gen
 
-let get_file_contents file_dir : string list =
-    let rec generate_array file_handle arr =
-        try
-            let line = input_line file_handle in
-            flush stdout;
-
-            generate_array file_handle (arr @ [line])
-        with 
-        | End_of_file -> arr
-        | e -> raise e
-    in
- 
-    try
-        let handle = open_in file_dir in
-        let contents = generate_array handle [] in
-
-        close_in handle;
-        contents
-    with
-    | _ -> raise (Invalid_argument "File not found")
-
 let change_file_extension (path : string) (new_extension : string) : string =
     Filename.remove_extension path ^ new_extension
 
@@ -37,9 +16,13 @@ let () =
     ;
 
     let file_name = Sys.argv.(1) in
+    let data : parser_data = { line_number = 0; file_handle = open_in file_name } in
 
-    let file_contents = get_file_contents file_name in
-    let data : parser_data = { line_number = 0; file_contents = file_contents; } in
+    (* let output_handle = open_out @@ change_file_extension file_name ".cl-tac" in
+    Printf.fprintf output_handle "label Main_main_0\n";
+    Printf.fprintf output_handle "t$0 <- int 0\n";
+    Printf.fprintf output_handle "return t$0\n";
+    close_out output_handle; *)
 
     let data, class_map = parse_class_map data in
     let data, impl_map = parse_implementation_map data in

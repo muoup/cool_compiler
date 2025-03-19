@@ -163,8 +163,7 @@ let rec parse_expression (data : parser_data) : (parser_data * ast_expression) =
     in
 
     let parse_string (data : parser_data) : (parser_data * ast_expression_val) =
-        let val_ = List.hd data.file_contents in
-        let data = pop_data_lines data 1 in
+        let data, val_ = parse_line data in
 
         data, String val_
     in
@@ -177,8 +176,7 @@ let rec parse_expression (data : parser_data) : (parser_data * ast_expression) =
 
     let parse_let (data : parser_data) : (parser_data * ast_expression_val) =
         let parse_let_binding (data : parser_data) : (parser_data * ast_let_binding_type) =
-            let type_ident         = (List.hd data.file_contents) in
-            let data               = pop_data_lines data 1 in
+            let data, type_ident   = parse_line data in 
             let data, variable     = parse_identifier data in
             let data, _type        = parse_identifier data in
     
@@ -293,8 +291,7 @@ let parse_ast (data : parser_data) : (parser_data * ast) =
     in
 
     let parse_body_expr (data : parser_data) (_class : ast_class) : (parser_data * ast_class) =
-        let body_expr_type = List.hd data.file_contents in
-        let data = pop_data_lines data 1 in
+        let data, body_expr_type = parse_line data in
 
         match body_expr_type with
         | "method" ->
@@ -313,14 +310,14 @@ let parse_ast (data : parser_data) : (parser_data * ast) =
 
     let parse_class (data : parser_data) : (parser_data * ast_class) =
         let data, class_name = parse_identifier data in 
+        let data, inherits_text = parse_line data in
         let data, inherits = 
-            match (List.hd data.file_contents) with
+            match inherits_text with
             | "inherits" ->
-                    let data = pop_data_lines data 1 in
                     let data, identifier = parse_identifier data in
                     data, Some identifier
             | "no_inherits" ->
-                    pop_data_lines data 1, None
+                    data, None
             | x -> 
                 Printf.printf "Unexpected inherits: %s" x;
                 raise Ast_error
