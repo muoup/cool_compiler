@@ -13,10 +13,10 @@ type tac_cmd =
   | TAC_int     of tac_id * int
   | TAC_str     of tac_id * string
   | TAC_bool    of tac_id * bool
-  | TAC_ident   of tac_id * string
+  | TAC_ident   of tac_id * tac_id
 
-  | TAC_lnot    of tac_id * tac_id
-  | TAC_bnot    of tac_id * tac_id
+  | TAC_neg     of tac_id * tac_id
+  | TAC_not     of tac_id * tac_id
 
   | TAC_new     of tac_id * string
   | TAC_default of tac_id * string
@@ -46,13 +46,13 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_bool    (id, b) -> output (Printf.sprintf "%s <- bool %b" id b)
   | TAC_ident   (id, s) -> output (Printf.sprintf "%s <- %s" id s)
 
-  | TAC_lnot    (id, a) -> output (Printf.sprintf "%s <- ! %s" id a)
-  | TAC_bnot    (id, a) -> output (Printf.sprintf "%s <- ~ %s" id a)
+  | TAC_neg     (id, a) -> output (Printf.sprintf "%s <- ~ %s" id a)
+  | TAC_not     (id, a) -> output (Printf.sprintf "%s <- not %s" id a)
 
   | TAC_new     (id, s) -> output (Printf.sprintf "%s <- new %s" id s)
   | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" id s)
   | TAC_isvoid  (id, a) -> output (Printf.sprintf "%s <- isvoid %s" id a)
-  | TAC_call    (id, s, args) -> output (Printf.sprintf "%s <- call %s %s" id s (String.concat " " (List.map (fun x -> Printf.sprintf "%s" x) args)))
+  | TAC_call    (id, s, args) -> output (Printf.sprintf "%s <- call %s" id (String.concat " " @@ s :: args))
 
   | TAC_label     s -> output (Printf.sprintf "label %s" s)
   | TAC_jmp       s -> output (Printf.sprintf "jmp %s" s)
@@ -61,4 +61,4 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_return   id -> output (Printf.sprintf "return %s" id)
   | TAC_comment   s -> output (Printf.sprintf "comment %s" s)
 
-  | x -> failwith "Not implemented"
+  | x -> output (Printf.sprintf "comment Unimplemented")
