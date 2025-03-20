@@ -1,10 +1,10 @@
-class Main {
+class Main inherits IO {
     main() : Object {
         let main : Main in
         if isvoid main then
-            0
+            out_string("main is void")
         else
-            abort()
+            out_string("main is not void")
         fi
     };
 };

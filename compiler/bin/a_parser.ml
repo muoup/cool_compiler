@@ -4,35 +4,28 @@ type ast_identifier = { name : string; line_number: int; }
 
 type parser_data = {
     line_number         : int;
-    file_contents       : string list;
+    file_handle         : in_channel;
 }
 
-let pop_data_lines (data : parser_data) (n : int) : parser_data =
-    let rec ntail (lst : 'a list) (n : int) =
-        match n with
-        | 0 -> lst
-        | n -> ntail (List.tl lst) (n - 1)
-    in
+let parse_line (data : parser_data) : (parser_data * string) =
+    let val_ = input_line data.file_handle in
 
-    { line_number = data.line_number + n; file_contents = ntail data.file_contents n }
+    { data with line_number = data.line_number + 1 }, val_
 
 let parse_int (data : parser_data) : (parser_data * int) =
-    match int_of_string_opt (List.hd data.file_contents) with
-    | Some x -> (pop_data_lines data 1), x
+    let data, _val = parse_line data in
+
+    match int_of_string_opt _val with
+    | Some x -> data, x
     | None ->
-        Printf.printf "Unknown integer: %s at line %d\n" (List.hd data.file_contents) data.line_number;
+        Printf.printf "Unknown integer: %s at line %d\n" _val data.line_number;
         raise Ast_error
 
 let parse_identifier (data : parser_data) : (parser_data * ast_identifier) =
     let data, line_number = parse_int data in
-    let identifier = List.hd data.file_contents in
+    let data, identifier = parse_line data in
 
-    (pop_data_lines data 1, { name = identifier; line_number = line_number })
-
-let parse_line (data : parser_data) : (parser_data * string) =
-    let val_ = List.hd data.file_contents in
-
-    (pop_data_lines data 1, val_)
+    (data, { name = identifier; line_number = line_number })
 
 let parse_list (data : parser_data) (mapping : parser_data -> (parser_data * 'a)) : (parser_data * 'a list) =
     let rec internal_rec data mapping (i : int) (acc : 'a list) : (parser_data * 'a list) =
