@@ -25,9 +25,13 @@ let () =
     let data, ast = parse_ast data in
 
     let parsed_data : parsed_data = { ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; } in
-    let tac_cmds = generate_tac parsed_data in
 
-    let my_cfg = build_cfg tac_cmds in
-    print_cfg my_cfg;
+    let method_tacs = generate_tac parsed_data in
+    let my_cfg = List.map (build_cfg) method_tacs in
+    
+    List.iter (fun (method_cfg : method_cfg) ->
+        Printf.printf "Method: %s\n" method_cfg.method_name;
+        print_cfg method_cfg.cfg
+    ) my_cfg;
 
     ()
