@@ -25,6 +25,7 @@ let () =
     let data, ast = parse_ast data in
 
     let parsed_data : parsed_data = { ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; } in
+    let tac_cmds = generate_tac parsed_data in
 
     let my_cfg = build_cfg tac_cmds in
     print_cfg my_cfg;
