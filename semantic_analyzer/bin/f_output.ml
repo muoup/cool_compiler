@@ -1,5 +1,5 @@
 open E_ast_data
-open D_ast
+open B_ast
 
 module StringMap = Map.Make(String)
 module StringSet = Set.Make(String)
@@ -162,11 +162,11 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
     (* Auxillary methods for printing to a file *)
     let output_line (line : string) = Printf.fprintf oc "%s\n" line in
     let output_number (num : int) = Printf.fprintf oc "%d\n" num in
-    let output_identifier (ident : D_ast.ast_identifier) =
+    let output_identifier (ident : B_ast.ast_identifier) =
         output_number ident.line_number;
         output_line ident.name;
     in
-    let output_typed_identifier (ident : D_ast.ast_identifier) (type_ : string) =
+    let output_typed_identifier (ident : B_ast.ast_identifier) (type_ : string) =
         output_number ident.line_number;
         output_line type_;
         output_line ident.name;
@@ -255,7 +255,7 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
         | Case                  { expression; mapping_list } ->
             output_expression   expression context;
 
-            let output_case_mapping (mapping : D_ast.ast_case_mapping) =
+            let output_case_mapping (mapping : B_ast.ast_case_mapping) =
                 output_identifier   mapping.name;
                 output_identifier   mapping._type;
 
@@ -403,7 +403,7 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
         StringMap.iter output_class ast.classes
     in
 
-    let output_annotated_ast (context : output_context) =
+    let output_annotateB_ast (context : output_context) =
         let output_class (class_data : class_data) =
             let context = { context with 
                 current_class = class_data.class_ref.name.name;
@@ -529,4 +529,4 @@ let output_ast (ast : ast_data) (file_path : string) : unit =
     output_class_map { context with vars = Symbol_data.create 10 };
     output_implementation_map { context with vars = Symbol_data.create 10 };
     output_parent_map { context with vars = Symbol_data.create 10 }; 
-    output_annotated_ast { context with vars = Symbol_data.create 10 }
+    output_annotateB_ast { context with vars = Symbol_data.create 10 }

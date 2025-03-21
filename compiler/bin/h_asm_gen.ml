@@ -182,6 +182,7 @@ let generate_asm (method_tac : method_tac) : asm_method =
 
     {
         header = method_tac.class_name ^ "_" ^ method_tac.method_name ^ "_0";
+        arg_count = method_tac.arg_count;
 
         commands = (FRAME stack_space :: cmds);
         string_literals = asm_data.strlit_map;

@@ -49,6 +49,7 @@ type asm_cmd =
 
 type asm_method = {
     header: string;
+    arg_count: int;
 
     commands: asm_cmd list;
     string_literals: (string * string) list;
@@ -68,7 +69,7 @@ let asm_mem_to_string (mem : asm_mem) : string =
     | LABEL label -> "$" ^ label
     | IMMEDIATE i -> Printf.sprintf "$%d" i
 
-let print_asm_cmd (cmd : asm_cmd) (output : string -> unit) : unit =
+let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : unit =
     let format_cmd1 (cmd : string) (arg1 : string) : unit =
         output @@ Printf.sprintf "\t%-10s%s" cmd arg1
     in
@@ -84,8 +85,26 @@ let print_asm_cmd (cmd : asm_cmd) (output : string -> unit) : unit =
         format_cmd2 "movq" "%rsp" "%rbp";
         output "\n";
 
-        let adjusted_size = if size mod 16 = 8 then size + 8 else size in
-
+        (*
+            Stack-alignment must be 16-byte aligned, the callee will allocate 8 bytes for the return
+            address plus 8 bytes for each pushed argument. Here you allocate 8 bytes for saving
+            %rbp, and so you need to make sure you are either subtracting 8 mod 16 or 0 mod 16 from
+            %rsp to maintain the alignment. With an odd number of arguments, the frame will be aligned
+            at procedure entry, so your %rsp adjustment needs to be 8 mod 16. With an even number of
+            arguments, the frame will be misaligned, so your %rsp adjustment needs to be  mod 16.
+         *)
+        let adjusted_size = 
+            if arg_count mod 2 = 1 then
+                if size mod 16 = 8 then
+                    size
+                else
+                    size + 8 
+            else
+                if size mod 16 = 0 then
+                    size
+                else
+                    size + 8
+        in                
         format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp"
 
     | MOV_reg (mem, reg) -> format_cmd2 "movq" (asm_mem_to_string mem) (asm_reg_to_string reg)
@@ -142,4 +161,4 @@ let print_asm_method (_method : asm_method) (output : string -> unit) : unit =
     output @@ Printf.sprintf "\t.type %s, @function\n" _method.header;
 
     output @@ _method.header ^ ":\n";
-    List.iter (fun cmd -> print_asm_cmd cmd output) _method.commands
+    List.iter (print_asm_cmd output @@ _method.arg_count) _method.commands

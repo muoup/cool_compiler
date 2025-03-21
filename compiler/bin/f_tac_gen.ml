@@ -48,6 +48,8 @@ let generate_tac (data : parsed_data) : method_tac list =
                 {
                     class_name = cls.name.name;
                     method_name = method_.name;
+                    arg_count = List.length method_.formals;
+                    
                     commands = cmds;
                     ids = ids;
                 }   

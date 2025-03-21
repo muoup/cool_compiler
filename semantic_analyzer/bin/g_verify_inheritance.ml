@@ -1,5 +1,5 @@
 open E_ast_data
-open D_ast
+open B_ast
 open A_util
 
 module StringSet = Set.Make(String)

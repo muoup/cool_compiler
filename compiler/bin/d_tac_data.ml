@@ -33,6 +33,7 @@ type tac_cmd =
 type method_tac = {
     class_name: string;
     method_name: string;
+    arg_count: int;
 
     commands: tac_cmd list;
     ids: tac_id list;
