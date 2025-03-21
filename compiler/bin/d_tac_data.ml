@@ -33,7 +33,9 @@ type tac_cmd =
 type method_tac = {
     class_name: string;
     method_name: string;
+
     commands: tac_cmd list;
+    ids: tac_id list;
 }
 
 let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =

@@ -3,10 +3,13 @@
  (name main)
  (modules 
   a_parser 
-  d_ast d_class_map d_impl_map d_parent_map 
-  e_parser_data 
-  g_tac_data 
-  i_tac_expr_gen 
-  j_tac_gen 
-  k_tac_to_cfg
-  main))
+  b_ast b_class_map b_impl_map b_parent_map 
+  c_parser_data 
+  d_tac_data 
+  e_tac_expr_gen 
+  f_tac_gen 
+  g_tac_to_cfg
+  h_asm_data
+  h_asm_gen
+  main
+))
