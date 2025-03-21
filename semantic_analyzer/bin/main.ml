@@ -32,7 +32,7 @@ let () =
     
     let file_name = Sys.argv.(1) in
     let file_contents = get_file_contents file_name in
-    let ast = B_ast.parse_ast file_contents in 
+    let ast = D_ast.parse_ast file_contents in 
     let ast_data = E_ast_data.generate_ast_data ast in
 
     G_verify_classes.verify_classes ast;

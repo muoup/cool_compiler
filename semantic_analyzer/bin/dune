@@ -1,4 +1,4 @@
 (executable
  (public_name cool)
  (name main)
- (modules a_util B_ast f_output e_symbol_map e_ast_data g_typecheck g_verify_classes g_verify_inheritance main))
+ (modules a_util d_ast f_output e_symbol_map e_ast_data g_typecheck g_verify_classes g_verify_inheritance main))
