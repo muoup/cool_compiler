@@ -30,14 +30,6 @@ let () =
 
     let method_tacs = generate_tac parsed_data in
 
-    (* List.iter (fun (_method : method_tac) ->
-        Printf.printf "%s:\n" _method.method_name;
-        List.iter (print_tac_cmd (Printf.printf "%s\n")) _method.commands;
-        Printf.printf "\n"
-    ) method_tacs; *)
-
-    let my_cfg = List.map (build_cfg) method_tacs in
-    
     let asm = List.map (generate_asm) method_tacs in
 
     (* For now, don't include internal functions (i.e. ones with only a FRAME intialization) *)
@@ -46,7 +38,7 @@ let () =
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 
-    let runtime = open_in_bin "bin/runtime.s" in
+    let runtime = open_in_bin "builtins.s" in
     let s = really_input_string runtime (in_channel_length runtime) in
     output s;
     output "\n";

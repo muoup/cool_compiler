@@ -4,6 +4,8 @@ class Main inherits IO {
         while x < 100 loop
         {
             x <- x + 1;
+            out_int(x);
+            out_string(": ");
 
             if (x / 3 * 3) = x then
                 out_string("Fizz")

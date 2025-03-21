@@ -8,6 +8,7 @@ type asm_mem =
     | RBP_offset    of int
     | REG           of asm_reg
     | LABEL         of string
+    | IMMEDIATE     of int
 
 type asm_cmd =
     | FRAME     of int 
@@ -18,13 +19,29 @@ type asm_cmd =
     | ADD       of asm_mem * asm_reg
     | SUB       of asm_mem * asm_reg
     | MUL       of asm_mem * asm_reg
-    | DIV       of asm_mem * asm_reg
+    | DIV       of asm_reg
+    | XOR       of asm_reg * asm_reg
+
+    | NEG       of asm_reg
+    | NOT       of asm_reg
+
+    | TEST      of asm_reg * asm_reg
+    | CMP       of asm_reg * asm_reg
+    | SETL
+    | SETLE
+    | SETE
+
 
     | PUSH      of asm_reg
     | POP       of asm_reg
 
     | CALL      of string
+    | JMP       of string
+    | JNZ       of string
+    | JE        of string
     | RET
+
+    | MISC      of string
 
     | LABEL     of string
 
@@ -49,6 +66,7 @@ let asm_mem_to_string (mem : asm_mem) : string =
     | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
     | REG reg -> asm_reg_to_string reg
     | LABEL label -> "$" ^ label
+    | IMMEDIATE i -> Printf.sprintf "$%d" i
 
 let print_asm_cmd (cmd : asm_cmd) (output : string -> unit) : unit =
     let format_cmd1 (cmd : string) (arg1 : string) : unit =
@@ -73,13 +91,28 @@ let print_asm_cmd (cmd : asm_cmd) (output : string -> unit) : unit =
     | ADD (mem, reg) -> format_cmd2 "addq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | SUB (mem, reg) -> format_cmd2 "subq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MUL (mem, reg) -> format_cmd2 "imulq" (asm_mem_to_string mem) (asm_reg_to_string reg)
-    | DIV (mem, reg) -> format_cmd2 "idivq" (asm_mem_to_string mem) (asm_reg_to_string reg)
+    | DIV reg -> format_cmd1 "idivq" (asm_reg_to_string reg)
+    | XOR (reg1, reg2) -> format_cmd2 "xorq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
+    | NEG reg -> format_cmd1 "negq" (asm_reg_to_string reg)
+    | NOT reg -> format_cmd1 "notq" (asm_reg_to_string reg)
+
+    | TEST (reg1, reg2) -> format_cmd2 "testq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
+    | CMP (reg1, reg2) -> format_cmd2 "cmpq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
+    | SETL   -> format_cmd1 "setl" "%al"
+    | SETLE  -> format_cmd1 "setle" "%al"
+    | SETE   -> format_cmd1 "sete" "%al"
 
     | PUSH reg       -> format_cmd1 "pushq" (asm_reg_to_string reg)
     | POP reg        -> format_cmd1 "popq" (asm_reg_to_string reg)
 
+    | JMP label      -> format_cmd1 "jmp" label
+    | JNZ label      -> format_cmd1 "jnz" label
+    | JE label       -> format_cmd1 "je" label
+
     | CALL label     -> format_cmd1 "callq" label
     | RET            -> output "\tleave\n\tret"
+
+    | MISC s         -> output @@ "\t" ^ s
 
     | LABEL label -> output @@ label ^ ":"
     

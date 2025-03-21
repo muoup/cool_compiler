@@ -46,13 +46,97 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
     
     match tac_cmd with
     | TAC_add (id, a, b) ->
-        let prep_a = MOV_reg ((get_symbol_storage a), RAX) in
-        let prep_b = MOV_reg ((get_symbol_storage b), RBX) in
-        let add_cmd = ADD (REG RAX, RBX) in
+        [
+            MOV_reg ((get_symbol_storage a), RAX);
+            MOV_reg ((get_symbol_storage b), RBX);
+            ADD (REG RAX, RBX);
+            MOV_mem (RBX, get_symbol_storage id)
+        ]
+    | TAC_sub (id, a, b) ->
+        [
+            MOV_reg ((get_symbol_storage a), RAX);
+            MOV_reg ((get_symbol_storage b), RBX);
+            SUB (REG RBX, RAX);
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_mul (id, a, b) ->
+        [
+            MOV_reg ((get_symbol_storage a), RAX);
+            MOV_reg ((get_symbol_storage b), RBX);
+            MUL (REG RAX, RBX);
+            MOV_mem (RBX, get_symbol_storage id)
+        ]
+    | TAC_div (id, a, b) ->
+        [
+            MOV_reg ((get_symbol_storage a), RAX);
+            MOV_reg ((get_symbol_storage b), RBX);
+            MISC "CQO";
+            DIV RBX;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_lt (id, a, b) -> 
+        [
+            MOV_reg ((get_symbol_storage a), RBX);
+            MOV_reg ((get_symbol_storage b), RCX);
+            CMP (RCX, RBX);
+            SETL;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_lte (id, a, b) -> 
+        [
+            MOV_reg ((get_symbol_storage a), RBX);
+            MOV_reg ((get_symbol_storage b), RCX);
+            XOR (RAX, RAX);
+            CMP (RCX, RBX);
+            SETLE;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_eq (id, a, b) ->
+        [
+            MOV_reg ((get_symbol_storage a), RBX);
+            MOV_reg ((get_symbol_storage b), RCX);
+            XOR (RAX, RAX);
+            CMP (RBX, RCX);
+            SETE;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_int (id, i) ->
+        [
+            MOV_reg (IMMEDIATE i, RAX);
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_str (id, s) ->
+        let str_id = fst @@ List.find (fun (_, _s) -> _s = s) asm_data.strlit_map in
         
-        let store_result = MOV_mem (RAX, get_symbol_storage id) in
+        [
+            MOV_reg (LABEL str_id, RAX);
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_bool (id, b) ->
+        let bool_val = if b then 1 else 0 in
 
-        [prep_a; prep_b; add_cmd; store_result]
+        [
+            MOV_reg (IMMEDIATE bool_val, RAX);
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_ident (id, s) ->
+        [
+            MOV_reg ((get_symbol_storage s), RAX);
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_neg (id, a) ->
+        [
+            MOV_reg ((get_symbol_storage a), RAX);
+            NEG RAX;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_not (id, a) ->
+        [
+            MOV_reg ((get_symbol_storage a), RAX);
+            TEST (RAX, RAX);
+            NOT RAX;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
     | TAC_call (id, method_name, args) ->
         let arg_cmds = List.concat @@ List.map (fun arg -> 
             let load = MOV_reg ((get_symbol_storage arg), RAX) in    
@@ -60,24 +144,27 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
             [load; push]
         ) args in
-        let call_cmd = CALL method_name in
-        let store_result = MOV_mem (RAX, get_symbol_storage id) in
+
         let pop_cmds = List.concat @@ List.map (fun _ -> [POP RAX]) args in
 
-        arg_cmds @ [call_cmd; store_result] @ pop_cmds
-    | TAC_str (id, s) ->
-        let str_id = fst @@ List.find (fun (_, _s) -> _s = s) asm_data.strlit_map in
-        let store_result = MOV_mem (RAX, get_symbol_storage id) in
-
-        [MOV_reg (LABEL str_id, RAX); store_result]
+        arg_cmds @ [
+            MOV_mem (RAX, get_symbol_storage id);
+            CALL method_name;
+        ] @ pop_cmds
 
     | TAC_label label -> [LABEL label]
-
+    | TAC_jmp label -> [JMP label]
+    | TAC_bt (id, label) ->
+        [
+            MOV_reg ((get_symbol_storage id), RAX);
+            TEST (RAX, RAX);
+            JNZ label
+        ]
     | TAC_return id ->
-        let load = MOV_reg ((get_symbol_storage id), RAX) in
-        let ret = RET in
-
-        [load; ret]
+        [
+            MOV_reg ((get_symbol_storage id), RAX);
+            RET
+        ]
     | TAC_comment s -> [COMMENT s]
 
     | x -> [COMMENT "Unimplemented"]
