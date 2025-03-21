@@ -143,13 +143,13 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             let push = PUSH RAX in
 
             [load; push]
-        ) args in
+        ) @@ List.rev args in
 
         let pop_cmds = List.concat @@ List.map (fun _ -> [POP RAX]) args in
 
         arg_cmds @ [
-            MOV_mem (RAX, get_symbol_storage id);
             CALL method_name;
+            MOV_mem (RAX, get_symbol_storage id)
         ] @ pop_cmds
 
     | TAC_label label -> [LABEL label]

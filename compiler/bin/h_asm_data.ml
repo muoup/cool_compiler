@@ -83,7 +83,10 @@ let print_asm_cmd (cmd : asm_cmd) (output : string -> unit) : unit =
         output "\n";
         format_cmd2 "movq" "%rsp" "%rbp";
         output "\n";
-        format_cmd2 "subq" (Printf.sprintf "$%d" size) "%rsp"
+
+        let adjusted_size = if size mod 16 = 8 then size + 8 else size in
+
+        format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp"
 
     | MOV_reg (mem, reg) -> format_cmd2 "movq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MOV_mem (reg, mem) -> format_cmd2 "movq" (asm_reg_to_string reg) (asm_mem_to_string mem)
