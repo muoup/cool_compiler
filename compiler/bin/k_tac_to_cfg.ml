@@ -63,7 +63,6 @@ let build_cfg (method_tac : method_tac) : method_cfg =
 
   process tac_list;
 
-  (* Resolve fall-through edges *)
   Hashtbl.iter (fun lbl block ->
     match block.instructions with
     | TAC_jmp _ :: _ | TAC_return _ :: _ -> ()

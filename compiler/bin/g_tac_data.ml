@@ -66,5 +66,3 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
 
   | TAC_return   id -> output (Printf.sprintf "return %s" id)
   | TAC_comment   s -> output (Printf.sprintf "comment %s" s)
-
-  | x -> output (Printf.sprintf "comment Unimplemented")
