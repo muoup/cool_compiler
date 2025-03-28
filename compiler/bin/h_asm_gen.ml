@@ -70,7 +70,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         [
             MOV_reg ((get_symbol_storage a), RAX);
             MOV_reg ((get_symbol_storage b), RBX);
-            MISC "CQO";
+            MISC "cqo";
             DIV RBX;
             MOV_mem (RAX, get_symbol_storage id)
         ]

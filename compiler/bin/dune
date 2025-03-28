@@ -2,7 +2,7 @@
  (public_name cool)
  (name main)
  (modules 
-  a_parser 
+  a_parser a_builtins
   b_ast b_class_map b_impl_map b_parent_map 
   c_parser_data 
   d_tac_data 

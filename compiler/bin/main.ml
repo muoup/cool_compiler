@@ -1,4 +1,5 @@
 open A_parser
+open A_builtins
 open B_ast
 open B_class_map
 open B_impl_map
@@ -12,6 +13,14 @@ open H_asm_gen
 
 let change_file_extension (path : string) (new_extension : string) : string =
     Filename.remove_extension path ^ new_extension
+
+let rec output_builtins file_handle builtins_in =
+    try 
+        let line = input_line builtins_in in
+        Printf.fprintf file_handle "%s\n" line;
+        output_builtins file_handle builtins_in
+    with End_of_file ->
+        Printf.fprintf file_handle "\n"
 
 let () = 
     if Array.length Sys.argv < 2 then
@@ -38,10 +47,9 @@ let () =
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 
-    let runtime = open_in_bin "builtins.s" in
-    let s = really_input_string runtime (in_channel_length runtime) in
-    output s;
-    output "\n";
+    (* Need to do some testing of which way is better. *)
+    (* output builtin_asm;  *)
+    output_builtins assembly_handle @@ open_in "builtins.s";
 
     List.iter (fun (asm_ : asm_method) -> print_asm_method asm_ (output)) non_internals;
     close_out assembly_handle
