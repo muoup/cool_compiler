@@ -1,4 +1,4 @@
-let builtin_asm = {|# -------- BUILT-IN FUNCTIONS ------------
+# -------- BUILT-IN FUNCTIONS ------------
 .section .note.GNU-stack,"",@progbits
 
 # Start routine
@@ -87,4 +87,4 @@ in_string:
     popq    %rbp
     retq
 
-# -------- COMPILED PROGRAM START ------------|}
+# -------- COMPILED PROGRAM START ------------
