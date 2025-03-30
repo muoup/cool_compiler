@@ -138,6 +138,8 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | LABEL label -> output @@ label ^ ":"
     
     | COMMENT s -> output @@ Printf.sprintf "\t# %s" s
+
+    | NOT n -> output @@ Printf.sprintf "not" (* so it doesn't have yellow lines on the enture file *)
     )
     
     ;
