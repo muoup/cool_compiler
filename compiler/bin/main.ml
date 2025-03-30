@@ -6,6 +6,7 @@ open D_parent_map
 open E_parser_data
 open G_tac_data
 open J_tac_gen
+open K_tac_to_cfg
 
 let change_file_extension (path : string) (new_extension : string) : string =
     Filename.remove_extension path ^ new_extension
@@ -18,12 +19,6 @@ let () =
     let file_name = Sys.argv.(1) in
     let data : parser_data = { line_number = 0; file_handle = open_in file_name } in
 
-    (* let output_handle = open_out @@ change_file_extension file_name ".cl-tac" in
-    Printf.fprintf output_handle "label Main_main_0\n";
-    Printf.fprintf output_handle "t$0 <- int 0\n";
-    Printf.fprintf output_handle "return t$0\n";
-    close_out output_handle; *)
-
     let data, class_map = parse_class_map data in
     let data, impl_map = parse_implementation_map data in
     let data, parent_map = parse_parent_map data in
@@ -31,10 +26,12 @@ let () =
 
     let parsed_data : parsed_data = { ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; } in
 
-    let tac_cmds = generate_tac parsed_data in
-
-    let output_handle = open_out @@ change_file_extension file_name ".cl-tac" in
-    List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) tac_cmds;
-    close_out output_handle;
+    let method_tacs = generate_tac parsed_data in
+    let my_cfg = List.map (build_cfg) method_tacs in
+    
+    List.iter (fun (method_cfg : method_cfg) ->
+        Printf.printf "Method: %s\n" method_cfg.method_name;
+        print_cfg method_cfg.cfg
+    ) my_cfg;
 
     ()

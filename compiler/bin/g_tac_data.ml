@@ -30,6 +30,12 @@ type tac_cmd =
   | TAC_return  of tac_id
   | TAC_comment of string
 
+type method_tac = {
+    class_name: string;
+    method_name: string;
+    commands: tac_cmd list;
+}
+
 let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   match cmd with
   | TAC_add     (id, a, b) -> output (Printf.sprintf "%s <- + %s %s" id a b)
@@ -60,5 +66,3 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
 
   | TAC_return   id -> output (Printf.sprintf "return %s" id)
   | TAC_comment   s -> output (Printf.sprintf "comment %s" s)
-
-  | x -> output (Printf.sprintf "comment Unimplemented")
