@@ -34,7 +34,7 @@ let generate_tac (data : parsed_data) : method_tac list =
 
             List.iter (add_symbol) method_.formals;
 
-            let method_identifier = Printf.sprintf "%s_%s_0" cls.name.name method_.name in
+            let _method_identifier = Printf.sprintf "%s_%s_0" cls.name.name method_.name in
             let cmds = tac_gen_expr_body data cls method_.body symbol_table in
 
             List.iter (remove_symbol) method_.formals;
