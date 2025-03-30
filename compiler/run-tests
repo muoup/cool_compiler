@@ -1,3 +1,4 @@
+#!/bin/bash
 success=0
 fail=0
 

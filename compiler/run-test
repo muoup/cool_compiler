@@ -1,3 +1,4 @@
+#!/bin/bash
 input=5
 
 cool_output=$(echo $input | cool $1.cl)
