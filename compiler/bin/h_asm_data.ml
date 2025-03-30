@@ -116,7 +116,6 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | DIV reg -> format_cmd1 "idivq" (asm_reg_to_string reg)
     | XOR (reg1, reg2) -> format_cmd2 "xorq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
     | NEG reg -> format_cmd1 "negq" (asm_reg_to_string reg)
-    | NOT reg -> format_cmd1 "notq" (asm_reg_to_string reg)
 
     | TEST (reg1, reg2) -> format_cmd2 "testq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
     | CMP (reg1, reg2) -> format_cmd2 "cmpq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
