@@ -1,0 +1,7 @@
+rm a.out 2> /dev/null
+cool --type "$1.cl"
+
+./run "$1.cl-type"
+./run-compile "$1.s"
+
+./a.out

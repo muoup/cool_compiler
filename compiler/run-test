@@ -1,0 +1,19 @@
+input=5
+
+cool_output=$(echo $input | cool $1.cl)
+dune_output=$(echo $input | ./run-full $1)
+
+if [ "$cool_output" != "$dune_output" ]; then
+    echo "Test failed: $1"
+    echo "Expected: $cool_output"
+    echo "Got: $dune_output"
+    exit 1
+fi
+
+echo "Expected output: $cool_output"
+echo "Got: $dune_output"
+
+rm $1.cl-type
+rm $1.s
+
+echo "Test passed: $1"

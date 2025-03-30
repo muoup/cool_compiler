@@ -1,0 +1,1 @@
+gcc -g -no-pie -static $1
