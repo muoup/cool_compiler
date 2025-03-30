@@ -134,7 +134,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         [
             MOV_reg ((get_symbol_storage a), RAX);
             TEST (RAX, RAX);
-            NOT RAX;
+            SETE;
             MOV_mem (RAX, get_symbol_storage id)
         ]
     | TAC_call (id, method_name, args) ->
@@ -151,6 +151,11 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             CALL method_name;
             MOV_mem (RAX, get_symbol_storage id)
         ] @ pop_cmds
+    | TAC_default (id, s) ->
+        [
+            MOV_reg (IMMEDIATE 0, RAX);
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
 
     | TAC_label label -> [LABEL label]
     | TAC_jmp label -> [JMP label]

@@ -10,9 +10,11 @@ class Main inherits IO {
             {
                 x <- 10 * x;
                 y <- y + ~x * y;
+                out_string("while 1\n");
 
                 while not (y < 100) loop
                 {
+                    out_string("while 2\n");
                     y <- y / 2;
                     x <- x - 10;
                 }

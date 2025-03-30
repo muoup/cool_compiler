@@ -36,8 +36,15 @@ let () =
     let data, ast = parse_ast data in
 
     let parsed_data : parsed_data = { ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; } in
-
     let method_tacs = generate_tac parsed_data in
+
+    (* List.iter (fun (tac : method_tac) ->
+        Printf.printf "Method: %s\n" tac.method_name;
+        List.iter (fun tac_ -> print_tac_cmd (Printf.printf "%s\n") tac_) tac.commands;
+        Printf.printf "\n";
+    ) method_tacs; *)
+
+    (* Generate the CFG for each method *)
 
     let asm = List.map (generate_asm) method_tacs in
 
@@ -47,9 +54,7 @@ let () =
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 
-    (* Need to do some testing of which way is better. *)
-    (* output builtin_asm;  *)
-    output_builtins assembly_handle @@ open_in "builtins.s";
+    output builtin_asm;
 
     List.iter (fun (asm_ : asm_method) -> print_asm_method asm_ (output)) non_internals;
     close_out assembly_handle
