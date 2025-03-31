@@ -13,7 +13,7 @@ end)
 
 type symbol_table = tac_id StringTbl.t
 
-let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : ast_expression) (symbol_table : symbol_table ref) : (tac_id list * tac_cmd list) =
+let tac_gen_expr_body (data : parsed_data) (class_name : string) (method_body : ast_expression) (symbol_table : symbol_table ref) : (tac_id list * tac_cmd list) =
     let tac_counter : int ref = ref 0 in
     let tac_id_list : tac_id list ref = ref [] in
 
@@ -94,7 +94,7 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
         | SelfDispatch      { _method; args } ->
             let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
 
-            let dispatch = get_dispatch data (_class.name.name) _method.name in
+            let dispatch = get_dispatch data (class_name) _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, args_ids) in
             (self_id, List.concat args_cmds @ [call_cmd])

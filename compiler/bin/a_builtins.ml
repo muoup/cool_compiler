@@ -6,7 +6,7 @@ let builtin_asm = {|# -------- BUILT-IN FUNCTIONS ------------
     .globl main
     .type  main, @function
 main:
-    jmp   Main_main_0
+    jmp   Main.main
 
     .section .rodata
 __f_out_str:

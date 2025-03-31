@@ -1,7 +1,6 @@
+open A_format
 open D_tac_data
 open H_asm_data
-
-module StringMap = Map.Make(String)
 
 type strlit_map = (string * string) list
 type stack_map = int StringMap.t
@@ -186,7 +185,7 @@ let generate_asm (method_tac : method_tac) : asm_method =
     let cmds = List.concat (List.map (fun (cmd : tac_cmd) -> generate_tac_asm cmd asm_data) method_tac.commands) in
 
     {
-        header = method_tac.class_name ^ "_" ^ method_tac.method_name ^ "_0";
+        header = method_name_gen method_tac.class_name method_tac.method_name;
         arg_count = method_tac.arg_count;
 
         commands = (FRAME stack_space :: cmds);

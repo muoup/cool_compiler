@@ -18,9 +18,8 @@ let generate_tac (data : parsed_data) : method_tac list =
         StringTbl.remove !symbol_table x
     in
 
-    let tac_ast_class (cls : ast_class) : method_tac list =
-        let _class = List.find (fun (data : class_data) -> data.name = cls.name.name) data.class_map in
-        let _class_impl = List.find (fun (data : impl_class) -> data.name = cls.name.name) data.impl_map in
+    let tac_class_impl (_class_impl : impl_class) : method_tac list =
+        let _class = List.find (fun (data : class_data) -> data.name = _class_impl.name) data.class_map in
 
         List.iter (fun (attr : attribute_data) -> add_symbol attr.name) _class.attributes;
 
@@ -34,8 +33,7 @@ let generate_tac (data : parsed_data) : method_tac list =
 
             List.iter (add_symbol) method_.formals;
 
-            let _method_identifier = Printf.sprintf "%s_%s_0" cls.name.name method_.name in
-            let cmds = tac_gen_expr_body data cls method_.body symbol_table in
+            let cmds = tac_gen_expr_body data _class.name method_.body symbol_table in
 
             List.iter (remove_symbol) method_.formals;
 
@@ -46,7 +44,7 @@ let generate_tac (data : parsed_data) : method_tac list =
             fun (method_ : impl_method) -> 
                 let ids, cmds = tac_ast_method method_ in
                 {
-                    class_name = cls.name.name;
+                    class_name = _class.name;
                     method_name = method_.name;
                     arg_count = List.length method_.formals;
                     
@@ -60,4 +58,4 @@ let generate_tac (data : parsed_data) : method_tac list =
         methods
     in
 
-    List.concat (List.map tac_ast_class data.ast)
+    List.concat (List.map tac_class_impl data.impl_map)
