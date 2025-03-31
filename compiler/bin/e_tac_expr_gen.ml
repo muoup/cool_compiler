@@ -1,9 +1,9 @@
-open D_ast
-open D_class_map
-open D_impl_map
-open D_parent_map
-open E_parser_data
-open G_tac_data
+open B_ast
+open B_class_map
+open B_impl_map
+open B_parent_map
+open C_parser_data
+open D_tac_data
 
 module StringTbl = Hashtbl.Make (struct
     type t = string
@@ -13,11 +13,13 @@ end)
 
 type symbol_table = tac_id StringTbl.t
 
-let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : ast_expression) (symbol_table : symbol_table ref) : tac_cmd list =
+let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : ast_expression) (symbol_table : symbol_table ref) : (tac_id list * tac_cmd list) =
     let tac_counter : int ref = ref 0 in
+    let tac_id_list : tac_id list ref = ref [] in
 
     let add_symbol (x : string) (id : tac_id) : unit =
-        StringTbl.add !symbol_table x id
+        StringTbl.add !symbol_table x id;
+        tac_id_list := id :: !tac_id_list;
     in
 
     let remove_symbol (x : string) : unit =
@@ -33,6 +35,8 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
     let get_running_id () : tac_id =
         let id = !tac_counter in
         let id_as_str = Printf.sprintf "t$%d" id in
+
+        tac_id_list := id_as_str :: !tac_id_list;
         
         tac_counter := id + 1;
         id_as_str
@@ -40,6 +44,24 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
 
     let decline_id () : unit =
         tac_counter := !tac_counter - 1;
+        tac_id_list := List.tl !tac_id_list
+    in
+
+    let rec escape_backslashes s =
+        let len = String.length s in
+        let rec aux i acc =
+          if i >= len then String.concat "" (List.rev acc)
+          else if s.[i] = '\\' && i + 1 < len then
+            let next_char = s.[i + 1] in
+            if next_char <> 't' && next_char <> 'n' then
+              aux (i + 2) (("\\" ^ "\\" ^ String.make 1 next_char) :: acc)
+            else
+              aux (i + 2) (("\\" ^ String.make 1 next_char) :: acc)
+          else
+            aux (i + 1) (String.make 1 s.[i] :: acc)
+        in
+        aux 0 []
+    
     in
 
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
@@ -166,7 +188,8 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
         | Integer           i -> 
             (self_id, [TAC_int (self_id, i)])
         | String            s ->
-            (self_id, [TAC_str (self_id, s)])
+            let escaped_s = escape_backslashes s in
+            (self_id, [TAC_str (self_id, escaped_s)])
         | True                -> 
             (self_id, [TAC_bool (self_id, true)])
         | False               ->
@@ -214,4 +237,4 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
     in
 
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
-    tac_cmds @ [TAC_return tac_id]
+    (!tac_id_list, tac_cmds @ [TAC_return tac_id])

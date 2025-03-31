@@ -1,0 +1,19 @@
+#!/bin/bash
+success=0
+fail=0
+
+for file in restricted_testcases/*.cl; do
+    basename="${file%.cl}"
+    ./run-test "$basename" "$1" > /dev/null 2>&1
+    exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        fail=$((fail+1))
+        echo "Test failed for $file"
+    else
+        success=$((success+1))
+        echo "Test passed for $file"
+    fi
+done
+
+echo "Success: $success"
+echo "Fail: $fail"

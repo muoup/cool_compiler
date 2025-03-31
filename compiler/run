@@ -1,0 +1,6 @@
+#!/bin/bash
+# Open file bin/a_builtins.ml, input "let builtin_asm = \"(contents of builtins.s)\""
+builtins=$(cat builtins.s)
+echo "let builtin_asm = {|${builtins}|}" > bin/a_builtins.ml
+
+dune exec --profile=release cool $1

@@ -1,5 +1,5 @@
 open A_parser
-open D_ast
+open B_ast
 
 type attribute_data = {
     name : string;

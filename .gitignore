@@ -8,6 +8,8 @@
 *.cmxs
 *.cmxa
 *.opam
+*.s
+!*builtins.s
 a.out
 
 # generated ast files
