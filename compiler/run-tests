@@ -2,16 +2,29 @@
 success=0
 fail=0
 
-for file in restricted_testcases/*.cl; do
-    extension_less=$(basename "$file" .cl)
-    ./run-test $file $1 > /dev/null 2>&1
-    if [ "$?" != "0" ]; then
-        fail=$((fail+1))
-        echo "Test failed for $file"
-    else
+input=$1
+
+# run test method
+run_test() {
+    extension_less=$(echo $1 | sed 's/\.cl//')
+    ./run-test $extension_less $1 > /dev/null 2>&1
+    code=$?
+
+    if [ "$code" == "0" ]; then
         success=$((success+1))
         echo "Test passed for $file"
+    else
+        fail=$((fail+1))
+        echo "Test failed for $file"
     fi
+}
+
+for file in restricted_testcases/*.cl; do
+    run_test $file
+done
+
+for file in input_testcases/*.cl; do
+    run_test $file
 done
 
 echo "Success: $success"

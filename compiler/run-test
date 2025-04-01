@@ -1,6 +1,10 @@
 #!/bin/bash
 input=5
 
+if [ "$#" -ne 0 ]; then
+    input=$1
+fi
+
 cool_output=$(echo $input | cool "$1".cl)
 dune_output=$(echo $input | ./run-full "$1")
 
