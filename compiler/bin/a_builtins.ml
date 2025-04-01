@@ -48,13 +48,34 @@ in_int:
     movq    %rsp, %rbp
     subq    $16, %rsp
 
-    xorq    %rax, %rax
-    movq    %rax, -8(%rbp)
-    movq    $__f_int, %rdi
-    leaq    -8(%rbp), %rsi
-    callq   __isoc99_scanf
+    callq   in_string
+    movq    %rax, -8(%rbp)  # store the pointer to the string in -8(%rbp)
+    movq    %rax, %rdi
 
-    movq    -8(%rbp), %rax
+    xorq    %rsi, %rsi
+    movq    $10, %rdx    
+    callq   strtol
+
+    movq    %rax, %rbp
+
+    callq   __errno_location
+    cmpq    $34, %rax
+    je     .in_int_fail
+
+    movq    %rbp, %rax
+
+    cmpq    $2147483647, %rax
+    jg      .in_int_fail
+
+    cmpq    $-2147483648, %rax
+    jl      .in_int_fail
+
+    addq    $16, %rsp
+    popq    %rbp
+    retq
+
+.in_int_fail:
+    movq    $0, %rax
     addq    $16, %rsp
     popq    %rbp
     retq
