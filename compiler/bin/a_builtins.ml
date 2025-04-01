@@ -84,27 +84,56 @@ in_int:
 __f_in_str:
     .string "%42959s"
     .align 8
-__test:
-    .string "test"
+__empty_string:
+    .string ""
 
     .text
     .globl in_string
     .type  in_string, @function
 #   0 args      -> 8 call bytes = 8-byte off aligned stack
 in_string:
-    push    %rbp
+    pushq   %rbp
+    pushq   %r8
+    pushq   %r9
 
     movq    $42960, %rdi
     xorq    %rax, %rax
     callq   malloc
 
-    movq    $__f_in_str, %rdi
-    movq    %rax, %rsi
-    movq    %rax, %rbx
-    xorq    %rax, %rax
-    callq   __isoc99_scanf
+    movq    %rax, %r8       # one pointer for the beginning of the string
+    movq    %rax, %r9       # one pointer to traverse and edit the string for each character
+    movq    $10, %rbp       # stored for later
 
-    movq    %rbx, %rax
+.loop_begin:
+#   Designed with help from GCC output
+    movq    stdin(%rip), %rdi
+    callq   fgetc
+
+    testl   %eax, %eax      #   If a \0 is detected, error and send empty string
+    jz      .in_fail
+
+    cmpl    %eax, %ebp      #   If a \n is detected, the string is complete
+    je      .in_complete
+
+    movb    %al, (%r9)     #   Store the character in the string and increment the pointer
+    xorq    %rax, %rax
+    incq    %r9
+    jmp     .loop_begin
+
+.in_complete:
+    movq    $0, (%r9)       #   Add null terminator
+    movq    %r8, %rax
+
+    popq    %r9
+    popq    %r8
+    popq    %rbp
+    retq
+
+.in_fail:
+    movq    $__empty_string, %rax
+
+    popq    %r9
+    popq    %r8
     popq    %rbp
     retq
 

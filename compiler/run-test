@@ -1,11 +1,13 @@
 #!/bin/bash
 input=5
 
-if [ "$#" -ne 0 ]; then
-    input=$1
+if [ "$#" -gt 1 ]; then
+    input=$2
 fi
 
-cool_output=$(echo $input | cool "$1".cl)
+echo "Input: $input"
+
+cool_output=$(echo $input | cool "$1.cl")
 dune_output=$(echo $input | ./run-full "$1")
 
 if [ "$cool_output" != "$dune_output" ]; then

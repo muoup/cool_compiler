@@ -7,10 +7,10 @@ input=$1
 # run test method
 run_test() {
     extension_less=$(echo $1 | sed 's/\.cl//')
-    ./run-test $extension_less $1 > /dev/null 2>&1
+    ./run-test $extension_less $2 > /dev/null 2>&1
     code=$?
 
-    if [ "$code" == "0" ]; then
+    if [ "$code" -eq "0" ]; then
         success=$((success+1))
         echo "Test passed for $file"
     else
@@ -20,11 +20,11 @@ run_test() {
 }
 
 for file in restricted_testcases/*.cl; do
-    run_test $file
+    run_test $file $input
 done
 
 for file in input_testcases/*.cl; do
-    run_test $file
+    run_test $file $input
 done
 
 echo "Success: $success"

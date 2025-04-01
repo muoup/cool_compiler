@@ -9,6 +9,6 @@ class Main inherits IO {
             out_string("default_bool failed!\n")
         else
             out_string("success!\n")
-        fi fi fi fi
+        fi fi
     };
 };
