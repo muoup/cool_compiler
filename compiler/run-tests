@@ -1,7 +1,9 @@
+#!/bin/bash
 success=0
 fail=0
 
 for file in restricted_testcases/*.cl; do
+<<<<<<< HEAD
     extension_less=$(basename "$file" .cl)
     ./run-test $file $1 > /dev/null 2>&1
     if [ "$?" != "0" ]; then

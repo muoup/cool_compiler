@@ -47,6 +47,23 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
         tac_id_list := List.tl !tac_id_list
     in
 
+    let rec escape_backslashes s =
+        let len = String.length s in
+        let rec aux i acc =
+          if i >= len then String.concat "" (List.rev acc)
+          else if s.[i] = '\\' && i + 1 < len then
+            let next_char = s.[i + 1] in
+            if next_char <> 't' && next_char <> 'n' then
+              aux (i + 2) (("\\" ^ "\\" ^ String.make 1 next_char) :: acc)
+            else
+              aux (i + 2) (("\\" ^ String.make 1 next_char) :: acc)
+          else
+            aux (i + 1) (String.make 1 s.[i] :: acc)
+        in
+        aux 0 []
+    
+    in
+
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
         let self_id = get_running_id () in
     
@@ -171,7 +188,8 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
         | Integer           i -> 
             (self_id, [TAC_int (self_id, i)])
         | String            s ->
-            (self_id, [TAC_str (self_id, s)])
+            let escaped_s = escape_backslashes s in
+            (self_id, [TAC_str (self_id, escaped_s)])
         | True                -> 
             (self_id, [TAC_bool (self_id, true)])
         | False               ->

@@ -1,1 +1,2 @@
-gcc -g -no-pie -static $1
+#!/bin/bash
+gcc -g -no-pie -static "$1"
