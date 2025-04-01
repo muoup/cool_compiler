@@ -172,7 +172,8 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         ]
     | TAC_comment s -> [COMMENT s]
 
-    | x -> [COMMENT "Unimplemented"]
+    | TAC_new _ -> [COMMENT "New"]
+    | TAC_isvoid _ -> [COMMENT "Isvoid"]
 
 
 let generate_asm (method_tac : method_tac) : asm_method =
