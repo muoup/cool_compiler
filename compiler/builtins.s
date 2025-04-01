@@ -82,7 +82,7 @@ in_int:
 
     .section .rodata
 __f_in_str:
-    .string "%49s"
+    .string "%42959s"
     .align 8
 __test:
     .string "test"
@@ -94,7 +94,7 @@ __test:
 in_string:
     push    %rbp
 
-    movq    $50, %rdi
+    movq    $42960, %rdi
     xorq    %rax, %rax
     callq   malloc
 
