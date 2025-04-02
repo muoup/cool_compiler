@@ -54,7 +54,7 @@ type asm_method = {
     commands: asm_cmd list;
     string_literals: (string * string) list;
 }
-
+    
 let asm_reg_to_string (reg : asm_reg) : string =
     match reg with
     | RAX -> "%rax" | RBX -> "%rbx" | RCX -> "%rcx" | RDX -> "%rdx"
@@ -62,10 +62,24 @@ let asm_reg_to_string (reg : asm_reg) : string =
     | R8  -> "%r8"  | R9  -> "%r9"  | R10 -> "%r10" | R11 -> "%r11"
     | R12 -> "%r12"
 
+let asm_reg32_to_string (reg : asm_reg) : string =
+    match reg with
+    | RAX -> "%eax" | RBX -> "%ebx" | RCX -> "%ecx" | RDX -> "%edx"
+    | RSI -> "%esi" | RDI -> "%edi" | RBP -> "%ebp" | RSP -> "%esp"
+    | R8  -> "%r8d"  | R9  -> "%r9d"  | R10 -> "%r10d" | R11 -> "%r11d"
+    | R12 -> "%r12d"
+
 let asm_mem_to_string (mem : asm_mem) : string =
     match mem with
     | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
     | REG reg -> asm_reg_to_string reg
+    | LABEL label -> "$" ^ label
+    | IMMEDIATE i -> Printf.sprintf "$%d" i
+
+let asm_mem32_to_string (mem : asm_mem) : string =
+    match mem with
+    | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
+    | REG reg -> asm_reg32_to_string reg
     | LABEL label -> "$" ^ label
     | IMMEDIATE i -> Printf.sprintf "$%d" i
 
@@ -113,7 +127,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | ADD (mem, reg) -> format_cmd2 "addq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | SUB (mem, reg) -> format_cmd2 "subq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MUL (mem, reg) -> format_cmd2 "imulq" (asm_mem_to_string mem) (asm_reg_to_string reg)
-    | DIV reg -> format_cmd1 "idivq" (asm_reg_to_string reg)
+    | DIV reg -> format_cmd1 "idivl" (asm_reg32_to_string reg)
     | XOR (reg1, reg2) -> format_cmd2 "xorq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
     | NEG reg -> format_cmd1 "negq" (asm_reg_to_string reg)
 

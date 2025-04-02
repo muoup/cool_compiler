@@ -133,8 +133,9 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         ]
     | TAC_not (id, a) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            TEST (RAX, RAX);
+            MOV_reg ((get_symbol_storage a), RBX);
+            XOR  (RAX, RAX);
+            TEST (RBX, RBX);
             SETE;
             MOV_mem (RAX, get_symbol_storage id)
         ]
