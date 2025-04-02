@@ -5,28 +5,28 @@ if [ "$#" -gt 1 ]; then
     input=$2
 fi
 
-cool_output=$(echo $input | cool "$1.cl")
+cool_output=$(echo "$input $input $input" | cool "$1.cl")
 cool_output2=$(cat "test_input" | cool "$1.cl")
-dune_output=$(echo $input | ./run-full "$1")
+dune_output=$(echo "$input $input $input" | ./run-full "$1")
 dune_output2=$(cat "test_input" | ./a.out)
 
 if [ "$cool_output" != "$dune_output" ]; then
     echo "Test failed: $1"
-    echo "Expected: $cool_output"
-    echo "Got: $dune_output"
-    rm "$1".cl-type
-    rm "$1".s
+    echo "Expected: $(echo $cool_output1 | xxd -p)"
+    echo "Got:      $(echo $dune_output1 | xxd -p)"
     exit 1
 fi
 
 if [ "$cool_output2" != "$dune_output2" ]; then
-    echo "Test failed: $1"
-    echo "Expected: $cool_output2"
-    echo "Got: $dune_output2"
-    rm "$1".cl-type
-    rm "$1".s
+    echo "Test failed in file input: $1"
+    echo "Expected: $(echo $cool_output2 | xxd -p)"
+    echo "Got:      $(echo $dune_output2 | xxd -p)"
+
     exit 1
 fi
+
+echo "Expected: $(echo $cool_output2 | xxd -p)"
+echo "Got:      $(echo $dune_output2 | xxd -p)"
 
 rm "$1".cl-type
 rm "$1".s

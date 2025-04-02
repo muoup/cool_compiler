@@ -25,19 +25,25 @@ out_string:
     retq
 
     .section .rodata
-__f_int:
+__f_out_int:
     .string "%d"
+    .align 8
 
     .text
     .globl out_int
     .type  out_int, @function
 #   1 arg (int) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
 out_int:
-    movq    $__f_int, %rdi
+    movq    $__f_out_int, %rdi
     movq    8(%rsp), %rsi
     xorq    %rax, %rax
     callq   printf
     retq
+
+    .section .rodata
+__f_in_int:
+    .string " %ld"
+    .align 8
 
     .text
     .globl in_int
@@ -46,31 +52,36 @@ out_int:
 in_int:
     pushq   %rbp
     movq    %rsp, %rbp
-    pushq   %r8
-    subq    $24, %rsp
+    subq    $16, %rsp
+    
+    movq    $4096, %rdi
+    movq    $1, %rsi
+    callq   calloc
 
-    callq   in_string
-    movq    %rax, -8(%rbp)  # store the pointer to the string in -8(%rbp)
+    movq    %rax, -8(%rbp)
+
     movq    %rax, %rdi
+    movq    $4096, %rsi
+    movq    stdin(%rip), %rdx
+    callq   fgets
 
-    xorq    %rsi, %rsi
-    movq    $10, %rdx
-    callq   strtol
+    movq    -8(%rbp), %rdi 
+    movq    $__f_in_int, %rsi
+    leaq    -16(%rbp), %rdx
+    xorq    %rax, %rax
+    callq   sscanf
 
-    movq    %rax, %r8
+    cmpl    $1, %eax            # if scanf fails, then fail
+    jne     .in_int_fail
 
-    callq   __errno_location
-    cmpq    $34, %rax
-    je      .in_int_fail
+    movq    -16(%rbp), %rax
 
-    cmpq    $2147483647, %r8
+    cmpq    $2147483647, %rax   # if the integer is too large, then fail
     jg      .in_int_fail
 
-    cmpq    $-2147483648, %r8
+    cmpq    $-2147483648, %rax  # if the integer is too small, then fail
     jl      .in_int_fail
 
-    movq    %r8, %rax
-    popq    %r8
     leave
     retq
 
@@ -107,28 +118,20 @@ in_string:
 
 .loop_begin:
 #   Designed with help from GCC output, and some use of the reference compiler output
-#    movq    stdin(%rip), %rdi
-#    callq   feof
-#    testl   %eax, %eax
-#    jnz     .in_complete     #   If EOF is detected, jump to complete
-
+    xorq    %rax, %rax
     movq    stdin(%rip), %rdi
     callq   fgetc
 
     testl   %eax, %eax      #   If a \0 is detected, set the invalid flag
     je      .fail_flag   
 
-    cmpl    $13, %eax       #   If a \r is detected, ignore
-    je      .loop_begin
-
-    cmpl    $10, %eax       #   If a \n is detected, check whether to stop reading
-    je      .try_end
+    cmpl    $0xA, %eax      #   If a \n is detected, check whether to stop reading
+    je      .in_complete
 
     cmpl    $-1, %eax       #   If EOF is detected, stop reading
     je      .in_complete
 
     movb    %al, (%r9)      #   Otherwise, store the character in the string and increment the pointer
-    xorq    %rax, %rax
     incq    %r9
     jmp     .loop_begin
 
