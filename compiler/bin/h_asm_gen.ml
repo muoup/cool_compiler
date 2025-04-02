@@ -1,4 +1,4 @@
-open A_format
+open A_util
 open D_tac_data
 open H_asm_data
 
@@ -12,7 +12,7 @@ type asm_data = {
 
 let string_literal_id = ref 0
 
-let generate_string_literal (s : string) : string = 
+let generate_string_literal () : string = 
     let id = !string_literal_id in
     string_literal_id := id + 1;
 
@@ -22,7 +22,7 @@ let generate_strlit_map (tac_cmds : tac_cmd list) : strlit_map =
     List.filter_map (fun cmd ->
         match cmd with
         | TAC_str (_, s) -> 
-            let str_id = generate_string_literal s in
+            let str_id = generate_string_literal () in
             Some (str_id, s)
         | _ -> None
     ) tac_cmds
@@ -35,6 +35,36 @@ let generate_stack_map (tac_ids : tac_id list) : stack_map =
     in
 
     generate_stack_map' tac_ids StringMap.empty (-8)
+    |> StringMap.add "self" 16
+
+let generate_internal_asm (internal_id : string) : asm_cmd list =
+    match internal_id with
+    | "IO.in_string" ->
+        [
+            CALL "in_string";
+            RET
+        ]
+    | "IO.out_string" ->
+        [
+            CALL "out_string";
+            RET
+        ]
+    | "IO.in_int" ->
+        [
+            CALL "in_int";
+            RET
+        ]
+    | "IO.out_int" ->
+        [
+            CALL "out_int";
+            RET
+        ]
+    | "Object.type_name" ->
+        [
+            CALL "type_name";
+            RET
+        ]
+    | x -> [COMMENT ("Unimplemented: " ^ x)]
 
 let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
@@ -170,9 +200,34 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             RET
         ]
     | TAC_comment s -> [COMMENT s]
+    | TAC_new (id, name) ->
+        [
+            CALL (constructor_name_gen name);
+            MOV_mem (RAX, (get_symbol_storage id))
+        ]
+
+    | TAC_object (id, object_name, attributes) ->
+        let size = 8 * (3 + attributes) in
+
+        [
+            MOV_reg     (IMMEDIATE 8, RDI);
+            MOV_reg     (IMMEDIATE size, RSI);
+            XOR         (RAX, RAX);
+            CALL        "calloc";
+
+            MOV_reg     (LABEL (obj_name_mem_gen object_name), RDI);
+            MOV_mem     (RDI, REG_offset (RAX, 0));
+
+            MOV_reg     (IMMEDIATE size, RDI);
+            MOV_mem     (RDI, REG_offset (RAX, 8));
+
+            MOV_reg     (LABEL (vtable_name_gen object_name), RDI);
+            MOV_mem     (RDI, REG_offset (RAX, 16))
+        ]
+
+    | TAC_internal id -> generate_internal_asm id
 
     | x -> [COMMENT "Unimplemented"]
-
 
 let generate_asm (method_tac : method_tac) : asm_method =
     let stack_space = 8 * (List.length method_tac.ids) in
@@ -185,7 +240,7 @@ let generate_asm (method_tac : method_tac) : asm_method =
     let cmds = List.concat (List.map (fun (cmd : tac_cmd) -> generate_tac_asm cmd asm_data) method_tac.commands) in
 
     {
-        header = method_name_gen method_tac.class_name method_tac.method_name;
+        header = method_tac.method_name;
         arg_count = method_tac.arg_count;
 
         commands = (FRAME stack_space :: cmds);

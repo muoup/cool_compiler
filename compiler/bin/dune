@@ -2,12 +2,12 @@
  (public_name cool)
  (name main)
  (modules 
-  a_parser a_format a_builtins
+  a_parser a_util a_builtins
   b_ast b_class_map b_impl_map b_parent_map 
   c_parser_data 
   d_tac_data 
   e_tac_expr_gen 
-  f_tac_gen f_metadata
+  f_tac_gen
   g_metadata_output g_tac_to_cfg
   h_asm_data
   h_asm_gen

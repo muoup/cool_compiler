@@ -6,6 +6,7 @@ type asm_reg =
 
 type asm_mem = 
     | RBP_offset    of int
+    | REG_offset    of asm_reg * int
     | REG           of asm_reg
     | LABEL         of string
     | IMMEDIATE     of int
@@ -65,6 +66,7 @@ let asm_reg_to_string (reg : asm_reg) : string =
 let asm_mem_to_string (mem : asm_mem) : string =
     match mem with
     | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
+    | REG_offset (reg, offset) -> Printf.sprintf "%d(%s)" offset @@ asm_reg_to_string reg
     | REG reg -> asm_reg_to_string reg
     | LABEL label -> "$" ^ label
     | IMMEDIATE i -> Printf.sprintf "$%d" i
@@ -104,8 +106,10 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
                     size
                 else
                     size + 8
-        in                
-        format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp"
+        in             
+        
+        if adjusted_size > 0 then
+            format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp";
 
     | MOV_reg (mem, reg) -> format_cmd2 "movq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MOV_mem (reg, mem) -> format_cmd2 "movq" (asm_reg_to_string reg) (asm_mem_to_string mem)

@@ -22,10 +22,16 @@ type tac_cmd =
   | TAC_default of tac_id * string
   | TAC_isvoid  of tac_id * tac_id
   | TAC_call    of tac_id * string * tac_id list
+  | TAC_dispatch of { store : tac_id; obj : tac_id; obj_type : string; method_name : string; args : tac_id list }
 
   | TAC_label   of string
   | TAC_jmp     of string
   | TAC_bt      of tac_id * string
+
+  | TAC_object   of tac_id * string * int
+  | TAC_attribute of { class_name : string; attribute_name : string; value : tac_id }
+
+  | TAC_internal of string
 
   | TAC_return  of tac_id
   | TAC_comment of string
@@ -62,6 +68,8 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" id s)
   | TAC_isvoid  (id, a) -> output (Printf.sprintf "%s <- isvoid %s" id a)
   | TAC_call    (id, s, args) -> output (Printf.sprintf "%s <- call %s" id (String.concat " " @@ s :: args))
+
+  | TAC_internal id -> output (Printf.sprintf "internal %s" id)  
 
   | TAC_label     s -> output (Printf.sprintf "label %s" s)
   | TAC_jmp       s -> output (Printf.sprintf "jmp %s" s)

@@ -1,3 +1,4 @@
+open A_util
 open B_ast
 open B_class_map
 open B_impl_map
@@ -13,7 +14,7 @@ end)
 
 type symbol_table = tac_id StringTbl.t
 
-let tac_gen_expr_body (data : parsed_data) (class_name : string) (method_body : ast_expression) (symbol_table : symbol_table ref) : (tac_id list * tac_cmd list) =
+let tac_gen_expr_body (data : program_data) (class_name : string) (method_body : ast_expression) (symbol_table : symbol_table ref) : (tac_id list * tac_cmd list) =
     let tac_counter : int ref = ref 0 in
     let tac_id_list : tac_id list ref = ref [] in
 
@@ -65,6 +66,13 @@ let tac_gen_expr_body (data : parsed_data) (class_name : string) (method_body : 
     in
 
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
+        let gen_args (args : ast_expression list) : (tac_id list * tac_cmd list list) =
+            let (args_ids, args_cmds) = List.split (List.map rec_tac_gen @@ List.rev args) in
+            let args_ids = "self" :: args_ids in
+
+            args_ids, args_cmds
+        in
+
         let self_id = get_running_id () in
     
         match expr.data with
@@ -77,7 +85,7 @@ let tac_gen_expr_body (data : parsed_data) (class_name : string) (method_body : 
             (var_id, rhs_cmds @ [assign_cmd])
         | DynamicDispatch   { call_on; _method; args } ->
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
-            let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
+            let (args_ids, args_cmds) = gen_args args in
 
             let dispatch = get_dispatch data call_on._type _method.name in
 
@@ -86,15 +94,13 @@ let tac_gen_expr_body (data : parsed_data) (class_name : string) (method_body : 
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
-
-            let dispatch = get_dispatch data _type.name _method.name in
+            let dispatch = method_name_gen _type.name _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, args_ids) in
             (self_id, obj_cmds @ List.concat args_cmds @ [call_cmd])
         | SelfDispatch      { _method; args } ->
-            let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
-
-            let dispatch = get_dispatch data (class_name) _method.name in
+            let (args_ids, args_cmds) = gen_args args in
+            let dispatch = method_name_gen class_name _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, args_ids) in
             (self_id, List.concat args_cmds @ [call_cmd])

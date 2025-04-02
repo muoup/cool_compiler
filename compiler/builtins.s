@@ -6,7 +6,15 @@
     .globl main
     .type  main, @function
 main:
-    jmp   Main.main
+    push    %rbp
+
+    call    new.Main
+    
+    pushq   %rax
+    call     Main.main
+
+    pop     %rbp
+    ret
 
     .section .rodata
 __f_out_str:
@@ -86,5 +94,13 @@ in_string:
     movq    %rbx, %rax
     popq    %rbp
     retq
+
+    .text
+    .globl type_name
+    .type  type_name, @function
+type_name:
+    movq    8(%rbp), %rax
+    movq    (%rax), %rax
+    ret
 
 # -------- COMPILED PROGRAM START ------------
