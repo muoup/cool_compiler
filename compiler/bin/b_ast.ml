@@ -48,8 +48,6 @@ and ast_expression_val =
     | True             
     | False      
     | Case                  of { expression : ast_expression; mapping_list : ast_case_mapping list }
-    | Unit
-    | Unreachable
     | Internal              of string
 
 and ast_param =                { name : ast_identifier; _type : ast_identifier }
