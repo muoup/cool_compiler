@@ -238,8 +238,6 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             (self_id, [TAC_comment "Case not implemented"])
         | Internal         _ -> 
             (self_id, [TAC_comment "Internal expression not implemented"])
-        | _ ->
-            (self_id, [TAC_comment ("expression not implemented: " ^ expr.ident.name)])
     in
 
     let (tac_id, tac_cmds) = rec_tac_gen method_body in

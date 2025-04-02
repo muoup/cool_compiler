@@ -17,6 +17,9 @@ type asm_cmd =
     | MOV_reg   of asm_mem * asm_reg
     | MOV_mem   of asm_reg * asm_mem
 
+    | MOV_reg32 of asm_mem * asm_reg
+    | MOV_mem32 of asm_reg * asm_mem
+
     | ADD       of asm_mem * asm_reg
     | SUB       of asm_mem * asm_reg
     | MUL       of asm_mem * asm_reg
@@ -63,11 +66,25 @@ let asm_reg_to_string (reg : asm_reg) : string =
     | R8  -> "%r8"  | R9  -> "%r9"  | R10 -> "%r10" | R11 -> "%r11"
     | R12 -> "%r12"
 
+let asm_reg32_to_string (reg : asm_reg) : string =
+    match reg with
+    | RAX -> "%eax" | RBX -> "%ebx" | RCX -> "%ecx" | RDX -> "%edx"
+    | RSI -> "%esi" | RDI -> "%edi" | RBP -> "%ebp" | RSP -> "%esp"
+    | R8  -> "%r8d"  | R9  -> "%r9d"  | R10 -> "%r10d" | R11 -> "%r11d"
+    | R12 -> "%r12d"
+
 let asm_mem_to_string (mem : asm_mem) : string =
     match mem with
     | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
     | REG_offset (reg, offset) -> Printf.sprintf "%d(%s)" offset @@ asm_reg_to_string reg
     | REG reg -> asm_reg_to_string reg
+    | LABEL label -> "$" ^ label
+    | IMMEDIATE i -> Printf.sprintf "$%d" i
+
+let asm_mem32_to_string (mem : asm_mem) : string =
+    match mem with
+    | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
+    | REG reg -> asm_reg32_to_string reg
     | LABEL label -> "$" ^ label
     | IMMEDIATE i -> Printf.sprintf "$%d" i
 
@@ -113,11 +130,14 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     | MOV_reg (mem, reg) -> format_cmd2 "movq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MOV_mem (reg, mem) -> format_cmd2 "movq" (asm_reg_to_string reg) (asm_mem_to_string mem)
+
+    | MOV_reg32 (mem, reg) -> format_cmd2 "movl" (asm_mem32_to_string mem) (asm_reg32_to_string reg)
+    | MOV_mem32 (reg, mem) -> format_cmd2 "movl" (asm_reg32_to_string reg) (asm_mem32_to_string mem)
     
     | ADD (mem, reg) -> format_cmd2 "addq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | SUB (mem, reg) -> format_cmd2 "subq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MUL (mem, reg) -> format_cmd2 "imulq" (asm_mem_to_string mem) (asm_reg_to_string reg)
-    | DIV reg -> format_cmd1 "idivq" (asm_reg_to_string reg)
+    | DIV reg -> format_cmd1 "idivl" (asm_reg32_to_string reg)
     | XOR (reg1, reg2) -> format_cmd2 "xorq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
     | NEG reg -> format_cmd1 "negq" (asm_reg_to_string reg)
 
