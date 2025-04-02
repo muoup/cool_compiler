@@ -78,6 +78,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         [
             MOV_reg ((get_symbol_storage a), RBX);
             MOV_reg ((get_symbol_storage b), RCX);
+            XOR (RAX, RAX);
             CMP (RCX, RBX);
             SETL;
             MOV_mem (RAX, get_symbol_storage id)
@@ -172,7 +173,8 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         ]
     | TAC_comment s -> [COMMENT s]
 
-    | x -> [COMMENT "Unimplemented"]
+    | TAC_new _ -> [COMMENT "New"]
+    | TAC_isvoid _ -> [COMMENT "Isvoid"]
 
 
 let generate_asm (method_tac : method_tac) : asm_method =

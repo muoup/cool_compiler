@@ -8,6 +8,7 @@ class Main inherits IO {
             out_string("default_int failed!\n")
         else if not (default_bool = false) then
             out_string("default_bool failed!\n")
+        else
             out_string("success!\n")
         fi fi
     };
