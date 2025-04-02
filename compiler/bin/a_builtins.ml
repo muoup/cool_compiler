@@ -40,7 +40,9 @@ out_int:
     movq    $__f_out_int, %rdi
     movq    %rax, %rsi
     xorq    %rax, %rax
-    jmp     printf
+    
+    call    printf
+    ret
 
     .section .rodata
 __f_in_int:

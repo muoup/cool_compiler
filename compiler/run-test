@@ -5,9 +5,7 @@ if [ "$#" -gt 1 ]; then
     input=$2
 fi
 
-cool --x86 "$1.cl"
-./run-compile "$1.s"
-cool_output=$(echo $input | ./a.out $input)
+cool_output=$(echo $input | cool "$1.cl")
 cool_output2=$(cat "test_input" | cool "$1.cl")
 dune_output=$(echo $input | ./run-full "$1")
 dune_output2=$(cat "test_input" | ./a.out)
