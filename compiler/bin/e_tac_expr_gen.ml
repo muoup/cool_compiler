@@ -85,10 +85,15 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args args in
 
-            let dispatch = get_dispatch data call_on._type _method.name in
+            let method_id = get_dispatch data call_on._type _method.name in
             let self_id = temp_id () in
 
-            let call_cmd = TAC_call (self_id, dispatch, args_ids) in
+            let call_cmd = TAC_dispatch { 
+                store = self_id; 
+                obj = obj_id;
+                method_id;
+                args = args_ids;
+            } in
             (self_id, obj_cmds @ List.concat args_cmds @ [call_cmd])
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
@@ -102,10 +107,16 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | SelfDispatch      { _method; args } ->
             let (args_ids, args_cmds) = gen_args args in
 
-            let dispatch = method_name_gen class_name _method.name in
+            let dispatch = get_dispatch data class_name _method.name in
             let self_id = temp_id () in
 
-            let call_cmd = TAC_call (self_id, dispatch, args_ids) in
+            let call_cmd = TAC_dispatch {
+                store = self_id; 
+                obj = Self;
+                method_id = dispatch;
+                args = args_ids;
+            } in
+            
             (self_id, List.concat args_cmds @ [call_cmd])
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in

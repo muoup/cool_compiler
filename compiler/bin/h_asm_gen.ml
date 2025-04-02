@@ -200,6 +200,27 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             CALL method_name;
             MOV_mem (RAX, get_symbol_storage id)
         ] @ pop_cmds
+
+    | TAC_dispatch { store; obj; method_id; args } ->
+        let load_vtable = [
+            MOV_reg (get_symbol_storage obj, RAX);
+            MOV_reg (REG_offset (RAX, 16), RAX);
+            MOV_reg (REG_offset (RAX, 8 * method_id), RAX);
+            CALL_indirect RAX;
+            MOV_mem (RAX, get_symbol_storage store)
+        ] in
+
+        let arg_cmds = List.concat @@ List.map (fun arg -> 
+            let load = MOV_reg ((get_symbol_storage arg), RAX) in    
+            let push = PUSH RAX in
+
+            [load; push]
+        ) @@ List.rev args in
+
+        let pop_cmds = List.concat @@ List.map (fun _ -> [POP RAX]) args in
+
+        arg_cmds @ load_vtable @ pop_cmds
+
     | TAC_default (id, s) ->
         [
             MOV_reg (IMMEDIATE 0, RAX);
@@ -234,6 +255,8 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MOV_reg     (IMMEDIATE size, RSI);
             XOR         (RAX, RAX);
             CALL        "calloc";
+
+            MOV_mem     (RAX, get_symbol_storage id);
 
             MOV_reg     (LABEL (obj_name_mem_gen object_name), RDI);
             MOV_mem     (RDI, REG_offset (RAX, 0));

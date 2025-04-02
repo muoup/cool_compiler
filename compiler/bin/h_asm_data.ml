@@ -40,6 +40,7 @@ type asm_cmd =
     | POP       of asm_reg
 
     | CALL      of string
+    | CALL_indirect of asm_reg
     | JMP       of string
     | JNZ       of string
     | JE        of string
@@ -155,6 +156,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | JE label       -> format_cmd1 "je" label
 
     | CALL label     -> format_cmd1 "callq" label
+    | CALL_indirect reg -> format_cmd1 "callq" ("*" ^ asm_reg_to_string reg)
     | RET            -> output "\tleave\n\tret"
 
     | MISC s         -> output @@ "\t" ^ s

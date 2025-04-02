@@ -35,7 +35,7 @@ type tac_cmd =
   | TAC_default of tac_id * string
   | TAC_isvoid  of tac_id * tac_id
   | TAC_call    of tac_id * string * tac_id list
-  | TAC_dispatch of { store : tac_id; obj : tac_id; obj_type : string; method_name : string; args : tac_id list }
+  | TAC_dispatch of { store : tac_id; obj : tac_id; method_id : int; args : tac_id list }
 
   | TAC_label   of string
   | TAC_jmp     of string

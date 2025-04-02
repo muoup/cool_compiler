@@ -40,8 +40,8 @@ let organize_parser_data (parsed_data : parsed_data) : program_data =
 
     { ast = parsed_data.ast; data_map = pcd_map }
 
-let get_dispatch (data : program_data) (class_name : string) (method_name : string) : string =
-    let class_ref = StringMap.find class_name data.data_map in
-    let method_ref = List.find (fun (fn : impl_method) -> fn.name = method_name) class_ref.methods in
+let get_dispatch (data : program_data) (class_name : string) (method_name : string) : int =
+    let class_data = StringMap.find class_name data.data_map in
+    let method_id = find_index class_data.methods (fun impl_method -> impl_method.name = method_name) in
 
-    method_ref.name
+    method_id
