@@ -34,11 +34,13 @@ __f_out_int:
     .type  out_int, @function
 #   1 arg (int) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
 out_int:
+    movl    8(%rsp), %eax
+    cdqe
+
     movq    $__f_out_int, %rdi
-    movq    8(%rsp), %rsi
+    movq    %rax, %rsi
     xorq    %rax, %rax
-    callq   printf
-    retq
+    jmp     printf
 
     .section .rodata
 __f_in_int:

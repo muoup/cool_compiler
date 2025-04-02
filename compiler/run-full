@@ -1,4 +1,5 @@
 #!/bin/bash
+
 rm a.out 2> /dev/null
 cool --type "$1.cl"
 
