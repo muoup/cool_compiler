@@ -3,7 +3,10 @@ open D_tac_data
 open H_asm_data
 
 type strlit_map = (string * string) list
-type stack_map = int StringMap.t
+type stack_map = {
+    local_variable_offset : int;
+    temporaries_offset : int;
+}
 
 type asm_data = {
     strlit_map : strlit_map;
@@ -28,14 +31,29 @@ let generate_strlit_map (tac_cmds : tac_cmd list) : strlit_map =
     ) tac_cmds
 
 let generate_stack_map (tac_ids : tac_id list) : stack_map =
-    let rec generate_stack_map' (tac_ids : tac_id list) (stack_map : stack_map) (offset : int) =
-        match tac_ids with
-        | [] -> stack_map
-        | id :: rest -> generate_stack_map' rest (StringMap.add id offset stack_map) (offset - 8)
-    in
+    let (locals, temps) = List.fold_left (
+        fun (acc_locals, acc_temps) id ->
+            match id with
+            | Local _ -> (acc_locals + 1, acc_temps)
+            | Temporary _ -> (acc_locals, acc_temps + 1)
+            | _ -> (acc_locals, acc_temps)
+    ) (0, 0) tac_ids in
 
-    generate_stack_map' tac_ids StringMap.empty (-8)
-    |> StringMap.add "self" 16
+    let local_variable_offset = 0 in
+    let temporaries_offset = local_variable_offset + (locals * 8) in
+
+    {
+        local_variable_offset = local_variable_offset;
+        temporaries_offset = temporaries_offset;
+    }
+
+let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
+    match id with
+    | Local     i -> RBP_offset (-stack_map.local_variable_offset - ((i + 1) * 8))
+    | Temporary i -> RBP_offset (-stack_map.temporaries_offset - ((i + 1) * 8))
+    | Attribute i -> failwith "Attribute ID not supported in ASM generation"
+    | Self        -> RBP_offset 16
+    | Parameter i -> RBP_offset (24 + (i * 8))
 
 let generate_internal_asm (internal_id : string) : asm_cmd list =
     match internal_id with
@@ -46,7 +64,10 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         ]
     | "IO.out_string" ->
         [
+            MOV_reg (RBP_offset 24, RAX);
+            PUSH RAX;
             CALL "out_string";
+            POP RAX;
             RET
         ]
     | "IO.in_int" ->
@@ -68,9 +89,7 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
 
 let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
-        match StringMap.find_opt id asm_data.stack_map with
-        | Some offset -> RBP_offset offset
-        | None -> failwith "ID not found in stack map"
+        get_id_memory id asm_data.stack_map
     in
     
     match tac_cmd with

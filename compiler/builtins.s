@@ -13,7 +13,8 @@ main:
     call    new.Main
     
     pushq   %rax
-    call     Main.main
+    call    Main.main
+    pop     %rax
 
     pop     %rbp
     ret

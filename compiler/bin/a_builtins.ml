@@ -1,6 +1,8 @@
 let builtin_asm = {|# -------- BUILT-IN FUNCTIONS ------------
 .section .note.GNU-stack,"",@progbits
 
+#   Designed with help from GCC output, and some use of the reference compiler output
+
 # Start routine
     .text
     .globl main
@@ -11,7 +13,8 @@ main:
     call    new.Main
     
     pushq   %rax
-    call     Main.main
+    call    Main.main
+    pop     %rax
 
     pop     %rbp
     ret
@@ -129,7 +132,6 @@ in_string:
     movq    %rax, %r9           #   Store copy for iteration in %r9
 
 .loop_begin:
-#   Designed with help from GCC output, and some use of the reference compiler output
     xorq    %rax, %rax
     movq    stdin(%rip), %rdi
     callq   fgetc

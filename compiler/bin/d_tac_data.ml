@@ -1,4 +1,17 @@
-type tac_id = string
+type tac_id =
+  | Local       of int
+  | Temporary   of int
+  | Attribute   of int
+  | Parameter   of int
+  | Self
+
+module StringTbl = Hashtbl.Make (struct
+    type t = string
+    let equal = String.equal
+    let hash = Hashtbl.hash
+end)
+
+type symbol_table = tac_id StringTbl.t
 
 type tac_cmd =
   | TAC_add     of tac_id * tac_id * tac_id
@@ -45,35 +58,12 @@ type method_tac = {
     ids: tac_id list;
 }
 
-let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
-  match cmd with
-  | TAC_add     (id, a, b) -> output (Printf.sprintf "%s <- + %s %s" id a b)
-  | TAC_sub     (id, a, b) -> output (Printf.sprintf "%s <- - %s %s" id a b)
-  | TAC_mul     (id, a, b) -> output (Printf.sprintf "%s <- * %s %s" id a b)
-  | TAC_div     (id, a, b) -> output (Printf.sprintf "%s <- / %s %s" id a b)
+let f_id (id : tac_id) : string =
+    match id with
+    | Local i       -> Printf.sprintf "L%d" i
+    | Temporary i   -> Printf.sprintf "T%d" i
+    | Attribute i   -> Printf.sprintf "A%d" i
+    | Parameter i   -> Printf.sprintf "P%d" i
+    | Self          -> "self"
 
-  | TAC_lt      (id, a, b) -> output (Printf.sprintf "%s <- < %s %s" id a b)
-  | TAC_lte     (id, a, b) -> output (Printf.sprintf "%s <- <= %s %s" id a b)
-  | TAC_eq      (id, a, b) -> output (Printf.sprintf "%s <- = %s %s" id a b)
-  
-  | TAC_int     (id, i) -> output (Printf.sprintf "%s <- int %d" id i)
-  | TAC_str     (id, s) -> output (Printf.sprintf "%s <- string\n%s" id s)
-  | TAC_bool    (id, b) -> output (Printf.sprintf "%s <- bool %b" id b)
-  | TAC_ident   (id, s) -> output (Printf.sprintf "%s <- %s" id s)
-
-  | TAC_neg     (id, a) -> output (Printf.sprintf "%s <- ~ %s" id a)
-  | TAC_not     (id, a) -> output (Printf.sprintf "%s <- not %s" id a)
-
-  | TAC_new     (id, s) -> output (Printf.sprintf "%s <- new %s" id s)
-  | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" id s)
-  | TAC_isvoid  (id, a) -> output (Printf.sprintf "%s <- isvoid %s" id a)
-  | TAC_call    (id, s, args) -> output (Printf.sprintf "%s <- call %s" id (String.concat " " @@ s :: args))
-
-  | TAC_internal id -> output (Printf.sprintf "internal %s" id)  
-
-  | TAC_label     s -> output (Printf.sprintf "label %s" s)
-  | TAC_jmp       s -> output (Printf.sprintf "jmp %s" s)
-  | TAC_bt      (id, s) -> output (Printf.sprintf "bt %s %s" id s)
-
-  | TAC_return   id -> output (Printf.sprintf "return %s" id)
-  | TAC_comment   s -> output (Printf.sprintf "comment %s" s)
+(* TODO: Reimplement tac output *)

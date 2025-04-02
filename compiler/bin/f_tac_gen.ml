@@ -8,9 +8,10 @@ open E_tac_expr_gen
 
 let generate_constructor (_class : program_class_data) : method_tac =
     let attributes = List.length _class.attributes in
+    let object_id = Local 0 in
 
-    let instantiate = TAC_object ("object", _class.name, attributes) in
-    let return = TAC_return "object" in
+    let instantiate = TAC_object (object_id, _class.name, attributes) in
+    let return = TAC_return object_id in
     
     (* TODO: Attribute initialization *)
 
@@ -22,24 +23,19 @@ let generate_constructor (_class : program_class_data) : method_tac =
         arg_count = 0;
 
         commands = [ instantiate; return ];
-        ids = [ "object" ]
+        ids = [ object_id ]
     }
 
 let generate_tac (data : program_data) : method_tac list =
-    let symbol_table = ref @@ StringTbl.create 10 in
+    let symbol_table : symbol_table ref = ref @@ StringTbl.create 10 in
 
-    StringTbl.add !symbol_table "self" "self";
-
-    let add_symbol (x : string) : unit =
-        StringTbl.add !symbol_table x x
-    in
-
-    let remove_symbol (x : string) : unit =
-        StringTbl.remove !symbol_table x
-    in
+    StringTbl.add !symbol_table "self" Self;
 
     let tac_class_impl (_class : program_class_data) : method_tac list =
-        List.iter (fun (attr : attribute_data) -> add_symbol attr.name) _class.attributes;
+        List.iteri (
+            fun i (attr : attribute_data) ->
+                StringTbl.add !symbol_table attr.name (Attribute i)
+        ) _class.attributes;
 
         let tac_ast_method (method_ : impl_method) : (tac_id list * tac_cmd list) =
             let _method = List.find (
@@ -51,11 +47,17 @@ let generate_tac (data : program_data) : method_tac list =
             | Internal id -> [], [TAC_internal id]
             | _ ->
 
-            List.iter (add_symbol) method_.formals;
+            List.iteri (
+                fun i formal ->
+                    StringTbl.add !symbol_table formal (Parameter i)
+            ) method_.formals;
 
             let cmds = tac_gen_expr_body data _class.name method_.body symbol_table in
 
-            List.iter (remove_symbol) method_.formals;
+            List.iter (
+                fun formal ->
+                    StringTbl.remove !symbol_table formal
+            ) method_.formals;
 
             cmds
         in
@@ -66,14 +68,17 @@ let generate_tac (data : program_data) : method_tac list =
                 {
                     class_name = _class.name;
                     method_name = method_name_gen _class.name method_.name;
-                    arg_count = List.length method_.formals;
+                    arg_count = List.length method_.formals + 1;
                     
                     commands = cmds;
                     ids = ids;
                 }   
         ) _class.methods in
 
-        List.iter (fun (attr : attribute_data) -> remove_symbol attr.name) _class.attributes;
+        List.iter (
+            fun (method_ : impl_method) ->
+                StringTbl.remove !symbol_table method_.name
+        ) _class.methods;
 
         generate_constructor _class :: methods
     in
