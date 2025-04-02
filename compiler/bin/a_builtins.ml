@@ -46,38 +46,39 @@ out_int:
 in_int:
     pushq   %rbp
     movq    %rsp, %rbp
-    subq    $16, %rsp
+    pushq   %r8
+    subq    $24, %rsp
 
     callq   in_string
     movq    %rax, -8(%rbp)  # store the pointer to the string in -8(%rbp)
     movq    %rax, %rdi
 
     xorq    %rsi, %rsi
-    movq    $10, %rdx    
+    movq    $10, %rdx
     callq   strtol
 
-    movq    %rax, %rbp
+    movq    %rax, %r8
 
     callq   __errno_location
     cmpq    $34, %rax
-    je     .in_int_fail
+    je      .in_int_fail
 
-    movq    %rbp, %rax
-
-    cmpq    $2147483647, %rax
+    cmpq    $2147483647, %r8
     jg      .in_int_fail
 
-    cmpq    $-2147483648, %rax
+    cmpq    $-2147483648, %r8
     jl      .in_int_fail
 
-    addq    $16, %rsp
-    popq    %rbp
+    movq    %r8, %rax
+    popq    %r8
+    leave
     retq
 
 .in_int_fail:
     movq    $0, %rax
-    addq    $16, %rsp
-    popq    %rbp
+    
+    popq    %r8
+    leave
     retq
 
     .section .rodata
@@ -100,28 +101,50 @@ in_string:
     xorq    %rax, %rax
     callq   malloc
 
-    movq    %rax, %r8       # one pointer for the beginning of the string
-    movq    %rax, %r9       # one pointer to traverse and edit the string for each character
-    movq    $10, %rbp       # stored for later
+    movq    $0, %rbp            #   Flag representing if the string is invalid
+    movq    %rax, %r8           #   Store string pointer in %r8
+    movq    %rax, %r9           #   Store copy for iteration in %r9
 
 .loop_begin:
-#   Designed with help from GCC output
+#   Designed with help from GCC output, and some use of the reference compiler output
+#    movq    stdin(%rip), %rdi
+#    callq   feof
+#    testl   %eax, %eax
+#    jnz     .in_complete     #   If EOF is detected, jump to complete
+
     movq    stdin(%rip), %rdi
     callq   fgetc
 
-    testl   %eax, %eax      #   If a \0 is detected, error and send empty string
-    jz      .in_fail
+    testl   %eax, %eax      #   If a \0 is detected, set the invalid flag
+    je      .fail_flag   
 
-    cmpl    %eax, %ebp      #   If a \n is detected, the string is complete
+    cmpl    $13, %eax       #   If a \r is detected, ignore
+    je      .loop_begin
+
+    cmpl    $10, %eax       #   If a \n is detected, check whether to stop reading
+    je      .try_end
+
+    cmpl    $-1, %eax       #   If EOF is detected, stop reading
     je      .in_complete
 
-    movb    %al, (%r9)     #   Store the character in the string and increment the pointer
+    movb    %al, (%r9)      #   Otherwise, store the character in the string and increment the pointer
     xorq    %rax, %rax
     incq    %r9
     jmp     .loop_begin
 
+.fail_flag:
+    movq    $1, %rbp        #   Set the invalid flag, however consume the rest of the characters
+    jmp     .loop_begin     #   to flush the input buffer
+
+.try_end:
+    testq   %r9, %r8        #   If a new line is found at the beginning of the string, skip
+    je      .loop_begin     #   Otherwise, complete
+
 .in_complete:
-    movq    $0, (%r9)       #   Add null terminator
+    testq   %rbp, %rbp
+    jnz     .in_fail        #   If the string is invalid, return empty string
+
+    movb    $0, (%r9)       #   Add null terminator
     movq    %r8, %rax
 
     popq    %r9
