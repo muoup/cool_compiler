@@ -68,9 +68,9 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         ]
     | TAC_div (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            MOV_reg ((get_symbol_storage b), RBX);
-            MISC "cqo";
+            MOV_reg32 ((get_symbol_storage a), RAX);
+            MOV_reg32 ((get_symbol_storage b), RBX);
+            MISC "cdq";
             DIV RBX;
             MOV_mem (RAX, get_symbol_storage id)
         ]
