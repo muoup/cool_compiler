@@ -56,8 +56,11 @@ let () =
 
     output builtin_asm;
     output "\n";
-    emit_metadata output program_data;
-    output "\n";
 
     List.iter (fun (asm_ : asm_method) -> print_asm_method asm_ (output)) asm;
+    output "\n";
+
+    emit_metadata output program_data;
+    output "\n";
+    
     close_out assembly_handle
