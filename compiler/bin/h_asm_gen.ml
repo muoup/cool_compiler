@@ -51,9 +51,9 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     match id with
     | Local     i -> RBP_offset (-stack_map.local_variable_offset - ((i + 1) * 8))
     | Temporary i -> RBP_offset (-stack_map.temporaries_offset - ((i + 1) * 8))
-    | Attribute i -> failwith "Attribute ID not supported in ASM generation"
-    | Self        -> RBP_offset 16
-    | Parameter i -> RBP_offset (24 + (i * 8))
+    | Attribute i -> REG_offset (R12, 8 * i)
+    | Self        -> RBP_offset 24
+    | Parameter i -> RBP_offset (32 + (i * 8))
 
 let generate_internal_asm (internal_id : string) : asm_cmd list =
     match internal_id with
@@ -64,7 +64,7 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         ]
     | "IO.out_string" ->
         [
-            MOV_reg (RBP_offset 24, RAX);
+            MOV_reg (RBP_offset 32, RAX);
             PUSH RAX;
             CALL "out_string";
             POP RAX;
@@ -203,8 +203,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
     | TAC_dispatch { store; obj; method_id; args } ->
         let load_vtable = [
-            MOV_reg (get_symbol_storage obj, RAX);
-            MOV_reg (REG_offset (RAX, 16), RAX);
+            MOV_reg (REG_offset (R12, -8), RAX);
             MOV_reg (REG_offset (RAX, 8 * method_id), RAX);
             CALL_indirect RAX;
             MOV_mem (RAX, get_symbol_storage store)

@@ -100,21 +100,24 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     (match cmd with
     | FRAME (size) ->
+        format_cmd1 "pushq" "%r12";
+        output "\n";
         format_cmd1 "pushq" "%rbp";
         output "\n";
         format_cmd2 "movq" "%rsp" "%rbp";
         output "\n";
+        format_cmd2 "movq" "24(%rbp)" "%r12";
+        output "\n";
+        format_cmd2 "leaq" "24(%r12)" "%r12";
+        output "\n";
 
         (*
-            Stack-alignment must be 16-byte aligned, the callee will allocate 8 bytes for the return
-            address plus 8 bytes for each pushed argument. Here you allocate 8 bytes for saving
-            %rbp, and so you need to make sure you are either subtracting 8 mod 16 or 0 mod 16 from
-            %rsp to maintain the alignment. With an odd number of arguments, the frame will be aligned
-            at procedure entry, so your %rsp adjustment needs to be 8 mod 16. With an even number of
-            arguments, the frame will be misaligned, so your %rsp adjustment needs to be  mod 16.
+            With a base pointer in %rbp and a object base pointer in %r12,
+            the stack's alignment to 16 bytes depends on if the number of
+            arguments passed is even (mod 16 = 8), or odd (mod 16 = 0).
          *)
         let adjusted_size = 
-            if arg_count mod 2 = 1 then
+            if arg_count mod 2 = 0 then
                 if size mod 16 = 8 then
                     size
                 else
@@ -157,7 +160,11 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     | CALL label     -> format_cmd1 "callq" label
     | CALL_indirect reg -> format_cmd1 "callq" ("*" ^ asm_reg_to_string reg)
-    | RET            -> output "\tleave\n\tret"
+    | RET            ->
+        output "\tleave\n";
+        format_cmd1 "pop" "%r12";
+        output "\n";
+        output "\tret\n";
 
     | MISC s         -> output @@ "\t" ^ s
 
