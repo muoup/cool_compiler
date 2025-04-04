@@ -168,7 +168,7 @@ let tac_gen_expr_body (data : parsed_data) (_class : ast_class) (method_body : a
                 | Plus      -> TAC_add (self_id, lhs_id, rhs_id)
                 | Minus     -> TAC_sub (self_id, lhs_id, rhs_id)
                 | Times     -> TAC_mul (self_id, lhs_id, rhs_id)
-                | Divide    -> TAC_div (self_id, lhs_id, rhs_id)
+                | Divide    -> TAC_div (self_id, {id = lhs_id; line_number = expr.ident.line_number }, rhs_id)
 
                 | LT        -> TAC_lt  (self_id, lhs_id, rhs_id)
                 | LE        -> TAC_lte (self_id, lhs_id, rhs_id)

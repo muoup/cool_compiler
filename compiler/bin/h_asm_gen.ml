@@ -26,7 +26,7 @@ let generate_error_messages(tac_cmds : tac_cmd list) : strlit_map = (
     List.filter_map (fun cmd ->
         match cmd with
         | TAC_div (result, nominator, denominator) -> 
-            let div_msg = "ERROR: LINE_NUM: Exception: division by zero" in
+            let div_msg = "ERROR: " ^ string_of_int(nominator.line_number) ^ ": Exception: division by zero" in
             let str_id = generate_string_literal result in
             Some (str_id, div_msg)
         | _ -> None
@@ -86,8 +86,16 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         ]
     | TAC_div (id, a, b) ->
         [
-            MOV_reg32 ((get_symbol_storage a), RAX);
+            (* MOV_reg32 ((get_symbol_storage a.id), RAX);
             MOV_reg32 ((get_symbol_storage b), RBX);
+            MISC "cdq";
+            DIV RBX;
+            MOV_mem (RAX, get_symbol_storage id) *)
+            MOV_reg32 ((get_symbol_storage b), RBX);
+            MOV_reg (IMMEDIATE 0, RAX);
+            CMP (RAX, RBX);
+            (* JE error_output *)
+            MOV_reg32 ((get_symbol_storage a.id), RAX);
             MISC "cdq";
             DIV RBX;
             MOV_mem (RAX, get_symbol_storage id)

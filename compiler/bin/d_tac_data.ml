@@ -1,10 +1,11 @@
 type tac_id = string
+type numbered_tac_id = {id : tac_id; line_number : int}
 
 type tac_cmd =
   | TAC_add     of tac_id * tac_id * tac_id
   | TAC_sub     of tac_id * tac_id * tac_id
   | TAC_mul     of tac_id * tac_id * tac_id
-  | TAC_div     of tac_id * tac_id * tac_id
+  | TAC_div     of tac_id * numbered_tac_id * tac_id
 
   | TAC_lt      of tac_id * tac_id * tac_id
   | TAC_lte     of tac_id * tac_id * tac_id
@@ -44,7 +45,7 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_add     (id, a, b) -> output (Printf.sprintf "%s <- + %s %s" id a b)
   | TAC_sub     (id, a, b) -> output (Printf.sprintf "%s <- - %s %s" id a b)
   | TAC_mul     (id, a, b) -> output (Printf.sprintf "%s <- * %s %s" id a b)
-  | TAC_div     (id, a, b) -> output (Printf.sprintf "%s <- / %s %s" id a b)
+  | TAC_div     (id, a, b) -> output (Printf.sprintf "%s <- / %s %s" id a.id b)
 
   | TAC_lt      (id, a, b) -> output (Printf.sprintf "%s <- < %s %s" id a b)
   | TAC_lte     (id, a, b) -> output (Printf.sprintf "%s <- <= %s %s" id a b)
