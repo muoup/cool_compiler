@@ -19,14 +19,31 @@ let generate_string_literal (s : string) : string =
 
     "str_" ^ (string_of_int id)
 
+(* This code should generate all error messages needed for any possible runtime error. 
+Ideally in PA4, it's made slightly more intelligent than the reference compiler's "generate billions
+and billions of error messages" strategy*)
+let generate_error_messages(tac_cmds : tac_cmd list) : strlit_map = (
+    List.filter_map (fun cmd ->
+        match cmd with
+        | TAC_div (result, nominator, denominator) -> 
+            let div_msg = "ERROR: LINE_NUM: Exception: division by zero" in
+            let str_id = generate_string_literal result in
+            Some (str_id, div_msg)
+        | _ -> None
+    ) tac_cmds
+)
+
 let generate_strlit_map (tac_cmds : tac_cmd list) : strlit_map =
+    let error_msgs = generate_error_messages tac_cmds in
+    let other_strings = 
     List.filter_map (fun cmd ->
         match cmd with
         | TAC_str (_, s) -> 
             let str_id = generate_string_literal s in
             Some (str_id, s)
         | _ -> None
-    ) tac_cmds
+    ) tac_cmds in
+    error_msgs @ other_strings
 
 let generate_stack_map (tac_ids : tac_id list) : stack_map =
     let rec generate_stack_map' (tac_ids : tac_id list) (stack_map : stack_map) (offset : int) =
@@ -36,6 +53,7 @@ let generate_stack_map (tac_ids : tac_id list) : stack_map =
     in
 
     generate_stack_map' tac_ids StringMap.empty (-8)
+
 
 let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
