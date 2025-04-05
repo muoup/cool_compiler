@@ -43,6 +43,7 @@ type asm_cmd =
     | CALL_indirect of asm_reg
     | JMP       of string
     | JNZ       of string
+    | JZ        of string
     | JE        of string
     | RET
 
@@ -86,6 +87,7 @@ let asm_mem32_to_string (mem : asm_mem) : string =
     match mem with
     | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
     | REG reg -> asm_reg32_to_string reg
+    | REG_offset (reg, offset) -> Printf.sprintf "%d(%s)" offset @@ asm_reg32_to_string reg
     | LABEL label -> "$" ^ label
     | IMMEDIATE i -> Printf.sprintf "$%d" i
 
@@ -154,6 +156,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     | JMP label      -> format_cmd1 "jmp" label
     | JNZ label      -> format_cmd1 "jnz" label
+    | JZ label       -> format_cmd1 "jz" label
     | JE label       -> format_cmd1 "je" label
 
     | CALL label     -> format_cmd1 "callq" label

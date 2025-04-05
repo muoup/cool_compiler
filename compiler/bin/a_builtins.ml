@@ -185,4 +185,19 @@ type_name:
     movq    (%rax), %rax
     ret
 
+    .section .rodata
+error_doz_msg:
+    .string "ERROR: %d: Exception: division by zero"
+
+    .text
+    .globl error_div_on_zero
+    .type  error_div_on_zero, @function
+error_div_zero:
+    movq    $error_doz_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+
 # -------- COMPILED PROGRAM START ------------|}

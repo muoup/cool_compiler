@@ -122,12 +122,18 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MUL (REG RAX, RBX);
             MOV_mem (RBX, get_symbol_storage id)
         ]
-    | TAC_div (id, a, b) ->
+    | TAC_div (line_number, id, a, b) ->
         [
-            MOV_reg32 ((get_symbol_storage a), RAX);
+            COMMENT "Division by zero check";
+            MOV_reg (IMMEDIATE line_number, RSI);
             MOV_reg32 ((get_symbol_storage b), RBX);
+            TEST (RBX, RBX);
+            JZ "error_div_zero";
+
+            COMMENT "Division";
+            MOV_reg32 ((get_symbol_storage a), RAX);
             MISC "cdq";
-            DIV RBX;
+            DIV RSI;
             MOV_mem (RAX, get_symbol_storage id)
         ]
     | TAC_lt (id, a, b) -> 

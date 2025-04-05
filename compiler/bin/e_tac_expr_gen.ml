@@ -194,7 +194,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
                 | Plus      -> TAC_add (self_id, lhs_id, rhs_id)
                 | Minus     -> TAC_sub (self_id, lhs_id, rhs_id)
                 | Times     -> TAC_mul (self_id, lhs_id, rhs_id)
-                | Divide    -> TAC_div (self_id, lhs_id, rhs_id)
+                | Divide    -> TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id)
 
                 | LT        -> TAC_lt  (self_id, lhs_id, rhs_id)
                 | LE        -> TAC_lte (self_id, lhs_id, rhs_id)

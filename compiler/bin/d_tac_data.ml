@@ -17,7 +17,7 @@ type tac_cmd =
   | TAC_add     of tac_id * tac_id * tac_id
   | TAC_sub     of tac_id * tac_id * tac_id
   | TAC_mul     of tac_id * tac_id * tac_id
-  | TAC_div     of tac_id * tac_id * tac_id
+  | TAC_div     of int * tac_id * tac_id * tac_id
 
   | TAC_lt      of tac_id * tac_id * tac_id
   | TAC_lte     of tac_id * tac_id * tac_id
