@@ -238,6 +238,14 @@ concat:
     .globl substr
     .type  substr, @function
 substr:
+    movq    %r12, %rdi
+    call    strlen
+
+    movq    32(%rbp), %rsi
+    addq    40(%rbp), %rsi
+    cmpq    %rax, %rsi
+    jg      error_substr
+
     movq    40(%rbp), %rdi
     incq    %rdi
     call    malloc
@@ -268,7 +276,7 @@ error_dispatch_msg:
     .string "ERROR: %d: Exception: dispatch on void\n"
     .align 8
 error_substring_msg:
-    .string "ERROR: %d: Exception: substring out of bounds\n"
+    .string "ERROR: 0: Exception: String.substr out of range\n"
     .align 8
 
     .text
@@ -288,6 +296,14 @@ error_div_zero:
     .type  error_dispatch, @function
 error_dispatch:
     movq    $error_dispatch_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+    ret
+error_substr:
+    movq    $error_substring_msg, %rdi
     xorq    %rax, %rax
     callq   printf
 
