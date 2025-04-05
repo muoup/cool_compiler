@@ -42,7 +42,7 @@ type tac_cmd =
   | TAC_bt      of tac_id * string
 
   | TAC_object   of tac_id * string * int
-  | TAC_attribute of { class_name : string; attribute_name : string; value : tac_id }
+  | TAC_attribute of { object_id : tac_id; attribute_id : int; value : tac_id }
 
   | TAC_internal of string
 

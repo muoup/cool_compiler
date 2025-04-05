@@ -13,10 +13,13 @@ let label_id () : string =
     label_id := !label_id + 1;
     Printf.sprintf "L%d" id
 
-let tac_gen_expr_body (data : program_data) (class_name : string) (method_body : ast_expression) (symbol_table : symbol_table ref) : (tac_id list * tac_cmd list) =
-    let temp_counter : int ref = ref 0 in
-    let local_counter : int ref = ref 0 in
+let rec last_id (ids : tac_id list) : tac_id =
+    match ids with
+    | [] -> raise (Invalid_argument "Empty list")
+    | [id] -> id
+    | _ :: tl -> last_id tl
 
+let tac_gen_expr_body (data : program_data) (class_name : string) (method_body : ast_expression) (symbol_table : symbol_table ref) (temp_counter : int ref) (local_counter : int ref) : (tac_id list * tac_cmd list) =
     let tac_id_list : tac_id list ref = ref [] in
 
     let add_symbol (x : string) (id : tac_id) : unit =
@@ -169,13 +172,6 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             (self_id, condition @ body_ @ [label_merge])
         | Block            { body } ->
             let (ids, cmds) = List.split (List.map rec_tac_gen body) in
-
-            let rec last_id (ids : tac_id list) : tac_id =
-                match ids with
-                | [] -> raise (Invalid_argument "Empty list")
-                | [id] -> id
-                | _ :: tl -> last_id tl
-            in
 
             (last_id ids, List.concat cmds)
         | New              { _class } ->

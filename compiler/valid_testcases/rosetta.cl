@@ -264,8 +264,16 @@ class Main inherits IO {
 							)
 						in
 						{
-							state.tasks().nth(dep_id).req_to().append(task_id);
-							state.tasks().nth(task_id).deps().append(dep_id);
+							state
+								.tasks()
+								.nth(dep_id)
+								.req_to()
+								.append(task_id);
+							state
+								.tasks()
+								.nth(task_id)
+								.deps()
+								.append(dep_id);
 						};
 
 						line_one <- in_string();

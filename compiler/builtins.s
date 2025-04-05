@@ -194,6 +194,9 @@ copy:
     ret
 
     .section .rodata
+default_string:
+    .string ""
+    .align 8
 abort_msg:
     .string "abort";
 error_divide_msg:

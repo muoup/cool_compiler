@@ -268,11 +268,18 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MOV_mem (RAX, get_symbol_storage id)
         ]
 
-    | TAC_default (id, s) ->
-        [
-            MOV_reg (IMMEDIATE 0, RAX);
-            MOV_mem (RAX, get_symbol_storage id)
-        ]
+    | TAC_default (id, _type) ->
+        (match _type with
+        | "String" ->
+            [
+                MOV_reg (LABEL "default_string", RAX);
+                MOV_mem (RAX, get_symbol_storage id)
+            ]
+        | _ ->
+            [
+                MOV_reg (IMMEDIATE 0, RAX);
+                MOV_mem (RAX, get_symbol_storage id)
+            ])
 
     | TAC_label label -> [LABEL label]
     | TAC_jmp label -> [JMP label]
@@ -293,6 +300,15 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             CALL (constructor_name_gen name);
             MOV_mem (RAX, (get_symbol_storage id))
         ]
+
+    | TAC_attribute { object_id; attribute_id; value } ->
+        [
+            MOV_reg ((get_symbol_storage object_id), RAX);
+            MOV_reg ((get_symbol_storage value), RBX);
+            MOV_mem (RBX, REG_offset (RAX, 24 + 8 * attribute_id))
+        ]
+
+    (* Object creation *)
 
     | TAC_object (id, object_name, attributes) ->
         let size = 8 * (3 + attributes) in
@@ -322,7 +338,6 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
 let generate_asm (method_tac : method_tac) : asm_method =
     let stack_space = 8 * (List.length method_tac.ids) in
-
     let asm_data = {
         strlit_map = generate_strlit_map method_tac.commands;
         stack_map = generate_stack_map method_tac.ids;
