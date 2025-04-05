@@ -101,6 +101,10 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         [
             JMP "copy";
         ]
+    | "String.concat" ->
+        [
+            JMP "concat";
+        ]
     | x -> 
         [
             COMMENT ("Unimplemented: " ^ x);

@@ -94,7 +94,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             if not (StringSet.mem call_on._type data.overriden_classes) then
                 let dispatch = method_name_gen call_on._type _method.name in
 
-                let call_cmd = TAC_call (self_id, dispatch, args_ids) in
+                let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
                 (self_id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
             else
 
