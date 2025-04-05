@@ -105,6 +105,10 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         [
             JMP "concat";
         ]
+    | "String.substr" ->
+        [
+            JMP "substr";
+        ]
     | x -> 
         [
             COMMENT ("Unimplemented: " ^ x);

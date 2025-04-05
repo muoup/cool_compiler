@@ -234,6 +234,27 @@ concat:
     pop     %r12
     ret
 
+    .text
+    .globl substr
+    .type  substr, @function
+substr:
+    movq    40(%rbp), %rdi
+    incq    %rdi
+    call    malloc
+
+    movq    40(%rbp), %rdi
+    movq    $0, 1(%rdi, %rax)
+
+    movq    %rax, %rdi
+    movq    32(%rbp), %rsi
+    leaq    (%r12, %rsi), %rsi
+    movq    40(%rbp), %rdx
+    call    memcpy
+
+    leave
+    pop     %r12
+    ret
+
     .section .rodata
 default_string:
     .string ""
