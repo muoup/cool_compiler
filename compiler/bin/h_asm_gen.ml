@@ -85,7 +85,8 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         ]
     | "Object.type_name" ->
         [
-            CALL "type_name";
+            MOV_reg (RBP_offset 24, RAX);
+            MOV_reg (REG_offset (RAX, 0), RAX);
             RET
         ]
     | x -> 

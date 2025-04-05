@@ -181,12 +181,8 @@ in_string:
     .globl type_name
     .type  type_name, @function
 type_name:
-    movq    24(%rbp), %rax
+    movq    16(%rbp), %rax
     movq    (%rax), %rax
     ret
-
-    .text
-    .globl str_compare
-    .type  str_compare, @function
 
 # -------- COMPILED PROGRAM START ------------
