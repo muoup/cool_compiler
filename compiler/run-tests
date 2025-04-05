@@ -23,7 +23,7 @@ for file in restricted_testcases/*.cl; do
     run_test $file $input
 done
 
-for file in input_testcases/*.cl; do
+for file in valid_testcases/*.cl; do
     run_test $file $input
 done
 

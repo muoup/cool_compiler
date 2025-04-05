@@ -15,14 +15,15 @@ type method_cfg = {
   cfg: cfg;
 }
 
-let print_cfg (cfg : cfg) =
+(* TODO: Reimplement CFG output *)
+(* let print_cfg (cfg : cfg) =
   Printf.printf "CFG Blocks: %d\n" (Hashtbl.length cfg);
 
   Hashtbl.iter (fun lbl block ->
     printf "Block: %s\n" (Option.value ~default:"<entry>" block.label);
     List.iter (print_tac_cmd (Printf.printf "%s\n")) block.instructions;
     printf "  Successors: [%s]\n\n" (String.concat ", " block.successors)
-  ) cfg
+  ) cfg *)
 
 let build_cfg (method_tac : method_tac) : method_cfg =
   let cfg = Hashtbl.create 10 in
