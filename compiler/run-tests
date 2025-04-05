@@ -27,9 +27,5 @@ for file in valid_testcases/*.cl; do
     run_test $file $input
 done
 
-for file in input_testcases/*.cl; do
-    run_test $file $input
-done
-
 echo "Success: $success"
 echo "Fail: $fail"

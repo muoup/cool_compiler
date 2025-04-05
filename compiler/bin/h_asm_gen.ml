@@ -109,6 +109,12 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         [
             JMP "substr";
         ]
+    | "String.length" ->
+        [
+            MOV_reg (REG R12, RDI);
+            CALL "strlen";
+            RET;
+        ]
     | x -> 
         [
             COMMENT ("Unimplemented: " ^ x);

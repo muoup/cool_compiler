@@ -116,7 +116,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             let comment = TAC_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
             let dispatch = method_name_gen _type.name _method.name in
 
-            let call_cmd = TAC_call (self_id, dispatch, args_ids) in
+            let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
             (self_id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
         | SelfDispatch      { _method; args } ->
             let (args_ids, args_cmds) = gen_args args in
@@ -192,7 +192,9 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | New              { _class } ->
             let self_id = temp_id () in
 
-            (self_id, [TAC_new (self_id, _class.name)])
+            let _type = if _class.name = "SELF_TYPE" then class_name else _class.name in
+
+            (self_id, [TAC_new (self_id, _type)])
         | IsVoid           { expr } ->
             let (expr_id, expr_cmds) = rec_tac_gen expr in
             let self_id = temp_id () in

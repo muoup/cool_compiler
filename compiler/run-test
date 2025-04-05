@@ -24,6 +24,6 @@ echo "Got:      $(echo $dune_output | xxd -p)"
 echo $dune_output
 
 rm "$1".cl-type
-# rm "$1".s
+rm "$1".s
 
 echo "Test passed: $1"
