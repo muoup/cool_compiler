@@ -228,6 +228,18 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
         arg_cmds @ load_vtable @ pop_cmds
 
+    | TAC_str_eq  (id, s1, s2) ->
+        [
+            MOV_reg ((get_symbol_storage s1), RDI);
+            MOV_reg ((get_symbol_storage s2), RSI);
+            CALL "strcmp";
+            MOV_reg (REG RAX, RDI);
+            XOR (RAX, RAX);
+            TEST (RDI, RDI);
+            SETE;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+
     | TAC_default (id, s) ->
         [
             MOV_reg (IMMEDIATE 0, RAX);

@@ -185,4 +185,8 @@ type_name:
     movq    (%rax), %rax
     ret
 
+    .text
+    .globl str_compare
+    .type  str_compare, @function
+
 # -------- COMPILED PROGRAM START ------------

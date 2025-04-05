@@ -46,6 +46,9 @@ type tac_cmd =
 
   | TAC_internal of string
 
+  (* Special Internal Nodes *)
+  | TAC_str_eq  of tac_id * tac_id * tac_id
+
   | TAC_return  of tac_id
   | TAC_comment of string
 

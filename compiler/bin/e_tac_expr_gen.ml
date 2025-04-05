@@ -198,7 +198,10 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
 
                 | LT        -> TAC_lt  (self_id, lhs_id, rhs_id)
                 | LE        -> TAC_lte (self_id, lhs_id, rhs_id)
-                | EQ        -> TAC_eq  (self_id, lhs_id, rhs_id)
+                | EQ        -> 
+                    match left._type with
+                    | "String" -> TAC_str_eq (self_id, lhs_id, rhs_id)
+                    | _        -> TAC_eq (self_id, lhs_id, rhs_id)
             in
             
             (self_id, lhs_cmds @ rhs_cmds @ [cmd])
