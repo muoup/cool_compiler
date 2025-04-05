@@ -90,6 +90,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             let self_id = temp_id () in
 
             let call_cmd = TAC_dispatch { 
+                line_number = _method.line_number;
                 store = self_id; 
                 obj = obj_id;
                 method_id;
@@ -114,6 +115,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             let self_id = temp_id () in
 
             let call_cmd = TAC_dispatch {
+                line_number = _method.line_number;
                 store = self_id; 
                 obj = Self;
                 method_id = dispatch;

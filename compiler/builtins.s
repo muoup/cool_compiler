@@ -188,19 +188,35 @@ type_name:
     .section .rodata
 abort_msg:
     .string "abort";
-
-error_doz_msg:
+error_divide_msg:
     .string "ERROR: %d: Exception: division by zero\n"
+    .align 8
+error_dispatch_msg:
+    .string "ERROR: %d: Exception: dispatch on void\n"
+    .align 8
 
     .text
     .globl error_div_on_zero
     .type  error_div_on_zero, @function
 error_div_zero:
-    movq    $error_doz_msg, %rdi
+    movq    $error_divide_msg, %rdi
     xorq    %rax, %rax
     callq   printf
 
     movq    $1, %rdi
     callq   exit
+    ret
+
+    .text
+    .globl error_dispatch
+    .type  error_dispatch, @function
+error_dispatch:
+    movq    $error_dispatch_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+    ret
 
 # -------- COMPILED PROGRAM START ------------

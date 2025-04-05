@@ -223,10 +223,19 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MOV_mem (RAX, get_symbol_storage id)
         ] @ pop_cmds
 
-    | TAC_dispatch { store; obj; method_id; args } ->
+    | TAC_dispatch { line_number; store; obj; method_id; args } ->
+        let dispatch_check = [
+            COMMENT ("Dispatch on Void Check");
+            MOV_reg (IMMEDIATE line_number, RSI);
+            MOV_reg ((get_symbol_storage obj), RAX);
+            TEST (RAX, RAX);
+            JZ ("error_dispatch");
+        ] in
+        
         let load_vtable = [
             COMMENT ("Load Vtable ID " ^ (string_of_int method_id));
-            MOV_reg (REG_offset (R12, 16), RAX);
+            MOV_reg (get_symbol_storage obj, RAX);
+            MOV_reg (REG_offset (RAX, 16), RAX);
             MOV_reg (REG_offset (RAX, 8 * method_id), RAX);
             CALL_indirect RAX;
             MOV_mem (RAX, get_symbol_storage store)
@@ -241,7 +250,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
         let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
 
-        arg_cmds @ load_vtable @ pop_cmds
+        dispatch_check @ arg_cmds @ load_vtable @ pop_cmds
 
     | TAC_str_eq  (id, s1, s2) ->
         [
