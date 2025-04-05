@@ -186,8 +186,11 @@ type_name:
     ret
 
     .section .rodata
+abort_msg:
+    .string "abort";
+
 error_doz_msg:
-    .string "ERROR: %d: Exception: division by zero"
+    .string "ERROR: %d: Exception: division by zero\n"
 
     .text
     .globl error_div_on_zero

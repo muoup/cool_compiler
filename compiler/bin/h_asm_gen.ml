@@ -89,6 +89,14 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
             MOV_reg (REG_offset (RAX, 0), RAX);
             RET
         ]
+    | "Object.abort" ->
+        [
+            MOV_reg (LABEL "abort_msg", RDI);
+            CALL "puts";
+
+            MOV_reg (IMMEDIATE 1, RDI);
+            CALL "exit";
+        ]
     | x -> 
         [
             COMMENT ("Unimplemented: " ^ x);
