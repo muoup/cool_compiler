@@ -108,8 +108,6 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         output "\n";
         format_cmd2 "movq" "24(%rbp)" "%r12";
         output "\n";
-        format_cmd2 "leaq" "24(%r12)" "%r12";
-        output "\n";
 
         (*
             With a base pointer in %rbp and a object base pointer in %r12,

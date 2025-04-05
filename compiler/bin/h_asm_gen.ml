@@ -51,8 +51,8 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     match id with
     | Local     i -> RBP_offset (-stack_map.local_variable_offset - ((i + 1) * 8))
     | Temporary i -> RBP_offset (-stack_map.temporaries_offset - ((i + 1) * 8))
-    | Attribute i -> REG_offset (R12, 8 * i)
-    | Self        -> RBP_offset 24
+    | Attribute i -> REG_offset (R12, 24 + 8 * i)
+    | Self        -> REG R12
     | Parameter i -> RBP_offset (32 + (i * 8))
 
 let generate_internal_asm (internal_id : string) : asm_cmd list =
@@ -77,7 +77,10 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         ]
     | "IO.out_int" ->
         [
+            MOV_reg (RBP_offset 32, RAX);
+            PUSH RAX;
             CALL "out_int";
+            POP RAX;
             RET
         ]
     | "Object.type_name" ->
@@ -85,7 +88,11 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
             CALL "type_name";
             RET
         ]
-    | x -> [COMMENT ("Unimplemented: " ^ x)]
+    | x -> 
+        [
+            COMMENT ("Unimplemented: " ^ x);
+            CALL "exit";
+        ]
 
 let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
@@ -194,7 +201,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             [load; push]
         ) @@ List.rev args in
 
-        let pop_cmds = List.concat @@ List.map (fun _ -> [POP RAX]) args in
+        let pop_cmds = [ADD (IMMEDIATE (8 + 8 * (List.length args)), RSP)] in
 
         arg_cmds @ [
             CALL method_name;
@@ -203,7 +210,8 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
     | TAC_dispatch { store; obj; method_id; args } ->
         let load_vtable = [
-            MOV_reg (REG_offset (R12, -8), RAX);
+            COMMENT ("Load Vtable ID " ^ (string_of_int method_id));
+            MOV_reg (REG_offset (R12, 16), RAX);
             MOV_reg (REG_offset (RAX, 8 * method_id), RAX);
             CALL_indirect RAX;
             MOV_mem (RAX, get_symbol_storage store)
@@ -216,7 +224,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             [load; push]
         ) @@ List.rev args in
 
-        let pop_cmds = List.concat @@ List.map (fun _ -> [POP RAX]) args in
+        let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
 
         arg_cmds @ load_vtable @ pop_cmds
 

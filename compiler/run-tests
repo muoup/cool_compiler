@@ -19,6 +19,10 @@ run_test() {
     fi
 }
 
+for file in valid_testcases/*.cl; do
+    run_test $file $input
+done
+
 for file in restricted_testcases/*.cl; do
     run_test $file $input
 done

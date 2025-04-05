@@ -181,7 +181,7 @@ in_string:
     .globl type_name
     .type  type_name, @function
 type_name:
-    movq    8(%rbp), %rax
+    movq    24(%rbp), %rax
     movq    (%rax), %rax
     ret
 

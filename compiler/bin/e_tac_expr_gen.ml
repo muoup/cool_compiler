@@ -67,7 +67,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
 
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
         let gen_args (args : ast_expression list) : (tac_id list * tac_cmd list list) =
-            let (args_ids, args_cmds) = List.split (List.map rec_tac_gen @@ List.rev args) in
+            let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
             let args_ids = Self :: args_ids in
 
             args_ids, args_cmds
@@ -85,6 +85,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args args in
 
+            let comment = TAC_comment ("DynamicDispatch: " ^ _method.name) in
             let method_id = get_dispatch data call_on._type _method.name in
             let self_id = temp_id () in
 
@@ -94,11 +95,12 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
                 method_id;
                 args = args_ids;
             } in
-            (self_id, obj_cmds @ List.concat args_cmds @ [call_cmd])
+            (self_id, obj_cmds @ (List.concat args_cmds @ [comment; call_cmd]))
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
 
+            let comment = TAC_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
             let dispatch = method_name_gen _type.name _method.name in
             let self_id = temp_id () in
 
@@ -107,6 +109,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | SelfDispatch      { _method; args } ->
             let (args_ids, args_cmds) = gen_args args in
 
+            let comment = TAC_comment ("SelfDispatch: " ^ _method.name) in
             let dispatch = get_dispatch data class_name _method.name in
             let self_id = temp_id () in
 
@@ -117,7 +120,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
                 args = args_ids;
             } in
             
-            (self_id, List.concat args_cmds @ [call_cmd])
+            (self_id, List.concat args_cmds @ [comment; call_cmd])
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             let (then_id, then_cmds) = rec_tac_gen _then in
@@ -236,7 +239,6 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
                     [TAC_default (id, _type.name)]
                 | LetBindingInit    { variable; _type; value } ->
                     let (rhs_id, rhs_cmds) = rec_tac_gen value in
-                    let id = local_id () in
                     add_symbol variable.name rhs_id;
                     rhs_cmds
             in
