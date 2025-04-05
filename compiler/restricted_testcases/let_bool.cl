@@ -24,6 +24,9 @@ class Main inherits IO {
                     out_string("odd\n")
                 fi;
 
+                out_int(i);
+                out_string(" || ");
+
                 i <- i + 1;
             }
             pool;   

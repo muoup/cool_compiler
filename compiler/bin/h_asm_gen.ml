@@ -145,7 +145,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             COMMENT "Division";
             MOV_reg32 ((get_symbol_storage a), RAX);
             MISC "cdq";
-            DIV RSI;
+            DIV RBX;
             MOV_mem (RAX, get_symbol_storage id)
         ]
     | TAC_lt (id, a, b) -> 
@@ -220,7 +220,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             [load; push]
         ) @@ List.rev args in
 
-        let pop_cmds = [ADD (IMMEDIATE (8 + 8 * (List.length args)), RSP)] in
+        let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
 
         arg_cmds @ [
             CALL method_name;

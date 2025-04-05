@@ -87,10 +87,18 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | DynamicDispatch   { call_on; _method; args } ->
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args args in
+            let self_id = temp_id () in
 
             let comment = TAC_comment ("DynamicDispatch: " ^ _method.name) in
+
+            if not (StringSet.mem call_on._type data.overriden_classes) then
+                let dispatch = method_name_gen call_on._type _method.name in
+
+                let call_cmd = TAC_call (self_id, dispatch, args_ids) in
+                (self_id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
+            else
+
             let method_id = get_dispatch data call_on._type _method.name in
-            let self_id = temp_id () in
 
             let call_cmd = TAC_dispatch { 
                 line_number = _method.line_number;
@@ -103,19 +111,26 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
+            let self_id = temp_id () in
 
             let comment = TAC_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
             let dispatch = method_name_gen _type.name _method.name in
-            let self_id = temp_id () in
 
             let call_cmd = TAC_call (self_id, dispatch, args_ids) in
-            (self_id, obj_cmds @ List.concat args_cmds @ [call_cmd])
+            (self_id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
         | SelfDispatch      { _method; args } ->
             let (args_ids, args_cmds) = gen_args args in
-
-            let comment = TAC_comment ("SelfDispatch: " ^ _method.name) in
-            let dispatch = get_dispatch data class_name _method.name in
             let self_id = temp_id () in
+            let comment = TAC_comment ("SelfDispatch: " ^ _method.name) in
+
+            if not (StringSet.mem class_name data.overriden_classes) then
+                let dispatch = method_name_gen class_name _method.name in
+
+                let call_cmd = TAC_call (self_id, dispatch, Self :: args_ids) in
+                (self_id, List.concat args_cmds @ [comment; call_cmd])
+            else
+
+            let dispatch = get_dispatch data class_name _method.name in
 
             let call_cmd = TAC_dispatch {
                 line_number = _method.line_number;
