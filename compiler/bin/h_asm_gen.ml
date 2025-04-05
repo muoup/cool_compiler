@@ -97,6 +97,10 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
             MOV_reg (IMMEDIATE 1, RDI);
             CALL "exit";
         ]
+    | "Object.copy" ->
+        [
+            JMP "copy";
+        ]
     | x -> 
         [
             COMMENT ("Unimplemented: " ^ x);
@@ -229,7 +233,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MOV_reg (IMMEDIATE line_number, RSI);
             MOV_reg ((get_symbol_storage obj), RAX);
             TEST (RAX, RAX);
-            JZ ("error_dispatch");
+            JZ "error_dispatch";
         ] in
         
         let load_vtable = [

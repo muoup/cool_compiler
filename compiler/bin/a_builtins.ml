@@ -178,11 +178,19 @@ in_string:
     retq
 
     .text
-    .globl type_name
-    .type  type_name, @function
-type_name:
-    movq    16(%rbp), %rax
-    movq    (%rax), %rax
+    .globl copy
+    .type  copy, @function
+copy:
+    movq    8(%r12), %rdi
+    call    malloc
+
+    movq    %rax, %rdi
+    movq    %r12, %rsi
+    movq    8(%r12), %rdx
+    call    memcpy
+
+    leave
+    pop     %r12
     ret
 
     .section .rodata

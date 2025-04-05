@@ -68,7 +68,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
         let gen_args (args : ast_expression list) : (tac_id list * tac_cmd list list) =
             let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
-            let args_ids = Self :: args_ids in
+            let args_ids = args_ids in
 
             args_ids, args_cmds
         in
@@ -94,7 +94,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
                 store = self_id; 
                 obj = obj_id;
                 method_id;
-                args = args_ids;
+                args = obj_id :: args_ids;
             } in
             (self_id, obj_cmds @ (List.concat args_cmds @ [comment; call_cmd]))
         | StaticDispatch    { call_on; _type; _method; args; } ->
@@ -119,7 +119,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
                 store = self_id; 
                 obj = Self;
                 method_id = dispatch;
-                args = args_ids;
+                args = Self :: args_ids;
             } in
             
             (self_id, List.concat args_cmds @ [comment; call_cmd])
