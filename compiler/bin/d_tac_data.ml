@@ -12,7 +12,6 @@ module StringTbl = Hashtbl.Make (struct
 end)
 
 type symbol_table = tac_id StringTbl.t
-type numbered_tac_id = {id : tac_id; line_number : int}
 
 type tac_cmd =
   | TAC_add     of tac_id * tac_id * tac_id

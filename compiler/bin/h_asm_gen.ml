@@ -21,31 +21,14 @@ let generate_string_literal () : string =
 
     "str_" ^ (string_of_int id)
 
-(* This code should generate all error messages needed for any possible runtime error. 
-Ideally in PA4, it's made slightly more intelligent than the reference compiler's "generate billions
-and billions of error messages" strategy*)
-let generate_error_messages(tac_cmds : tac_cmd list) : strlit_map = (
-    List.filter_map (fun cmd ->
-        match cmd with
-        | TAC_div (line_number, result, nominator, denominator) -> 
-            let div_msg = "ERROR: " ^ string_of_int(line_number) ^ ": Exception: division by zero" in
-            let str_id = generate_string_literal () in
-            Some (str_id, div_msg)
-        | _ -> None
-    ) tac_cmds
-)
-
 let generate_strlit_map (tac_cmds : tac_cmd list) : strlit_map =
-    let error_msgs = generate_error_messages tac_cmds in
-    let other_strings = 
     List.filter_map (fun cmd ->
         match cmd with
         | TAC_str (_, s) -> 
             let str_id = generate_string_literal () in
             Some (str_id, s)
         | _ -> None
-    ) tac_cmds in
-    error_msgs @ other_strings
+    ) tac_cmds
 
 let generate_stack_map (tac_ids : tac_id list) : stack_map =
     let (locals, temps) = List.fold_left (
@@ -71,9 +54,6 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     | Attribute i -> REG_offset (R12, 24 + 8 * i)
     | Self        -> REG R12
     | Parameter i -> RBP_offset (32 + (i * 8))
-
-let get_label_from_string (str : string) (map : strlit_map) : string = 
-    fst (List.find (fun s -> snd s = str) map)
 
 let generate_internal_asm (internal_id : string) : asm_cmd list =
     match internal_id with
