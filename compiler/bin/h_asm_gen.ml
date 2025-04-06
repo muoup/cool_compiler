@@ -349,7 +349,10 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
     | TAC_internal id -> generate_internal_asm id
 
     | TAC_new _ -> [COMMENT "New"]
-    | TAC_isvoid _ -> [COMMENT "Isvoid"]
+
+    | TAC_isvoid _ -> [
+        COMMENT "Isvoid"
+      ]
 
 let generate_asm (method_tac : method_tac) : asm_method =
     let stack_space = 8 * (List.length method_tac.ids) in
