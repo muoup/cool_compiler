@@ -5,7 +5,9 @@ open B_class_map
 open B_impl_map
 open B_parent_map
 open C_parser_data
+open D_ssa_data
 open D_tac_data
+open F_ssa_gen
 open F_tac_gen
 open G_metadata_output
 open G_tac_to_cfg
@@ -40,17 +42,22 @@ let () =
         ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; 
     } in
     let program_data = organize_parser_data parsed_data in
-    let method_tacs = generate_tac program_data in
-(* 
-    List.iter (fun (tac : method_tac) ->
-        Printf.printf "Method: %s\n" tac.method_name;
-        List.iter (fun tac_ -> print_tac_cmd (Printf.printf "%s\n") tac_) tac.commands;
-        Printf.printf "\n";
-    ) method_tacs; *)
+
+    let ssa = generate_ssa program_data in
+
+    List.iter (fun (ssa : method_ssa) ->
+        if ssa.method_name = "Main.main" then (
+            Printf.printf "Method: %s\n" ssa.method_name;
+            List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) ssa.commands;
+            Printf.printf "\n"
+        );
+    ) ssa;
+
+    (* let method_tacs = generate_tac program_data in *)
 
     (* Generate the CFG for each method *)
 
-    let asm = List.map (generate_asm) method_tacs in
+    (* let asm = List.map (generate_asm) method_tacs in
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 
@@ -63,4 +70,4 @@ let () =
     emit_metadata output program_data;
     output "\n";
     
-    close_out assembly_handle
+    close_out assembly_handle *)

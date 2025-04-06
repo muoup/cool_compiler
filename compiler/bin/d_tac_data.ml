@@ -1,15 +1,11 @@
+open A_util
+
 type tac_id =
   | Local       of int
   | Temporary   of int
   | Attribute   of int
   | Parameter   of int
   | Self
-
-module StringTbl = Hashtbl.Make (struct
-    type t = string
-    let equal = String.equal
-    let hash = Hashtbl.hash
-end)
 
 type symbol_table = tac_id StringTbl.t
 

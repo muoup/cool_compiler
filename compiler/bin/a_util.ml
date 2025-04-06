@@ -1,5 +1,10 @@
 module StringMap = Map.Make(String)
 module StringSet = Set.Make(String)
+module StringTbl = Hashtbl.Make(struct
+    type t = string
+    let equal = String.equal
+    let hash = Hashtbl.hash
+end)
 
 let index_of (l : 'a list) (e : 'a) : int =
     let rec inner_rec (l : 'a list) (i : int) : int =
