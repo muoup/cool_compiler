@@ -10,12 +10,16 @@ let generate_constructor (data : program_data) (_class : program_class_data) : m
     let temp_counter = ref 0 in
     let local_counter = ref 0 in
 
-    let attributes = List.length _class.attributes in
-    let object_id = Local 0 in
-    let ids = ref [ object_id ] in
+    let create_stmt stmt =
+        let id = Local !temp_counter in
+        temp_counter := !temp_counter + 1;
+        { id; _val = stmt }
+    in
 
-    let instantiate = SSA_object ( object_id , _class.name, attributes) in
-    let return = SSA_return object_id in
+    let attributes = List.length _class.attributes in
+
+    let instantiate = create_stmt @@ SSA_object (_class.name, attributes) in
+    let return = create_stmt @@ SSA_return instantiate.id in
     
     (* TODO: Attribute initialization *)
 
@@ -28,23 +32,17 @@ let generate_constructor (data : program_data) (_class : program_class_data) : m
 
             match attr.init with
             | None ->
-                let id = Local !temp_counter in
-                temp_counter := !temp_counter + 1;
-
-                ids := !ids @ [id];
-
+                let default = create_stmt @@ SSA_default (attr._type) in
+                
                 [
-                    SSA_default (id, attr._type);
-                    SSA_attribute { object_id; attribute_id; value = id }
+                    default; create_stmt @@ SSA_attribute { object_id; attribute_id; value = default.id }
                 ]
             | Some init ->
                 let (ssa_ids, ssa_cmds) = ssa_gen_expr_body data _class.name init (ref (StringTbl.create 10)) local_counter temp_counter in
                 let ret = last_id ssa_ids in
-                
-                ids := !ids @ ssa_ids;
 
                 ssa_cmds @ [
-                    SSA_attribute { object_id; attribute_id; value = ret }
+                    create_stmt @@ SSA_attribute { object_id; attribute_id; value = ret }
                 ]
     ) _class.attributes in
 
@@ -54,7 +52,7 @@ let generate_constructor (data : program_data) (_class : program_class_data) : m
         arg_count = 0;
 
         stmts = instantiate :: (List.concat attributes) @ [return];
-        ids = !ids
+        ids = []
     }
 
 let generate_ssa (data : program_data) : method_ssa list =
@@ -75,9 +73,8 @@ let generate_ssa (data : program_data) : method_ssa list =
             let local_counter = ref 0 in
             let temp_counter = ref 0 in
 
-            (* Not sure how to replicate a Rust matches! macro, but this should work *)
             match method_.body.data with
-            | Internal id -> [], [SSA_internal id]
+            | Internal id -> [], [{ id = Unit; _val = SSA_internal id }]
             | _ ->
 
             List.iteri (

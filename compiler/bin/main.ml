@@ -8,7 +8,7 @@ open C_parser_data
 open D_ssa_data
 open D_tac_data
 open F_ssa_gen
-open F_tac_gen
+open G_ssa_to_tac
 open G_metadata_output
 open G_tac_to_cfg
 open G_ssa_opt
@@ -52,7 +52,16 @@ let () =
     List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) main_ssa.stmts;
     Printf.printf "\nOptimized SSA:\n";
     List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) opt1.stmts;
-    Printf.printf "\n"
+    Printf.printf "\n";
+
+    let main_tac = ssa_to_tac main_ssa in
+    let main_asm = generate_asm main_tac in
+
+    print_asm_method main_asm (Printf.printf "%s\n");
+
+    (* let method_tacs = List.map (ssa_to_tac) ssa in *)
+
+    (* let builtin_asm = open_in "builtins.s" in *)
 
     (* let method_tacs = generate_tac program_data in *)
 
