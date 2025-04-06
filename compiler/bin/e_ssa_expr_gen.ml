@@ -37,16 +37,9 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | None -> raise (Invalid_argument ("Symbol not found: " ^ x))
     in
 
-    let local_id () : ssa_id =
+    let gen_id () : ssa_id =
         let id = Local !local_counter in
         local_counter := !local_counter + 1;
-        ssa_id_list := id :: !ssa_id_list;
-        id
-    in
-
-    let temp_id () : ssa_id =
-        let id = Temporary !temp_counter in
-        temp_counter := !temp_counter + 1;
         ssa_id_list := id :: !ssa_id_list;
         id
     in
@@ -87,7 +80,7 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | DynamicDispatch   { call_on; _method; args } ->
             let (obj_id, obj_cmds) = rec_ssa_gen call_on in
             let (args_ids, args_cmds) = gen_args args in
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             let comment = SSA_comment ("DynamicDispatch: " ^ _method.name) in
 
@@ -111,7 +104,7 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let (obj_id, obj_cmds) = rec_ssa_gen call_on in
             let (args_ids, args_cmds) = List.split (List.map rec_ssa_gen args) in
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             let comment = SSA_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
             let dispatch = method_name_gen _type.name _method.name in
@@ -120,7 +113,7 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
             (self_id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
         | SelfDispatch      { _method; args } ->
             let (args_ids, args_cmds) = gen_args args in
-            let self_id = temp_id () in
+            let self_id = gen_id () in
             let comment = SSA_comment ("SelfDispatch: " ^ _method.name) in
 
             if not (StringSet.mem class_name data.overriden_classes) then
@@ -146,7 +139,7 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
             let (then_id, then_cmds) = rec_ssa_gen _then in
             let (else_id, else_cmds) = rec_ssa_gen _else in
 
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             let then_name = label_id () ^ "_then" in
             let else_name = label_id () ^ "_else" in
@@ -168,7 +161,7 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
             let (cond_id, cond_cmds) = rec_ssa_gen predicate in
             let (body_id, body_cmds) = rec_ssa_gen body in
 
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             let cond_name = label_id () ^ "_cond" in
             let body_name = label_id () ^ "_body" in
@@ -190,20 +183,20 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
 
             (last_id ids, List.concat cmds)
         | New              { _class } ->
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             let _type = if _class.name = "SELF_TYPE" then class_name else _class.name in
 
             (self_id, [SSA_new (self_id, _type)])
         | IsVoid           { expr } ->
             let (expr_id, expr_cmds) = rec_ssa_gen expr in
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             (self_id, expr_cmds @ [SSA_isvoid (self_id, expr_id)])
         | BinOp             { left; right; op } ->
             let (lhs_id, lhs_cmds) = rec_ssa_gen left in
             let (rhs_id, rhs_cmds) = rec_ssa_gen right in
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             let cmd = match op with
                 | Plus      -> SSA_add (self_id, lhs_id, rhs_id)
@@ -222,7 +215,7 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
             (self_id, lhs_cmds @ rhs_cmds @ [cmd])
         | UnOp             { expr; op } ->
             let (expr_id, expr_cmds) = rec_ssa_gen expr in
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             let cmd = match op with
                 | Not       -> SSA_not (self_id, expr_id)
@@ -231,35 +224,35 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
 
             (self_id, expr_cmds @ [cmd])
         | Integer           i ->
-            let self_id = temp_id () in 
-            (self_id, [SSA_int (self_id, i)])
+            let self_id = gen_id () in 
+            (self_id, [SSA_ident (self_id, IntLiteral i)])
         | String            s ->
             let escaped_s = escape_backslashes s in
-            let self_id = temp_id () in
-            (self_id, [SSA_str (self_id, escaped_s)])
+            let self_id = gen_id () in
+            (self_id, [SSA_ident (self_id, StringLiteral escaped_s)])
         | True                -> 
-            let self_id = temp_id () in
-            (self_id, [SSA_bool (self_id, true)])
+            let self_id = gen_id () in
+            (self_id, [SSA_ident (self_id, BoolLiteral true)])
         | False               ->
-            let self_id = temp_id () in
-            (self_id, [SSA_bool (self_id, false)])
+            let self_id = gen_id () in
+            (self_id, [SSA_ident (self_id, BoolLiteral false)])
         | Identifier        ident ->
             let var_name = find_symbol ident.name in
-            let self_id = temp_id () in
+            let self_id = gen_id () in
 
             (self_id, [SSA_load (self_id, var_name)])
         | Let               { bindings; _in } ->
             let ssa_initialize (binding : ast_let_binding_type) : ssa_stmt list =
                 match binding with
                 | LetBindingNoInit  { variable; _type } ->
-                    let id = local_id () in
+                    let id = gen_id() in
                     add_symbol variable.name id;
-                    [SSA_stack_slot id; SSA_default (id, _type.name)]
+                    [SSA_default_mem (id, _type.name)]
                 | LetBindingInit    { variable; _type; value } ->
-                    let id = local_id () in
+                    let id = gen_id () in
                     let (rhs_id, rhs_cmds) = rec_ssa_gen value in
                     add_symbol variable.name rhs_id;
-                    rhs_cmds @ [SSA_stack_slot id; SSA_store (id, rhs_id)]
+                    rhs_cmds @ [SSA_valued_mem (id, rhs_id, _type.name)]
             in
 
             let ssa_remove_binding (binding : ast_let_binding_type) : unit =
@@ -277,9 +270,9 @@ let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body :
 
             (in_id, init_cmds @ in_cmds)
         | Case              { expression; mapping_list } ->
-            (temp_id (), [SSA_comment "Case not implemented"])
+            (gen_id (), [SSA_comment "Case not implemented"])
         | Internal         _ -> 
-            (temp_id (), [SSA_comment "Internal expression not implemented"])
+            (gen_id (), [SSA_comment "Internal expression not implemented"])
     in
 
     let (ssa_id, ssa_cmds) = rec_ssa_gen method_body in

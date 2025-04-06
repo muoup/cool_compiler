@@ -2,9 +2,13 @@ open A_util
 
 type ssa_id =
     | Local of int
-    | Temporary of int
     | Attribute of int
     | Parameter of int
+    
+    | IntLiteral of int
+    | StringLiteral of string
+    | BoolLiteral of bool
+    
     | Self
 
 type symbol_table = ssa_id StringTbl.t
@@ -19,9 +23,6 @@ type ssa_stmt =
     | SSA_lte of ssa_id * ssa_id * ssa_id
     | SSA_eq  of ssa_id * ssa_id * ssa_id
 
-    | SSA_int of ssa_id * int
-    | SSA_str of ssa_id * string
-    | SSA_bool of ssa_id * bool
     | SSA_ident of ssa_id * ssa_id
 
     | SSA_neg of ssa_id * ssa_id
@@ -47,7 +48,9 @@ type ssa_stmt =
     | SSA_return of ssa_id
     | SSA_comment of string
 
-    | SSA_stack_slot of ssa_id
+    | SSA_default_mem of ssa_id * string
+    | SSA_valued_mem of ssa_id * ssa_id * string
+
     | SSA_store of ssa_id * ssa_id
     | SSA_load of ssa_id * ssa_id
 
@@ -59,16 +62,20 @@ type method_ssa = {
     method_name : string;
     arg_count : int;
 
-    commands : ssa_stmt list;
+    stmts : ssa_stmt list;
     ids : ssa_id list
 }
 
 let f_id (id : ssa_id) : string =
     match id with
-    | Local i -> Printf.sprintf "L%d" i
-    | Temporary i -> Printf.sprintf "T%d" i
+    | Local i -> Printf.sprintf "%%%d" i
     | Attribute i -> Printf.sprintf "A%d" i
     | Parameter i -> Printf.sprintf "P%d" i
+
+    | IntLiteral i -> Printf.sprintf "%d" i
+    | StringLiteral s -> Printf.sprintf "\"%s\"" s
+    | BoolLiteral b -> Printf.sprintf "%b" b
+
     | Self -> "self"
 
 let print_ssa_stmt (output : string -> unit) (stmt : ssa_stmt) : unit =
@@ -81,10 +88,6 @@ let print_ssa_stmt (output : string -> unit) (stmt : ssa_stmt) : unit =
     | SSA_lt (a, b, c) -> output (Printf.sprintf "%s = %s < %s" (f_id a) (f_id b) (f_id c))
     | SSA_lte (a, b, c) -> output (Printf.sprintf "%s = %s <= %s" (f_id a) (f_id b) (f_id c))
     | SSA_eq (a, b, c) -> output (Printf.sprintf "%s = %s == %s" (f_id a) (f_id b) (f_id c))
-
-    | SSA_int (a, b) -> output (Printf.sprintf "%s = %d" (f_id a) b)
-    | SSA_str (a, b) -> output (Printf.sprintf "%s = \"%s\"" (f_id a) b)
-    | SSA_bool (a, b) -> output (Printf.sprintf "%s = %b" (f_id a) b)
 
     | SSA_ident (a, b) -> output (Printf.sprintf "%s = %s" (f_id a) (f_id b))
     | SSA_neg (a, b) -> output (Printf.sprintf "%s = -%s" (f_id a) (f_id b))
@@ -109,7 +112,9 @@ let print_ssa_stmt (output : string -> unit) (stmt : ssa_stmt) : unit =
     | SSA_return a -> output (Printf.sprintf "return %s" (f_id a))
     | SSA_comment a -> output (Printf.sprintf "comment %s" a)
 
-    | SSA_stack_slot a -> output (Printf.sprintf "stack_slot %s" (f_id a))
+    | SSA_default_mem (a, type_name) -> output (Printf.sprintf "alloc %s = default; type = %s" (f_id a) type_name)
+    | SSA_valued_mem (a, b, type_name) -> output (Printf.sprintf "alloc %s = %s; type = %s" (f_id a) (f_id b) type_name)
+
     | SSA_store (a, b) -> output (Printf.sprintf "store %s <- %s" (f_id a) (f_id b))
     | SSA_load (a, b) -> output (Printf.sprintf "load %s -> %s" (f_id a) (f_id b))
 

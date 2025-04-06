@@ -28,7 +28,7 @@ let generate_constructor (data : program_data) (_class : program_class_data) : m
 
             match attr.init with
             | None ->
-                let id = Temporary !temp_counter in
+                let id = Local !temp_counter in
                 temp_counter := !temp_counter + 1;
 
                 ids := !ids @ [id];
@@ -53,7 +53,7 @@ let generate_constructor (data : program_data) (_class : program_class_data) : m
         method_name = constructor_name;
         arg_count = 0;
 
-        commands = instantiate :: (List.concat attributes) @ [return];
+        stmts = instantiate :: (List.concat attributes) @ [return];
         ids = !ids
     }
 
@@ -103,7 +103,7 @@ let generate_ssa (data : program_data) : method_ssa list =
                     method_name = method_name_gen _class.name method_.name;
                     arg_count = List.length method_.formals + 1;
                     
-                    commands = cmds;
+                    stmts = cmds;
                     ids = ids;
                 }   
         ) _class.methods in
