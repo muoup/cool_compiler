@@ -27,9 +27,9 @@ and billions of error messages" strategy*)
 let generate_error_messages(tac_cmds : tac_cmd list) : strlit_map = (
     List.filter_map (fun cmd ->
         match cmd with
-        | TAC_div (result, nominator, denominator) -> 
-            let div_msg = "ERROR: " ^ string_of_int(nominator.line_number) ^ ": Exception: division by zero" in
-            let str_id = generate_string_literal result in
+        | TAC_div (line_number, result, nominator, denominator) -> 
+            let div_msg = "ERROR: " ^ string_of_int(line_number) ^ ": Exception: division by zero" in
+            let str_id = generate_string_literal () in
             Some (str_id, div_msg)
         | _ -> None
     ) tac_cmds
@@ -48,16 +48,98 @@ let generate_strlit_map (tac_cmds : tac_cmd list) : strlit_map =
     error_msgs @ other_strings
 
 let generate_stack_map (tac_ids : tac_id list) : stack_map =
-    let rec generate_stack_map' (tac_ids : tac_id list) (stack_map : stack_map) (offset : int) =
-        match tac_ids with
-        | [] -> stack_map
-        | id :: rest -> generate_stack_map' rest (StringMap.add id offset stack_map) (offset - 8)
-    in
+    let (locals, temps) = List.fold_left (
+        fun (acc_locals, acc_temps) id ->
+            match id with
+            | Local _ -> (acc_locals + 1, acc_temps)
+            | Temporary _ -> (acc_locals, acc_temps + 1)
+            | _ -> (acc_locals, acc_temps)
+    ) (0, 0) tac_ids in
 
-    generate_stack_map' tac_ids StringMap.empty (-8)
+    let local_variable_offset = 0 in
+    let temporaries_offset = local_variable_offset + (locals * 8) in
+
+    {
+        local_variable_offset = local_variable_offset;
+        temporaries_offset = temporaries_offset;
+    }
+
+let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
+    match id with
+    | Local     i -> RBP_offset (-stack_map.local_variable_offset - ((i + 1) * 8))
+    | Temporary i -> RBP_offset (-stack_map.temporaries_offset - ((i + 1) * 8))
+    | Attribute i -> REG_offset (R12, 24 + 8 * i)
+    | Self        -> REG R12
+    | Parameter i -> RBP_offset (32 + (i * 8))
 
 let get_label_from_string (str : string) (map : strlit_map) : string = 
     fst (List.find (fun s -> snd s = str) map)
+
+let generate_internal_asm (internal_id : string) : asm_cmd list =
+    match internal_id with
+    | "IO.in_string" ->
+        [
+            CALL "in_string";
+            RET
+        ]
+    | "IO.out_string" ->
+        [
+            MOV_reg (RBP_offset 32, RAX);
+            PUSH RAX;
+            CALL "out_string";
+            POP RAX;
+            RET
+        ]
+    | "IO.in_int" ->
+        [
+            CALL "in_int";
+            RET
+        ]
+    | "IO.out_int" ->
+        [
+            MOV_reg (RBP_offset 32, RAX);
+            PUSH RAX;
+            CALL "out_int";
+            POP RAX;
+            RET
+        ]
+    | "Object.type_name" ->
+        [
+            MOV_reg (RBP_offset 24, RAX);
+            MOV_reg (REG_offset (RAX, 0), RAX);
+            RET
+        ]
+    | "Object.abort" ->
+        [
+            MOV_reg (LABEL "abort_msg", RDI);
+            CALL "puts";
+
+            MOV_reg (IMMEDIATE 1, RDI);
+            CALL "exit";
+        ]
+    | "Object.copy" ->
+        [
+            JMP "copy";
+        ]
+    | "String.concat" ->
+        [
+            JMP "concat";
+        ]
+    | "String.substr" ->
+        [
+            JMP "substr";
+        ]
+    | "String.length" ->
+        [
+            MOV_reg (REG R12, RDI);
+            CALL "strlen";
+            RET;
+        ]
+    | x -> 
+        [
+            COMMENT ("Unimplemented: " ^ x);
+            CALL "exit";
+        ]
 
 let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
@@ -87,8 +169,6 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MOV_mem (RBX, get_symbol_storage id)
         ]
     | TAC_div (line_number, id, a, b) ->
-        let div_msg = "ERROR: " ^ string_of_int(a.line_number) ^ ": Exception: division by zero" in
-        let error_str = get_label_from_string div_msg asm_data.strlit_map in
         [
             COMMENT "Division by zero check";
             MOV_reg (IMMEDIATE line_number, RSI);
@@ -96,25 +176,6 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             TEST (RBX, RBX);
             JZ "error_div_zero";
 
-            COMMENT "Division";
-            MOV_reg32 ((get_symbol_storage a), RAX);
-            (* MOV_reg32 ((get_symbol_storage a.id), RAX);
-            MOV_reg32 ((get_symbol_storage b), RBX);
-            MISC "cdq";
-            DIV RBX;
-            MOV_mem (RAX, get_symbol_storage id) *)
-            COMMENT ("Check for division by 0");
-            MOV_reg (IMMEDIATE 0, RBX);
-            MOV_reg32 ((get_symbol_storage b), RBX);
-            MOV_reg (IMMEDIATE 0, RAX);
-            CMP (RAX, RBX);
-            COMMENT error_str;
-            JE ".error_out";
-            COMMENT ("OK to divide");
-            MOV_reg32 ((get_symbol_storage a.id), RAX);
-            MISC "cdq";
-            DIV RBX;
-            MOV_mem (RAX, get_symbol_storage id)
         ]
     | TAC_lt (id, a, b) -> 
         [
