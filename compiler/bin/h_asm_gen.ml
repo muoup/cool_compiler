@@ -54,6 +54,8 @@ let generate_stack_map (tac_ids : tac_id list) : stack_map =
 
     generate_stack_map' tac_ids StringMap.empty (-8)
 
+let get_label_from_string (str : string) (map : strlit_map) : string = 
+    fst (List.find (fun s -> snd s = str) map)
 
 let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
@@ -85,16 +87,22 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MOV_mem (RBX, get_symbol_storage id)
         ]
     | TAC_div (id, a, b) ->
+        let div_msg = "ERROR: " ^ string_of_int(a.line_number) ^ ": Exception: division by zero" in
+        let error_str = get_label_from_string div_msg asm_data.strlit_map in
         [
             (* MOV_reg32 ((get_symbol_storage a.id), RAX);
             MOV_reg32 ((get_symbol_storage b), RBX);
             MISC "cdq";
             DIV RBX;
             MOV_mem (RAX, get_symbol_storage id) *)
+            COMMENT ("Check for division by 0");
+            MOV_reg (IMMEDIATE 0, RBX);
             MOV_reg32 ((get_symbol_storage b), RBX);
             MOV_reg (IMMEDIATE 0, RAX);
             CMP (RAX, RBX);
-            (* JE error_output *)
+            COMMENT error_str;
+            JE ".error_out";
+            COMMENT ("OK to divide");
             MOV_reg32 ((get_symbol_storage a.id), RAX);
             MISC "cdq";
             DIV RBX;

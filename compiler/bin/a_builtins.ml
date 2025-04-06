@@ -167,4 +167,7 @@ in_string:
     popq    %rbp
     retq
 
+.error_out:
+    jmp out_string
+
 # -------- COMPILED PROGRAM START ------------|}
