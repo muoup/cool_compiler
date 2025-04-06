@@ -8,7 +8,16 @@
     .globl main
     .type  main, @function
 main:
-    jmp   Main_main_0
+    push    %rbp
+
+    call    new.Main
+    
+    pushq   %rax
+    call    Main.main
+    pop     %rax
+
+    pop     %rbp
+    ret
 
     .section .rodata
 __f_out_str:
@@ -167,5 +176,139 @@ in_string:
     popq    %r8
     popq    %rbp
     retq
+
+    .text
+    .globl copy
+    .type  copy, @function
+copy:
+    movq    8(%r12), %rdi
+    call    malloc
+
+    movq    %rax, %rdi
+    movq    %r12, %rsi
+    movq    8(%r12), %rdx
+    call    memcpy
+
+    leave
+    pop     %r12
+    ret
+
+    .text
+    .globl concat
+    .type  concat, @function
+concat:
+    subq    $16, %rsp
+
+    #   Store length of caller string into %rbx
+    movq    %r12, %rdi
+    call    strlen
+    movq    %rax, %rbx
+
+    #   Store length of string to be concatenated into %rax
+    movq    32(%rbp), %rdi
+    call    strlen
+    
+    #   Add the two lengths together to get the required space for the new string
+    addq    %rbx, %rax
+    incq    %rax            #   Add 1 for null terminator
+    movq    %rax, %rdi
+    call    malloc
+
+    #   Null terminate the empty string
+    movq    $0, (%rax)
+    movq    %rax, 8(%rsp)
+
+    #   Copy the first string into the new string
+    movq    %rax, %rdi
+    movq    %r12, %rsi
+    call    strcat
+
+    #   Copy the second string into the new string
+    movq    8(%rsp), %rdi
+    movq    32(%rbp), %rsi
+    call    strcat
+
+    #   Return the new string
+    movq    8(%rsp), %rax
+    leave
+    pop     %r12
+    ret
+
+    .text
+    .globl substr
+    .type  substr, @function
+substr:
+    movq    %r12, %rdi
+    call    strlen
+
+    movq    32(%rbp), %rsi
+    addq    40(%rbp), %rsi
+    cmpq    %rax, %rsi
+    jg      error_substr
+
+    movq    40(%rbp), %rdi
+    incq    %rdi
+    call    malloc
+
+    movq    40(%rbp), %rdi
+    movq    $0, 1(%rdi, %rax)
+
+    movq    %rax, %rdi
+    movq    32(%rbp), %rsi
+    leaq    (%r12, %rsi), %rsi
+    movq    40(%rbp), %rdx
+    call    memcpy
+
+    leave
+    pop     %r12
+    ret
+
+    .section .rodata
+default_string:
+    .string ""
+    .align 8
+abort_msg:
+    .string "abort";
+error_divide_msg:
+    .string "ERROR: %d: Exception: division by zero\n"
+    .align 8
+error_dispatch_msg:
+    .string "ERROR: %d: Exception: dispatch on void\n"
+    .align 8
+error_substring_msg:
+    .string "ERROR: 0: Exception: String.substr out of range\n"
+    .align 8
+
+    .text
+    .globl error_div_on_zero
+    .type  error_div_on_zero, @function
+error_div_zero:
+    movq    $error_divide_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+    ret
+
+    .text
+    .globl error_dispatch
+    .type  error_dispatch, @function
+error_dispatch:
+    movq    $error_dispatch_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+    ret
+error_substr:
+    movq    $error_substring_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+    ret
 
 # -------- COMPILED PROGRAM START ------------

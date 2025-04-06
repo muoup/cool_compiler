@@ -13,7 +13,7 @@ class IntWrapper {
     };
 };
 
-class Main {
+class Main inherits IO {
     main() : Object {
         let wrapper1 : IntWrapper <- (new IntWrapper).init(1) in
         {
@@ -24,7 +24,7 @@ class Main {
                 if wrapper1.getI() = wrapper2.getI() then
                     abort()
                 else
-                    0
+                    out_string("Copy works\n")
                 fi;  
             };   
         }
