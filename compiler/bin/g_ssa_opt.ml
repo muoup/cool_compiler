@@ -58,8 +58,6 @@ let constant_fold (_method : method_ssa) : method_ssa =
     in
 
     let rec inline_int_binop (stmt : ssa_stmt) (id : ssa_id) (lhs : ssa_id) (rhs : ssa_id) (op : int -> int -> int) : ssa_stmt =
-        print_ssa_stmt (Printf.printf "Inlining: %s\n") stmt;
-
         let lhs = inline_ident lhs in
         let rhs = inline_ident rhs in
 
@@ -70,7 +68,6 @@ let constant_fold (_method : method_ssa) : method_ssa =
             
             SSA_ident (id, IntLiteral _val)
         | _ ->
-            Printf.printf "Not inlining: (%s, %s)\n" (f_id lhs) (f_id rhs);
             stmt
     in
     
@@ -119,7 +116,7 @@ let constant_fold (_method : method_ssa) : method_ssa =
 
     { _method with stmts = stmts }
 
-let dead_code_elim (_method : method_ssa) : method_ssa =
+let remove_aliases (_method : method_ssa) : method_ssa =
     let stmts = List.filter (
         fun stmt ->
             match stmt with
@@ -130,7 +127,7 @@ let dead_code_elim (_method : method_ssa) : method_ssa =
     { _method with stmts = stmts }
 
 let optimize_ssa (ssa : method_ssa) : method_ssa =
-    (* dead_code_elim @@ *) (* This is just waiting to cause bugs for no reason, but useful for debugging *)
+    (* remove_aliases *) @@ (* This is just waiting to cause bugs for no reason, but useful for debugging *)
     constant_fold @@
     upgrade_const_vars @@
     ssa
