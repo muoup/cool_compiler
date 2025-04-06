@@ -156,6 +156,12 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             TEST (RBX, RBX);
             JZ "error_div_zero";
 
+            COMMENT "Division";
+            MOV_reg32 ((get_symbol_storage a), RAX);
+            MISC "cdq";
+            DIV RBX;
+            MOV_mem (RAX, get_symbol_storage id)
+
         ]
     | TAC_lt (id, a, b) -> 
         [
