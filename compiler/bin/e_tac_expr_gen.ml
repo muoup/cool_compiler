@@ -94,8 +94,15 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             if not (StringSet.mem call_on._type data.overriden_classes) then
                 let dispatch = method_name_gen call_on._type _method.name in
 
-                let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-                (self_id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
+                if _method.name = "copy" && (
+                    call_on._type = "Int" ||
+                    call_on._type = "Bool" ||
+                    call_on._type = "String"
+                ) then
+                    (self_id, obj_cmds @ List.concat args_cmds @ [comment; TAC_ident (self_id, obj_id)])
+                else
+                    let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
+                    (self_id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
             else
 
             let method_id = get_dispatch data call_on._type _method.name in
@@ -112,6 +119,14 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
             let self_id = temp_id () in
+
+            if _method.name = "copy" && (
+                _type.name = "Int" ||
+                _type.name = "Bool" ||
+                _type.name = "String"
+            ) then
+                (self_id, obj_cmds @ List.concat args_cmds @ [TAC_ident (self_id, obj_id)])
+            else
 
             let comment = TAC_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
             let dispatch = method_name_gen _type.name _method.name in
@@ -194,7 +209,12 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
 
             let _type = if _class.name = "SELF_TYPE" then class_name else _class.name in
 
-            (self_id, [TAC_new (self_id, _type)])
+            begin match _type with
+            | "Int" | "Bool" | "String" ->
+                (self_id, [TAC_default (self_id, _type)])
+            | _ ->
+                (self_id, [TAC_new (self_id, _type)])
+            end
         | IsVoid           { expr } ->
             let (expr_id, expr_cmds) = rec_tac_gen expr in
             let self_id = temp_id () in
