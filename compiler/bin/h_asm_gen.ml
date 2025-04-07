@@ -348,10 +348,31 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
     | TAC_internal id -> generate_internal_asm id
 
-    | TAC_new _ -> [COMMENT "New"]
+    | TAC_isvoid (left, right) -> 
+    let iv_true = "isvoid_true_" ^ generate_string_literal () in
+    let iv_false = "isvoid_false_" ^ generate_string_literal () in
+    let iv_end = "isvoid_end_" ^ generate_string_literal () in
+    [
+        COMMENT "Isvoid";
+        MOV_reg ((get_symbol_storage right), RDI); 
+        MOV_reg (IMMEDIATE 0, RSI);
+        CMP (RSI, RDI);
+        JE (iv_true);
 
-    | TAC_isvoid _ -> [
-        COMMENT "Isvoid"
+        COMMENT "Isvoid false branch";
+        LABEL (iv_false);
+        MOV_reg (IMMEDIATE 0, R10);
+        MOV_mem (R10, get_symbol_storage left);
+        JMP (iv_end);
+
+        COMMENT "Isvoid true branch";
+        LABEL (iv_true);
+        MOV_reg (IMMEDIATE 1, R10);
+        MOV_mem (R10, get_symbol_storage left);
+        JMP (iv_end);
+
+        COMMENT "Isvoid end";
+        LABEL (iv_end);
       ]
 
 let generate_asm (method_tac : method_tac) : asm_method =

@@ -1,5 +1,5 @@
 class Main inherits IO {
     main() : Object {
-        isvoid 1
+        if isvoid "blah" then out_string("void") else out_string ("not void") fi
     };
 };
