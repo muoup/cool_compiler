@@ -65,27 +65,40 @@ let parent_of (data : program_data) (class_name : string) : string =
         StringMap.iter (fun k v -> Printf.printf "Class: %s, Parent: %s\n" k v) data.parent_map;
         exit 0
 
-let get_method_signature (data : program_data) (class_name : string) (method_name : string) : string * (string * string) list =
-    let rec recursive_routine (class_name : string) (method_name : string) =
-        let class_data = List.find (fun (class_data : ast_class) -> class_data.name.name = class_name) data.ast in
-        
-        let _method = List.find_opt (
-            fun (method_data : ast_method) -> method_data.name.name = method_name
-        ) class_data.methods in
+let get_internal_signature (method_name : string) : string * string list =
+    match method_name with
+    | "out_string" -> "String", ["String"]
+    | "out_int" -> "Int", ["Int"]
+    | "in_string" -> "String", []
+    | "in_int" -> "Int", []
+    | "length" -> "Int", []
+    | "concat" -> "String", ["String"]
+    | "substr" -> "String", ["Int"; "Int"]
+    | "abort" -> "Object", []
+    | "type_name" -> "String", []
+    | "copy" -> "SELF_TYPE", []
+    | _ ->
+        Printf.printf "Warning: Method %s not found in internal signature.\n" method_name;
+        exit 0
 
-        match _method with
-        | Some method_data -> 
-            method_data._type.name, List.map (fun (param : ast_param) -> param.name.name, param._type.name) method_data.params
-        | None ->
-
-            if class_name = "Object" then
-                raise (Invalid_argument ("Method not found: " ^ method_name))
-            else
-                let parent = parent_of data class_name in
-                recursive_routine parent method_name
+let rec get_method_signature (data : program_data) (class_name : string) (method_name : string) : string * string list =
+    let _method =
+        List.find_opt (fun (class_data : ast_class) -> class_data.name.name = class_name) data.ast
+        |> Option.map (fun (class_data : ast_class) ->
+            List.find_opt (
+                fun (method_data : ast_method) -> method_data.name.name = method_name
+            ) class_data.methods
+        )
+        |> Option.join 
     in
     
-    let return_type, params = recursive_routine class_name method_name in
-    let return_type = if return_type = "SELF_TYPE" then class_name else return_type in
-
-    return_type, params
+    match _method with
+    | Some method_data ->
+        let params = List.map (fun (param : ast_param) -> param._type.name) method_data.params in
+        method_data._type.name, params
+    | None ->
+        if class_name = "Object" then
+            get_internal_signature method_name
+        else
+            let parent = parent_of data class_name in
+            get_method_signature data parent method_name

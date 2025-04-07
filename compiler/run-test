@@ -5,8 +5,16 @@ if [ "$#" -gt 1 ]; then
     input=$2
 fi
 
-cool_output=$(cat "test_input" | cool "$1.cl")
 dune_output=$(cat "test_input" | ./run-full "$1")
+
+if [ "$?" -ne 0 ]; then
+    echo "Test failed: $1"
+    echo "Dune output: "
+    echo $dune_output
+    exit 1
+fi
+
+cool_output=$(cat "test_input" | cool "$1.cl")
 
 if [ "$cool_output" != "$dune_output" ]; then
     echo "Test failed: $1"

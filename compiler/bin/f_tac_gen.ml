@@ -87,7 +87,7 @@ let generate_tac (data : program_data) : method_tac list =
             List.iteri (
                 fun i (name, _type) ->
                     StringTbl.add !symbol_table name (Parameter i, _type)
-            ) params;
+            ) @@ List.combine method_.formals params;
 
             let body = tac_gen_expr_body data _class.name return_type method_.body symbol_table temp_counter local_counter in
 

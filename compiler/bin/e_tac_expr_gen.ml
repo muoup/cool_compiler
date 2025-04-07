@@ -23,7 +23,7 @@ let tac_gen_expr_body
     (data : program_data) (class_name : string) (return_type : string) 
     (method_body : ast_expression) (symbol_table : symbol_table ref) 
     (temp_counter : int ref) (local_counter : int ref) : (tac_id list * tac_cmd list) =
-    
+
     let tac_id_list : tac_id list ref = ref [] in
 
     let add_symbol (x : string) (id : tac_id) (_type : string) : unit =
@@ -61,6 +61,30 @@ let tac_gen_expr_body
         id
     in
 
+    let cast_val (value : tac_id) (val_type : string) (cast_type : string) : tac_id * tac_cmd list =
+        let val_type = if val_type = "SELF_TYPE" then class_name else val_type in
+        let cast_type = if cast_type = "SELF_TYPE" then class_name else cast_type in
+
+        (* Printf.printf "Casting %s (%s) to %s\n" (f_id value) val_type cast_type; *)
+
+        match val_type, cast_type with
+        | "Object", "Int"
+        | "Object", "String"
+        | "Object", "Bool" ->
+            let temp = temp_id () in
+            temp, [TAC_call (temp, "lift_val", [value])]
+        | "Int", "Object" ->
+            let temp = temp_id () in
+            temp, [TAC_call (temp, "unlift_int", [value])]
+        | "String", "Object" ->
+            let temp = temp_id () in
+            temp, [TAC_call (temp, "unlift_string", [value])]
+        | "Bool", "Object" ->
+            let temp = temp_id () in
+            temp, [TAC_call (temp, "unlift_bool", [value])]
+        | _ -> value, []
+    in
+
     let rec escape_backslashes s =
         let len = String.length s in
         let rec aux i acc =
@@ -78,18 +102,21 @@ let tac_gen_expr_body
     
     in
 
-    let unlift_val (var_name : string) (rhs_id : tac_id) (rhs_cmds : tac_cmd list) (unlift_procedure : string) : tac_cmd list =
-        let self_id = temp_id () in
-        add_symbol var_name self_id "Object";
-        rhs_cmds @ [ TAC_call (self_id, unlift_procedure, [rhs_id] )]
-    in
-
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
-        let gen_args (args : ast_expression list) : (tac_id list * tac_cmd list list) =
-            let (args_ids, args_cmds) = List.split (List.map rec_tac_gen args) in
-            let args_ids = args_ids in
+        let gen_args (_types : string list) (args : ast_expression list) : (tac_id list * tac_cmd list list) =
+            if (List.length _types) <> (List.length args) then
+                let text = Printf.sprintf "Expected: %d args, Got: %d" (List.length _types) (List.length args) in
+                Printf.printf "Error: %s\n" text;
+                exit 1;
+            else
+            
+            List.split @@ List.map(
+                fun (arg, _type) ->
+                    let arg_id, arg_cmds = rec_tac_gen arg in
+                    let casted_id, casted_cmds = cast_val arg_id arg._type _type in
 
-            args_ids, args_cmds
+                    casted_id, arg_cmds @ casted_cmds
+            ) @@ List.combine args _types
         in
 
         match expr.data with
@@ -97,23 +124,15 @@ let tac_gen_expr_body
             let var_id = find_symbol var.name in
             let (rhs_id, rhs_cmds) = rec_tac_gen rhs in
 
-            let unlift = unlift_val var.name rhs_id rhs_cmds in
             let var_type = find_symbol_type var.name in
+            let casted_id, casted_cmds = cast_val rhs_id rhs._type var_type in
 
-            let cmds = begin match var_type, rhs._type with
-            | "Object", "Int" -> unlift "unlift_int"
-            | "Object", "String" -> unlift "unlift_string"
-            | "Object", "Bool" -> unlift "unlift_bool"
-
-            | _ ->
-                let assign_cmd = TAC_ident (var_id, rhs_id) in
-                rhs_cmds @ [assign_cmd]
-            end in
-
-            (var_id, cmds)
+            (casted_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
         | DynamicDispatch   { call_on; _method; args } ->
+            let return_type, arg_types = get_method_signature data call_on._type _method.name in
+
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
-            let (args_ids, args_cmds) = gen_args args in
+            let (args_ids, args_cmds) = gen_args arg_types args in
 
             let self_id = temp_id () in
 
@@ -144,10 +163,15 @@ let tac_gen_expr_body
                 method_id;
                 args = obj_id :: args_ids;
             } in
+
+            let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
+
             (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd]))
         | StaticDispatch    { call_on; _type; _method; args; } ->
+            let return_type, arg_types = get_method_signature data _type.name _method.name in
+
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
-            let (args_ids, args_cmds) = gen_args args in
+            let (args_ids, args_cmds) = gen_args arg_types args in
             
             let self_id = temp_id () in
             let check_dispatch = [TAC_void_check (_method.line_number, obj_id)] in
@@ -164,9 +188,13 @@ let tac_gen_expr_body
             let dispatch = method_name_gen _type.name _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
+            let casted_id, casted_cmds = cast_val self_id return_type _type.name in
+
             (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
         | SelfDispatch      { _method; args } ->
-            let (args_ids, args_cmds) = gen_args args in
+            let return_type, arg_types = get_method_signature data class_name _method.name in
+
+            let (args_ids, args_cmds) = gen_args arg_types args in
             let self_id = temp_id () in
             let comment = TAC_comment ("SelfDispatch: " ^ _method.name) in
 
@@ -186,8 +214,10 @@ let tac_gen_expr_body
                 method_id = dispatch;
                 args = Self :: args_ids;
             } in
+
+            let casted_id, casted_cmds = cast_val self_id return_type class_name in
             
-            (self_id, List.concat args_cmds @ [comment; call_cmd])
+            (casted_id, List.concat args_cmds @ casted_cmds @ [comment; call_cmd])
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             let (then_id, then_cmds) = rec_tac_gen _then in
@@ -228,7 +258,7 @@ let tac_gen_expr_body
             let label_cond = TAC_label cond_name in
             let label_merge = TAC_label merge_name in
 
-            let condition = [label_cond] @ cond_cmds @ [bt_cmd; jmp_cmd] in
+            let condition = label_cond :: cond_cmds @ [bt_cmd; jmp_cmd] in
             let body_ = label_body :: body_cmds @ [TAC_jmp cond_name] in
 
             (self_id, condition @ body_ @ [label_merge])
@@ -310,21 +340,14 @@ let tac_gen_expr_body
                 | LetBindingNoInit  { variable; _type } ->
                     let id = local_id () in
                     add_symbol variable.name id _type.name;
+
                     [TAC_default (id, _type.name)]
                 | LetBindingInit    { variable; _type; value } ->
                     let (rhs_id, rhs_cmds) = rec_tac_gen value in
+                    let (casted_id, casted_cmds) = cast_val rhs_id value._type _type.name in
+                    add_symbol variable.name casted_id _type.name;
 
-                    let unlift = unlift_val variable.name rhs_id rhs_cmds in
-
-                    begin match (_type.name, value._type) with
-                    | "Object", "Int" -> unlift "unlift_int"
-                    | "Object", "String" -> unlift "unlift_string"
-                    | "Object", "Bool" -> unlift "unlift_bool"
-                        
-                    | _ ->
-                        add_symbol variable.name rhs_id _type.name;
-                        rhs_cmds
-                    end
+                    rhs_cmds @ casted_cmds
             in
 
             let tac_remove_binding (binding : ast_let_binding_type) : unit =
@@ -346,6 +369,7 @@ let tac_gen_expr_body
 
             let merge_val = temp_id () in
             let type_name = temp_id () in
+
             let cmds = expr_cmds @ [
                 TAC_void_check (expression.ident.line_number, expr_id);
                 TAC_dispatch { 
@@ -363,10 +387,11 @@ let tac_gen_expr_body
                 fun (mapping : ast_case_mapping) ->
                     let label = label_id () ^ "_case" in
 
-                    add_symbol mapping.name.name expr_id mapping._type.name;
-                    (* TODO: Lift Object -> Int/Bool/String*)
-                    let (body_id, body_cmds) = rec_tac_gen mapping.maps_to in
-                    remove_symbol mapping.name.name;
+                    let casted_id, casted_cmds = cast_val expr_id expression._type mapping._type.name in
+
+                    add_symbol mapping._type.name casted_id mapping._type.name;
+                    let body_id, body_cmds = rec_tac_gen mapping.maps_to in
+                    remove_symbol mapping._type.name;
 
                     let cond = temp_id () in
                     let str = temp_id () in
@@ -377,7 +402,10 @@ let tac_gen_expr_body
                         TAC_bt (cond, label)
                     ] in
 
-                    jump, TAC_label label :: body_cmds @ [ TAC_ident (merge_val, body_id); TAC_jmp merge_label ]
+                    jump, TAC_label label :: casted_cmds @ body_cmds @ [
+                        TAC_ident (merge_val, body_id);
+                        TAC_jmp merge_label
+                    ]
             ) mapping_list in
 
             (merge_val, cmds @ List.concat jumps @ List.concat bodies @ [TAC_label merge_label])
@@ -385,27 +413,7 @@ let tac_gen_expr_body
             (temp_id (), [TAC_comment "Internal expression not implemented"])
     in
 
-    let unlift_id = temp_id () in
-
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
+    let (casted_id, casted_cmds) = cast_val tac_id method_body._type return_type in
     
-    let return_cmds = match return_type, method_body._type with
-        | "Object", "Int" -> 
-            [
-                TAC_call (unlift_id, "unlift_int", [tac_id]);
-                TAC_return unlift_id
-            ]
-        | "Object", "String" -> 
-            [
-                TAC_call (unlift_id, "unlift_string", [tac_id]);
-                TAC_return unlift_id
-            ]
-        | "Object", "Bool" -> 
-            [
-                TAC_call (unlift_id, "unlift_bool", [tac_id]);
-                TAC_return unlift_id
-            ]
-        | _ -> [TAC_return tac_id]
-        in
-
-    (!tac_id_list, tac_cmds @ return_cmds)
+    (!tac_id_list, tac_cmds @ casted_cmds @ [TAC_return casted_id])
