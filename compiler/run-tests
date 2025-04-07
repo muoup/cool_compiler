@@ -29,5 +29,15 @@ for file in valid_testcases/*.cl; do
     run_test $file $input
 done
 
+for file in invalid_testcases/*.cl; do
+    printf "Running test: $file -- "
+    run_test $file $input
+done
+
+for file in large_testcases/*.cl; do
+    printf "Running test: $file -- "
+    run_test $file $input
+done
+
 echo "Success: $success"
 echo "Fail: $fail"

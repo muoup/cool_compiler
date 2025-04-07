@@ -138,7 +138,8 @@ let tac_gen_expr_body
 
             let comment = TAC_comment ("DynamicDispatch: " ^ _method.name) in
 
-            let check_dispatch = [TAC_void_check (_method.line_number, obj_id)] in
+            let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
+
 
             if not (StringSet.mem call_on._type data.overriden_classes) then
                 let dispatch = method_name_gen call_on._type _method.name in
@@ -174,7 +175,7 @@ let tac_gen_expr_body
             let (args_ids, args_cmds) = gen_args arg_types args in
             
             let self_id = temp_id () in
-            let check_dispatch = [TAC_void_check (_method.line_number, obj_id)] in
+            let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
 
             if _method.name = "copy" && (
                 _type.name = "Int" ||
@@ -371,7 +372,7 @@ let tac_gen_expr_body
             let type_name = temp_id () in
 
             let cmds = expr_cmds @ [
-                TAC_void_check (expression.ident.line_number, expr_id);
+                TAC_void_check (expression.ident.line_number, expr_id, "error_case_void");
                 TAC_dispatch { 
                     line_number = expression.ident.line_number;
                     store = type_name; 
@@ -408,7 +409,12 @@ let tac_gen_expr_body
                     ]
             ) mapping_list in
 
-            (merge_val, cmds @ List.concat jumps @ List.concat bodies @ [TAC_label merge_label])
+            let match_fail = [
+                TAC_inline_assembly ("\tmovq\t$" ^ string_of_int expr.ident.line_number ^ ", %rax");
+                TAC_jmp "error_case_unmatched";
+            ] in
+
+            (merge_val, cmds @ List.concat jumps @ match_fail @ List.concat bodies @ [TAC_label merge_label])
         | Internal         _ -> 
             (temp_id (), [TAC_comment "Internal expression not implemented"])
     in

@@ -53,7 +53,8 @@ type tac_cmd =
   | TAC_str_eq  of tac_id * tac_id * tac_id
 
   (* Since this has to cache the line number, it is a separate node, at least for now *)
-  | TAC_void_check of int * tac_id
+  | TAC_void_check of int * tac_id * string
+  | TAC_inline_assembly of string
 
 type method_tac = {
     class_name: string;

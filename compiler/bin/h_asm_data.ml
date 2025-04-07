@@ -56,10 +56,11 @@ type asm_cmd =
     | COMMENT   of string
 
 type asm_method = {
-    header: string;
-    arg_count: int;
+    class_name  : string;
+    header      : string;
+    arg_count   : int;
 
-    commands: asm_cmd list;
+    commands    : asm_cmd list;
     string_literals: (string * string) list;
 }
 

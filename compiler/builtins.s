@@ -332,6 +332,12 @@ error_divide_msg:
 error_dispatch_msg:
     .string "ERROR: %d: Exception: dispatch on void\n"
     .align 8
+error_case_msg:
+    .string "ERROR: %d: Exception: case on void\n"
+    .align 8
+error_case_unmatched_msg:
+    .string "ERROR: %d: Exception: no valid case for expression\n"
+    .align 8
 error_substring_msg:
     .string "ERROR: 0: Exception: String.substr out of range\n"
     .align 8
@@ -356,11 +362,37 @@ error_dispatch:
     xorq    %rax, %rax
     callq   printf
 
-    int3
+    movq    $1, %rdi
+    callq   exit
+    ret
+
+    .text
+    .globl error_case_void
+    .type  error_case_void, @function
+error_case_void:
+    movq    $error_case_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
 
     movq    $1, %rdi
     callq   exit
     ret
+
+    .text
+    .globl error_case_unmatched
+    .type  error_case_unmatched, @function
+error_case_unmatched:
+    movq    $error_case_unmatched_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+    ret
+
+    .text
+    .globl error_substr
+    .type  error_substr, @function
 error_substr:
     movq    $error_substring_msg, %rdi
     xorq    %rax, %rax
