@@ -161,6 +161,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MISC "cdq";
             DIV RBX;
             MOV_mem (RAX, get_symbol_storage id)
+
         ]
     | TAC_lt (id, a, b) -> 
         [
@@ -347,8 +348,33 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
     | TAC_internal id -> generate_internal_asm id
 
-    | TAC_new _ -> [COMMENT "New"]
-    | TAC_isvoid _ -> [COMMENT "Isvoid"]
+    | TAC_isvoid (left, right) -> 
+    let iv_true = "isvoid_true_" ^ generate_string_literal () in
+    let iv_false = "isvoid_false_" ^ generate_string_literal () in
+    let iv_end = "isvoid_end_" ^ generate_string_literal () in
+    [
+        COMMENT "Isvoid";
+        MOV_reg ((get_symbol_storage right), RDI); 
+        MOV_reg (IMMEDIATE 0, RSI);
+        (* Issue - what if RDI holds the value 0, representing 0 not void? *)
+        CMP (RSI, RDI);
+        JE (iv_true);
+
+        COMMENT "Isvoid false branch";
+        LABEL (iv_false);
+        MOV_reg (IMMEDIATE 0, RDI);
+        MOV_mem (RDI, get_symbol_storage left);
+        JMP (iv_end);
+
+        COMMENT "Isvoid true branch";
+        LABEL (iv_true);
+        MOV_reg (IMMEDIATE 1, RDI);
+        MOV_mem (RDI, get_symbol_storage left);
+        JMP (iv_end);
+
+        COMMENT "Isvoid end";
+        LABEL (iv_end);
+      ]
 
 let generate_asm (method_tac : method_tac) : asm_method =
     let stack_space = 8 * (List.length method_tac.ids) in
