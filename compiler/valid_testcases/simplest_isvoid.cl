@@ -1,5 +1,6 @@
 class Main inherits IO {
     main() : Object {
-        if isvoid "blah" then out_string("void") else out_string ("not void") fi
+        let b : Main in
+        if isvoid b then out_string("void") else out_string ("not void") fi
     };
 };

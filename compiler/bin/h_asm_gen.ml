@@ -356,19 +356,20 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         COMMENT "Isvoid";
         MOV_reg ((get_symbol_storage right), RDI); 
         MOV_reg (IMMEDIATE 0, RSI);
+        (* Issue - what if RDI holds the value 0, representing 0 not void? *)
         CMP (RSI, RDI);
         JE (iv_true);
 
         COMMENT "Isvoid false branch";
         LABEL (iv_false);
-        MOV_reg (IMMEDIATE 0, R10);
-        MOV_mem (R10, get_symbol_storage left);
+        MOV_reg (IMMEDIATE 0, RDI);
+        MOV_mem (RDI, get_symbol_storage left);
         JMP (iv_end);
 
         COMMENT "Isvoid true branch";
         LABEL (iv_true);
-        MOV_reg (IMMEDIATE 1, R10);
-        MOV_mem (R10, get_symbol_storage left);
+        MOV_reg (IMMEDIATE 1, RDI);
+        MOV_mem (RDI, get_symbol_storage left);
         JMP (iv_end);
 
         COMMENT "Isvoid end";
