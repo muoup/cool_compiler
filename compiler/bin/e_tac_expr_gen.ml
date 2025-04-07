@@ -129,7 +129,9 @@ let tac_gen_expr_body
 
             (casted_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
         | DynamicDispatch   { call_on; _method; args } ->
-            let return_type, arg_types = get_method_signature data call_on._type _method.name in
+            let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
+
+            let return_type, arg_types = get_method_signature data call_on_type _method.name in
 
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args arg_types args in
@@ -137,12 +139,10 @@ let tac_gen_expr_body
             let self_id = temp_id () in
 
             let comment = TAC_comment ("DynamicDispatch: " ^ _method.name) in
-
             let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
 
-
             if not (StringSet.mem call_on._type data.overriden_classes) then
-                let dispatch = method_name_gen call_on._type _method.name in
+                let dispatch = method_name_gen call_on_type _method.name in
 
                 if _method.name = "copy" && (
                     call_on._type = "Int" ||
@@ -155,7 +155,7 @@ let tac_gen_expr_body
                     (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
             else
 
-            let method_id = get_dispatch data call_on._type _method.name in
+            let method_id = get_dispatch data call_on_type _method.name in
 
             let call_cmd = TAC_dispatch { 
                 line_number = _method.line_number;
@@ -169,7 +169,9 @@ let tac_gen_expr_body
 
             (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd]))
         | StaticDispatch    { call_on; _type; _method; args; } ->
-            let return_type, arg_types = get_method_signature data _type.name _method.name in
+            let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
+
+            let return_type, arg_types = get_method_signature data call_on_type _method.name in
 
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args arg_types args in
@@ -186,7 +188,7 @@ let tac_gen_expr_body
             else
 
             let comment = TAC_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
-            let dispatch = method_name_gen _type.name _method.name in
+            let dispatch = method_name_gen call_on_type _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
             let casted_id, casted_cmds = cast_val self_id return_type _type.name in
@@ -390,9 +392,9 @@ let tac_gen_expr_body
 
                     let casted_id, casted_cmds = cast_val expr_id expression._type mapping._type.name in
 
-                    add_symbol mapping._type.name casted_id mapping._type.name;
+                    add_symbol mapping.name.name casted_id mapping._type.name;
                     let body_id, body_cmds = rec_tac_gen mapping.maps_to in
-                    remove_symbol mapping._type.name;
+                    remove_symbol mapping.name.name;
 
                     let cond = temp_id () in
                     let str = temp_id () in
@@ -410,7 +412,7 @@ let tac_gen_expr_body
             ) mapping_list in
 
             let match_fail = [
-                TAC_inline_assembly ("\tmovq\t$" ^ string_of_int expr.ident.line_number ^ ", %rax");
+                TAC_inline_assembly ("movq\t  $" ^ string_of_int expr.ident.line_number ^ ", %rax");
                 TAC_jmp "error_case_unmatched";
             ] in
 

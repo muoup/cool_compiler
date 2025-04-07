@@ -274,7 +274,7 @@ unlift_int:
     movq    $.objname_Int, (%rax)
     movq    $32, 8(%rax)
     movq    $.vtable_Int, 16(%rax)
-    movq    16(%rbp), %rdi
+    movq    8(%rsp), %rdi
     movq    %rdi, 24(%rax)
 
     ret
@@ -290,7 +290,7 @@ unlift_string:
     movq    $.objname_String, (%rax)
     movq    $32, 8(%rax)
     movq    $.vtable_String, 16(%rax)
-    movq    16(%rbp), %rdi
+    movq    8(%rsp), %rdi
     movq    %rdi, 24(%rax)
 
     ret
@@ -306,7 +306,7 @@ unlift_bool:
     movq    $.objname_Bool, (%rax)
     movq    $32, 8(%rax)
     movq    $.vtable_Bool, 16(%rax)
-    movq    16(%rbp), %rdi
+    movq    8(%rsp), %rdi
     movq    %rdi, 24(%rax)
 
     ret
@@ -316,7 +316,7 @@ unlift_bool:
     .type   lift_int, @function
 
 lift_val:
-    movq    16(%rbp), %rax
+    movq    8(%rsp), %rax
     movq    24(%rax), %rax
     ret
 
