@@ -19,7 +19,11 @@ let rec last_id (ids : tac_id list) : tac_id =
     | [id] -> id
     | _ :: tl -> last_id tl
 
-let tac_gen_expr_body (data : program_data) (class_name : string) (method_body : ast_expression) (symbol_table : symbol_table ref) (temp_counter : int ref) (local_counter : int ref) : (tac_id list * tac_cmd list) =
+let tac_gen_expr_body 
+    (data : program_data) (class_name : string) (return_type : string) 
+    (method_body : ast_expression) (symbol_table : symbol_table ref) 
+    (temp_counter : int ref) (local_counter : int ref) : (tac_id list * tac_cmd list) =
+    
     let tac_id_list : tac_id list ref = ref [] in
 
     let add_symbol (x : string) (id : tac_id) (_type : string) : unit =
@@ -75,7 +79,7 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
     in
 
     let unlift_val (var_name : string) (rhs_id : tac_id) (rhs_cmds : tac_cmd list) (unlift_procedure : string) : tac_cmd list =
-        let self_id = local_id () in
+        let self_id = temp_id () in
         add_symbol var_name self_id "Object";
         rhs_cmds @ [ TAC_call (self_id, unlift_procedure, [rhs_id] )]
     in
@@ -340,8 +344,8 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
         | Case              { expression; mapping_list } ->
             let (expr_id, expr_cmds) = rec_tac_gen expression in
 
-            let merge_val = local_id () in
-            let type_name = local_id () in
+            let merge_val = temp_id () in
+            let type_name = temp_id () in
             let cmds = expr_cmds @ [
                 TAC_void_check (expression.ident.line_number, expr_id);
                 TAC_dispatch { 
@@ -364,8 +368,8 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
                     let (body_id, body_cmds) = rec_tac_gen mapping.maps_to in
                     remove_symbol mapping.name.name;
 
-                    let cond = local_id () in
-                    let str = local_id () in
+                    let cond = temp_id () in
+                    let str = temp_id () in
 
                     let jump = [
                         TAC_str (str, mapping._type.name);
@@ -381,5 +385,27 @@ let tac_gen_expr_body (data : program_data) (class_name : string) (method_body :
             (temp_id (), [TAC_comment "Internal expression not implemented"])
     in
 
+    let unlift_id = temp_id () in
+
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
-    (!tac_id_list, tac_cmds @ [TAC_return tac_id])
+    
+    let return_cmds = match return_type, method_body._type with
+        | "Object", "Int" -> 
+            [
+                TAC_call (unlift_id, "unlift_int", [tac_id]);
+                TAC_return unlift_id
+            ]
+        | "Object", "String" -> 
+            [
+                TAC_call (unlift_id, "unlift_string", [tac_id]);
+                TAC_return unlift_id
+            ]
+        | "Object", "Bool" -> 
+            [
+                TAC_call (unlift_id, "unlift_bool", [tac_id]);
+                TAC_return unlift_id
+            ]
+        | _ -> [TAC_return tac_id]
+        in
+
+    (!tac_id_list, tac_cmds @ return_cmds)

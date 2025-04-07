@@ -314,7 +314,8 @@ unlift_bool:
     .text
     .globl  lift_int
     .type   lift_int, @function
-lift_int:
+
+lift_val:
     movq    16(%rbp), %rax
     movq    24(%rax), %rax
     ret

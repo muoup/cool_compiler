@@ -38,7 +38,7 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
                     TAC_attribute { object_id; attribute_id; value = id }
                 ]
             | Some init ->
-                let (tac_ids, tac_cmds) = tac_gen_expr_body data _class.name init symbol_table local_counter temp_counter in
+                let (tac_ids, tac_cmds) = tac_gen_expr_body data _class.name _class.name init symbol_table local_counter temp_counter in
                 let ret = last_id tac_ids in
                 
                 ids := !ids @ tac_ids;
@@ -65,7 +65,7 @@ let generate_tac (data : program_data) : method_tac list =
 
         List.iteri (
             fun i (attr : attribute_data) ->
-                StringTbl.add !symbol_table attr.name (Attribute i, "")
+                StringTbl.add !symbol_table attr.name (Attribute i, attr._type)
         ) _class.attributes;
 
         let constructor = generate_constructor data symbol_table _class in
@@ -82,20 +82,21 @@ let generate_tac (data : program_data) : method_tac list =
             | Internal id -> [], [TAC_internal id]
             | _ ->
 
-            List.iteri (
-                (* TODO: Retrieve type of parameter *)
-                fun i formal ->
-                    StringTbl.add !symbol_table formal (Parameter i, "")
-            ) method_.formals;
+            let return_type, params = get_method_signature data _class.name method_.name in
 
-            let cmds = tac_gen_expr_body data _class.name method_.body symbol_table temp_counter local_counter in
+            List.iteri (
+                fun i (name, _type) ->
+                    StringTbl.add !symbol_table name (Parameter i, _type)
+            ) params;
+
+            let body = tac_gen_expr_body data _class.name return_type method_.body symbol_table temp_counter local_counter in
 
             List.iter (
                 fun formal ->
                     StringTbl.remove !symbol_table formal
             ) method_.formals;
 
-            cmds
+            body
         in
 
         let methods = List.map (
