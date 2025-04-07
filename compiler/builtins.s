@@ -14,7 +14,7 @@ main:
     
     pushq   %rax
     call    Main.main
-    pop     %rax
+    addq    $8, %rsp
 
     pop     %rbp
     ret
@@ -263,6 +263,63 @@ substr:
     pop     %r12
     ret
 
+    .text
+    .globl  unlift_int
+    .type   unlift_int, @function
+unlift_int:
+    movq    $1, %rdi
+    movq    $32, %rsi
+    call    calloc
+
+    movq    $.objname_Int, (%rax)
+    movq    $32, 8(%rax)
+    movq    $.vtable_Int, 16(%rax)
+    movq    16(%rbp), %rdi
+    movq    %rdi, 24(%rax)
+
+    ret
+
+    .text
+    .globl  unlift_int
+    .type   unlift_int, @function
+unlift_string:
+    movq    $1, %rdi
+    movq    $32, %rsi
+    call    calloc
+
+    movq    $.objname_String, (%rax)
+    movq    $32, 8(%rax)
+    movq    $.vtable_String, 16(%rax)
+    movq    16(%rbp), %rdi
+    movq    %rdi, 24(%rax)
+
+    ret
+
+    .text
+    .globl  unlift_int
+    .type   unlift_int, @function
+unlift_bool:
+    movq    $1, %rdi
+    movq    $32, %rsi
+    call    calloc
+
+    movq    $.objname_Bool, (%rax)
+    movq    $32, 8(%rax)
+    movq    $.vtable_Bool, 16(%rax)
+    movq    16(%rbp), %rdi
+    movq    %rdi, 24(%rax)
+
+    ret
+
+    .text
+    .globl  lift_int
+    .type   lift_int, @function
+
+lift_val:
+    movq    16(%rbp), %rax
+    movq    24(%rax), %rax
+    ret
+
     .section .rodata
 default_string:
     .string ""
@@ -274,6 +331,12 @@ error_divide_msg:
     .align 8
 error_dispatch_msg:
     .string "ERROR: %d: Exception: dispatch on void\n"
+    .align 8
+error_case_msg:
+    .string "ERROR: %d: Exception: case on void\n"
+    .align 8
+error_case_unmatched_msg:
+    .string "ERROR: %d: Exception: no valid case for expression\n"
     .align 8
 error_substring_msg:
     .string "ERROR: 0: Exception: String.substr out of range\n"
@@ -302,6 +365,34 @@ error_dispatch:
     movq    $1, %rdi
     callq   exit
     ret
+
+    .text
+    .globl error_case_void
+    .type  error_case_void, @function
+error_case_void:
+    movq    $error_case_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+    ret
+
+    .text
+    .globl error_case_unmatched
+    .type  error_case_unmatched, @function
+error_case_unmatched:
+    movq    $error_case_unmatched_msg, %rdi
+    xorq    %rax, %rax
+    callq   printf
+
+    movq    $1, %rdi
+    callq   exit
+    ret
+
+    .text
+    .globl error_substr
+    .type  error_substr, @function
 error_substr:
     movq    $error_substring_msg, %rdi
     xorq    %rax, %rax

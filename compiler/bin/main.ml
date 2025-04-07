@@ -39,6 +39,7 @@ let () =
     let parsed_data : parsed_data = { 
         ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; 
     } in
+
     let program_data = organize_parser_data parsed_data in
     let method_tacs = generate_tac program_data in
 (* 

@@ -35,6 +35,8 @@ type asm_cmd =
     | SETLE
     | SETE
 
+    | SETNE
+
 
     | PUSH      of asm_reg
     | POP       of asm_reg
@@ -54,10 +56,11 @@ type asm_cmd =
     | COMMENT   of string
 
 type asm_method = {
-    header: string;
-    arg_count: int;
+    class_name  : string;
+    header      : string;
+    arg_count   : int;
 
-    commands: asm_cmd list;
+    commands    : asm_cmd list;
     string_literals: (string * string) list;
 }
 
@@ -150,6 +153,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | SETL   -> format_cmd1 "setl" "%al"
     | SETLE  -> format_cmd1 "setle" "%al"
     | SETE   -> format_cmd1 "sete" "%al"
+    | SETNE  -> format_cmd1 "setne" "%al"
 
     | PUSH reg       -> format_cmd1 "pushq" (asm_reg_to_string reg)
     | POP reg        -> format_cmd1 "popq" (asm_reg_to_string reg)

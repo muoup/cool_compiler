@@ -55,7 +55,7 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     | Self        -> REG R12
     | Parameter i -> RBP_offset (32 + (i * 8))
 
-let generate_internal_asm (internal_id : string) : asm_cmd list =
+let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd list =
     match internal_id with
     | "IO.in_string" ->
         [
@@ -85,8 +85,7 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         ]
     | "Object.type_name" ->
         [
-            MOV_reg (RBP_offset 24, RAX);
-            MOV_reg (REG_offset (RAX, 0), RAX);
+            MOV_reg (LABEL (obj_name_mem_gen class_name), RAX);
             RET
         ]
     | "Object.abort" ->
@@ -121,7 +120,7 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
             CALL "exit";
         ]
 
-let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list = 
+let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
         get_id_memory id asm_data.stack_map
     in
@@ -243,14 +242,6 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         ] @ pop_cmds
 
     | TAC_dispatch { line_number; store; obj; method_id; args } ->
-        let dispatch_check = [
-            COMMENT ("Dispatch on Void Check");
-            MOV_reg (IMMEDIATE line_number, RSI);
-            MOV_reg ((get_symbol_storage obj), RAX);
-            TEST (RAX, RAX);
-            JZ "error_dispatch";
-        ] in
-        
         let load_vtable = [
             COMMENT ("Load Vtable ID " ^ (string_of_int method_id));
             MOV_reg (get_symbol_storage obj, RAX);
@@ -269,7 +260,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
 
         let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
 
-        dispatch_check @ arg_cmds @ load_vtable @ pop_cmds
+        arg_cmds @ load_vtable @ pop_cmds
 
     | TAC_str_eq  (id, s1, s2) ->
         [
@@ -329,7 +320,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         let size = 8 * (3 + attributes) in
 
         [
-            MOV_reg     (IMMEDIATE 8, RDI);
+            MOV_reg     (IMMEDIATE 1, RDI);
             MOV_reg     (IMMEDIATE size, RSI);
             XOR         (RAX, RAX);
             CALL        "calloc";
@@ -346,35 +337,30 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
             MOV_mem     (RDI, REG_offset (RAX, 16))
         ]
 
-    | TAC_internal id -> generate_internal_asm id
+    | TAC_inline_assembly asm_code ->
+        [
+            COMMENT ("Inline assembly: " ^ asm_code);
+            MISC asm_code
+        ]
+    | TAC_internal id -> generate_internal_asm current_class id
 
-    | TAC_isvoid (left, right) -> 
-    let iv_true = "isvoid_true_" ^ generate_string_literal () in
-    let iv_false = "isvoid_false_" ^ generate_string_literal () in
-    let iv_end = "isvoid_end_" ^ generate_string_literal () in
-    [
-        COMMENT "Isvoid";
-        MOV_reg ((get_symbol_storage right), RDI); 
-        MOV_reg (IMMEDIATE 0, RSI);
-        (* Issue - what if RDI holds the value 0, representing 0 not void? *)
-        CMP (RSI, RDI);
-        JE (iv_true);
+    | TAC_isvoid (store, _val) -> 
+        [
+            MOV_reg     (get_symbol_storage _val, RBX);
+            XOR         (RAX, RAX);
+            TEST        (RBX, RBX);
+            SETE;
+            MOV_mem     (RAX, get_symbol_storage store);
+        ]
 
-        COMMENT "Isvoid false branch";
-        LABEL (iv_false);
-        MOV_reg (IMMEDIATE 0, RDI);
-        MOV_mem (RDI, get_symbol_storage left);
-        JMP (iv_end);
-
-        COMMENT "Isvoid true branch";
-        LABEL (iv_true);
-        MOV_reg (IMMEDIATE 1, RDI);
-        MOV_mem (RDI, get_symbol_storage left);
-        JMP (iv_end);
-
-        COMMENT "Isvoid end";
-        LABEL (iv_end);
-      ]
+    | TAC_void_check (line_number, object_id, error) ->
+        [
+            MOV_reg     (IMMEDIATE line_number, RSI);
+            MOV_reg     (get_symbol_storage object_id, RBX);
+            XOR         (RAX, RAX);
+            TEST        (RBX, RBX);
+            JE          error
+        ]
 
 let generate_asm (method_tac : method_tac) : asm_method =
     let stack_space = 8 * (List.length method_tac.ids) in
@@ -383,9 +369,15 @@ let generate_asm (method_tac : method_tac) : asm_method =
         stack_map = generate_stack_map method_tac.ids;
     } in
 
-    let cmds = List.concat (List.map (fun (cmd : tac_cmd) -> generate_tac_asm cmd asm_data) method_tac.commands) in
+    let cmds = 
+        List.concat @@ 
+        List.map (
+            fun (cmd : tac_cmd) -> generate_tac_asm cmd method_tac.class_name asm_data
+        ) method_tac.commands
+    in
 
     {
+        class_name = method_tac.class_name;
         header = method_tac.method_name;
         arg_count = method_tac.arg_count;
 
