@@ -14,7 +14,7 @@ main:
     
     pushq   %rax
     call    Main.main
-    pop     %rax
+    addq    $8, %rsp
 
     pop     %rbp
     ret
@@ -263,6 +263,62 @@ substr:
     pop     %r12
     ret
 
+    .text
+    .globl  unlift_int
+    .type   unlift_int, @function
+unlift_int:
+    movq    $1, %rdi
+    movq    $32, %rsi
+    call    calloc
+
+    movq    $.objname_Int, (%rax)
+    movq    $32, 8(%rax)
+    movq    $.vtable_Int, 16(%rax)
+    movq    16(%rbp), %rdi
+    movq    %rdi, 24(%rax)
+
+    ret
+
+    .text
+    .globl  unlift_int
+    .type   unlift_int, @function
+unlift_string:
+    movq    $1, %rdi
+    movq    $32, %rsi
+    call    calloc
+
+    movq    $.objname_String, (%rax)
+    movq    $32, 8(%rax)
+    movq    $.vtable_String, 16(%rax)
+    movq    16(%rbp), %rdi
+    movq    %rdi, 24(%rax)
+
+    ret
+
+    .text
+    .globl  unlift_int
+    .type   unlift_int, @function
+unlift_bool:
+    movq    $1, %rdi
+    movq    $32, %rsi
+    call    calloc
+
+    movq    $.objname_Bool, (%rax)
+    movq    $32, 8(%rax)
+    movq    $.vtable_Bool, 16(%rax)
+    movq    16(%rbp), %rdi
+    movq    %rdi, 24(%rax)
+
+    ret
+
+    .text
+    .globl  lift_int
+    .type   lift_int, @function
+lift_int:
+    movq    16(%rbp), %rax
+    movq    24(%rax), %rax
+    ret
+
     .section .rodata
 default_string:
     .string ""
@@ -298,6 +354,8 @@ error_dispatch:
     movq    $error_dispatch_msg, %rdi
     xorq    %rax, %rax
     callq   printf
+
+    int3
 
     movq    $1, %rdi
     callq   exit

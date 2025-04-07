@@ -11,7 +11,7 @@ module StringTbl = Hashtbl.Make (struct
     let hash = Hashtbl.hash
 end)
 
-type symbol_table = tac_id StringTbl.t
+type symbol_table = (tac_id * string) StringTbl.t
 
 type tac_cmd =
   | TAC_add     of tac_id * tac_id * tac_id
@@ -46,11 +46,14 @@ type tac_cmd =
 
   | TAC_internal of string
 
+  | TAC_return  of tac_id
+  | TAC_comment of string
+
   (* Special Internal Nodes *)
   | TAC_str_eq  of tac_id * tac_id * tac_id
 
-  | TAC_return  of tac_id
-  | TAC_comment of string
+  (* Since this has to cache the line number, it is a separate node, at least for now *)
+  | TAC_void_check of int * tac_id
 
 type method_tac = {
     class_name: string;
