@@ -389,20 +389,31 @@ let tac_gen_expr_body
             (in_id, init_cmds @ in_cmds)
         | Case              { expression; mapping_list } ->
             let (expr_id, expr_cmds) = rec_tac_gen expression in
+            let merge_type = expr._type in
 
             let merge_val = temp_id () in
             let type_name = temp_id () in
 
-            let cmds = expr_cmds @ [
-                TAC_void_check (expression.ident.line_number, expr_id, "error_case_void");
-                TAC_dispatch { 
-                    line_number = expression.ident.line_number;
-                    store = type_name; 
-                    obj = expr_id;
-                    method_id = 2; (* type_name *)
-                    args = [expr_id];
-                }
-            ] in
+            let type_cmd =
+                match expression._type with
+                | "Int" | "String" | "Bool" -> 
+                    let method_name = method_name_gen (expression._type) "type_name" in
+                    
+                    [ TAC_call (type_name, method_name, []) ]
+                | _ ->
+                    [
+                        TAC_void_check (expression.ident.line_number, expr_id, "error_case_void");
+                        TAC_dispatch { 
+                            line_number = expression.ident.line_number;
+                            store = type_name; 
+                            obj = expr_id;
+                            method_id = 2; (* type_name *)
+                            args = [expr_id];
+                        }
+                    ]
+            in
+
+            let cmds = expr_cmds @ type_cmd in
 
             let merge_label = label_id () ^ "_case_merge" in
 
@@ -416,6 +427,8 @@ let tac_gen_expr_body
                     let body_id, body_cmds = rec_tac_gen mapping.maps_to in
                     remove_symbol mapping.name.name;
 
+                    let casted_body_id, cast_body_cmds = cast_val body_id mapping.maps_to._type merge_type in
+
                     let cond = temp_id () in
                     let str = temp_id () in
 
@@ -425,8 +438,8 @@ let tac_gen_expr_body
                         TAC_bt (cond, label)
                     ] in
 
-                    jump, TAC_label label :: casted_cmds @ body_cmds @ [
-                        TAC_ident (merge_val, body_id);
+                    jump, TAC_label label :: casted_cmds @ body_cmds @ cast_body_cmds @ [
+                        TAC_ident (merge_val, casted_body_id);
                         TAC_jmp merge_label
                     ]
             ) mapping_list in
