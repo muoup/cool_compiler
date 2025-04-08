@@ -29,11 +29,13 @@ __f_out_str:
     .type  out_string, @function
 #   1 arg (char*) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
 out_string:
+    pushq   %rbp
+
     xorq    %rax, %rax
-    movq    8(%rsp), %r9
+    movq    16(%rsp), %r9
     
 .out_loop:
-    movb    (%r9), %al
+    movzbl  (%r9), %eax
     incq    %r9
 
 .out_char:
@@ -45,12 +47,12 @@ out_string:
 
 .put_char:
     movl    %eax, %edi
-    movq    stdin(%rip), %rsi
+    movq    stdout(%rip), %rsi
     call    fputc
     jmp     .out_loop
 
 .escape_char:
-    movb    (%r9), %al
+    movzbl  (%r9), %eax
     incq    %r9
 
     cmpb    $0x6E, %al
@@ -59,6 +61,11 @@ out_string:
     cmpb    $0x74, %al
     je      .escape_t
 
+    movl    $0x5C, %edi
+    movq    stdout(%rip), %rsi
+    call    fputc
+
+    movzbl  -1(%r9), %eax    
     jmp     .out_char
 
 .escape_n:
@@ -70,6 +77,10 @@ out_string:
     jmp     .put_char
 
 .finish:
+    movq    stdout(%rip), %rdi
+    call    fflush
+
+    popq    %rbp
     ret
 
     .section .rodata
