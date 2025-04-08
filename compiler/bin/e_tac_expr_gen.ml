@@ -370,7 +370,7 @@ let tac_gen_expr_body
                     let (casted_id, casted_cmds) = cast_val rhs_id value._type _type.name in
                     add_symbol variable.name casted_id _type.name;
 
-                    rhs_cmds @ casted_cmds
+                    TAC_default (casted_id, _type.name) :: rhs_cmds @ casted_cmds
             in
 
             let tac_remove_binding (binding : ast_let_binding_type) : unit =
