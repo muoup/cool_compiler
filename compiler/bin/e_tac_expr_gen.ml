@@ -22,7 +22,7 @@ let rec last_id (ids : tac_id list) : tac_id =
 let tac_gen_expr_body 
     (data : program_data) (class_name : string) (return_type : string) 
     (method_body : ast_expression) (symbol_table : symbol_table ref) 
-    (temp_counter : int ref) (local_counter : int ref) : (tac_id list * tac_cmd list) =
+    (temp_counter : int ref) (local_counter : int ref) : tac_id * (tac_id list * tac_cmd list) =
 
     let tac_id_list : tac_id list ref = ref [] in
 
@@ -89,14 +89,15 @@ let tac_gen_expr_body
         let len = String.length s in
         let rec aux i acc =
           if i >= len then String.concat "" (List.rev acc)
-          else if s.[i] = '\\' && i + 1 < len then
-            let next_char = s.[i + 1] in
-            if next_char <> 't' && next_char <> 'n' then
-              aux (i + 2) (("\\" ^ "\\" ^ String.make 1 next_char) :: acc)
+          else if s.[i] = '"' then
+            aux (i + 1) ("\\\"" :: acc)
+          else if s.[i] = '\\' then
+            if i + 1 < len && s.[i + 1] <> 'n' && s.[i + 1] <> 't' then
+                aux (i + 1) ("\\\\" :: acc)
             else
-              aux (i + 2) (("\\" ^ String.make 1 next_char) :: acc)
+                aux (i + 1) ("\\" :: acc)
           else
-            aux (i + 1) (String.make 1 s.[i] :: acc)
+            aux (i + 1) ((String.make 1 s.[i]) :: acc)
         in
         aux 0 []
     
@@ -226,6 +227,18 @@ let tac_gen_expr_body
             let (then_id, then_cmds) = rec_tac_gen _then in
             let (else_id, else_cmds) = rec_tac_gen _else in
 
+            (* This isn't strictly correct, but to the compiler, all that matters is whether a
+               type is a lifted int/string/bool or an object. *)
+            let merge_type = match _then._type, _else._type with
+                | "Int", "Int" -> "Int"
+                | "String", "String" -> "String"
+                | "Bool", "Bool" -> "Bool"
+                | _ -> "Object"
+            in
+
+            let casted_then_id, casted_then_cmds = cast_val then_id _then._type merge_type in
+            let casted_else_id, casted_else_cmds = cast_val else_id _else._type merge_type in
+            
             let self_id = temp_id () in
 
             let then_name = label_id () ^ "_then" in
@@ -240,8 +253,8 @@ let tac_gen_expr_body
             let label_merge = TAC_label merge_name in
 
             let condition = cond_cmds @ [bt_cmd; jmp_cmd] in
-            let then_ = [label_then] @ then_cmds @ [TAC_ident (self_id, then_id)] @ [TAC_jmp merge_name] in
-            let else_ = [label_else] @ else_cmds @ [TAC_ident (self_id, else_id)] @ [label_merge] in
+            let then_ = [label_then] @ then_cmds @ casted_then_cmds @ [TAC_ident (self_id, casted_then_id)] @ [TAC_jmp merge_name] in
+            let else_ = [label_else] @ else_cmds @ casted_else_cmds @ [TAC_ident (self_id, casted_else_id)] @ [label_merge] in
 
             (self_id, condition @ then_ @ else_)
         | While             { predicate; body } ->
@@ -424,4 +437,4 @@ let tac_gen_expr_body
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
     let (casted_id, casted_cmds) = cast_val tac_id method_body._type return_type in
     
-    (!tac_id_list, tac_cmds @ casted_cmds @ [TAC_return casted_id])
+    casted_id, (!tac_id_list, tac_cmds @ casted_cmds)

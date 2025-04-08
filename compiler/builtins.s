@@ -189,8 +189,8 @@ copy:
     movq    8(%r12), %rdx
     call    memcpy
 
-    leave
     pop     %r12
+    leave
     ret
 
     .text
@@ -205,7 +205,7 @@ concat:
     movq    %rax, %rbx
 
     #   Store length of string to be concatenated into %rax
-    movq    32(%rbp), %rdi
+    movq    24(%rbp), %rdi
     call    strlen
     
     #   Add the two lengths together to get the required space for the new string
@@ -225,13 +225,14 @@ concat:
 
     #   Copy the second string into the new string
     movq    8(%rsp), %rdi
-    movq    32(%rbp), %rsi
+    movq    24(%rbp), %rsi
     call    strcat
 
     #   Return the new string
     movq    8(%rsp), %rax
-    leave
+    addq    $16, %rsp
     pop     %r12
+    leave
     ret
 
     .text
@@ -241,26 +242,26 @@ substr:
     movq    %r12, %rdi
     call    strlen
 
-    movq    32(%rbp), %rsi
-    addq    40(%rbp), %rsi
+    movq    24(%rbp), %rsi
+    addq    32(%rbp), %rsi
     cmpq    %rax, %rsi
     jg      error_substr
 
-    movq    40(%rbp), %rdi
+    movq    32(%rbp), %rdi
     incq    %rdi
     call    malloc
 
-    movq    40(%rbp), %rdi
+    movq    32(%rbp), %rdi
     movq    $0, 1(%rdi, %rax)
 
     movq    %rax, %rdi
-    movq    32(%rbp), %rsi
+    movq    24(%rbp), %rsi
     leaq    (%r12, %rsi), %rsi
-    movq    40(%rbp), %rdx
+    movq    32(%rbp), %rdx
     call    memcpy
 
-    leave
     pop     %r12
+    leave
     ret
 
     .text
@@ -361,6 +362,7 @@ error_dispatch:
     movq    $error_dispatch_msg, %rdi
     xorq    %rax, %rax
     callq   printf
+
 
     movq    $1, %rdi
     callq   exit

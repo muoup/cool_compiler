@@ -105,13 +105,9 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     (match cmd with
     | FRAME (size) ->
-        format_cmd1 "pushq" "%r12";
-        output "\n";
         format_cmd1 "pushq" "%rbp";
         output "\n";
         format_cmd2 "movq" "%rsp" "%rbp";
-        output "\n";
-        format_cmd2 "movq" "24(%rbp)" "%r12";
         output "\n";
 
         (*
@@ -133,7 +129,14 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         in             
         
         if adjusted_size > 0 then
-            format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp";
+            format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp"
+        ;
+        
+        output "\n";
+        format_cmd1 "pushq" "%r12";
+        output "\n";
+        format_cmd2 "movq" "16(%rbp)" "%r12";
+        output "\n";
 
     | MOV_reg (mem, reg) -> format_cmd2 "movq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MOV_mem (reg, mem) -> format_cmd2 "movq" (asm_reg_to_string reg) (asm_mem_to_string mem)
@@ -166,10 +169,8 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | CALL label     -> format_cmd1 "callq" label
     | CALL_indirect reg -> format_cmd1 "callq" ("*" ^ asm_reg_to_string reg)
     | RET            ->
-        output "\tleave\n";
         format_cmd1 "pop" "%r12";
-        output "\n";
-        output "\tret\n";
+        output "\n\tleave\n\tret\n";
 
     | MISC s         -> output @@ "\t" ^ s
 
