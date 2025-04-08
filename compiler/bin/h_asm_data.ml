@@ -152,7 +152,8 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | NEG reg -> format_cmd1 "negq" (asm_reg_to_string reg)
 
     | TEST (reg1, reg2) -> format_cmd2 "testq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
-    | CMP (reg1, reg2) -> format_cmd2 "cmpq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
+    | CMP (reg1, reg2) -> format_cmd2 "cmpl" (asm_reg32_to_string reg1) (asm_reg32_to_string reg2)
+
     | SETL   -> format_cmd1 "setl" "%al"
     | SETLE  -> format_cmd1 "setle" "%al"
     | SETE   -> format_cmd1 "sete" "%al"

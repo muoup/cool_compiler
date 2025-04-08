@@ -21,28 +21,34 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
 
     let constructor_name = constructor_name_gen _class.name in
 
-    let attributes = List.map (
+    let default_attributes = List.flatten @@ List.map (
+        fun (attr : attribute_data) ->
+            let id = Temporary !temp_counter in
+            temp_counter := !temp_counter + 1;
+
+            ids := !ids @ [id];
+
+            [
+                TAC_comment ("AttributeNoInit: " ^ attr.name);
+                TAC_default (id, attr._type);
+                TAC_attribute { object_id; attribute_id = index_of _class.attributes attr; value = id }
+            ]
+    ) _class.attributes in
+
+    let valued_attributes = List.flatten @@ List.map (
         fun (attr : attribute_data) ->
             let attribute_id = index_of _class.attributes attr in
             let object_id = Local 0 in
 
             match attr.init with
-            | None ->
-                let id = Temporary !temp_counter in
-                temp_counter := !temp_counter + 1;
-
-                ids := !ids @ [id];
-
-                [
-                    TAC_default (id, attr._type);
-                    TAC_attribute { object_id; attribute_id; value = id }
-                ]
+            | None -> []
             | Some init ->
                 let val_id, (tac_ids, tac_cmds) = tac_gen_expr_body data _class.name _class.name init symbol_table local_counter temp_counter in
                 
                 ids := !ids @ tac_ids;
 
                 tac_cmds @ [
+                    TAC_comment ("AttributeInit: " ^ attr.name);
                     TAC_attribute { object_id; attribute_id; value = val_id }
                 ]
     ) _class.attributes in
@@ -52,7 +58,7 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
         method_name = constructor_name;
         arg_count = 0;
 
-        commands = instantiate :: (List.concat attributes) @ [return];
+        commands = instantiate :: default_attributes @ valued_attributes @ [return];
         ids = !ids
     }
 

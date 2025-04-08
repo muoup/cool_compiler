@@ -168,11 +168,9 @@ let tac_gen_expr_body
 
             let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
 
-            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd]))
+            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd] @ casted_cmds))
         | StaticDispatch    { call_on; _type; _method; args; } ->
-            let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
-
-            let return_type, arg_types = get_method_signature data call_on_type _method.name in
+            let return_type, arg_types = get_method_signature data _type.name _method.name in
 
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args arg_types args in
@@ -189,12 +187,12 @@ let tac_gen_expr_body
             else
 
             let comment = TAC_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
-            let dispatch = method_name_gen call_on_type _method.name in
+            let dispatch = method_name_gen _type.name _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
             let casted_id, casted_cmds = cast_val self_id return_type _type.name in
 
-            (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
+            (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
 
@@ -221,7 +219,7 @@ let tac_gen_expr_body
 
             let casted_id, casted_cmds = cast_val self_id return_type class_name in
             
-            (casted_id, List.concat args_cmds @ casted_cmds @ [comment; call_cmd])
+            (casted_id, List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             let (then_id, then_cmds) = rec_tac_gen _then in
@@ -313,12 +311,21 @@ let tac_gen_expr_body
                 | Times     -> TAC_mul (self_id, lhs_id, rhs_id)
                 | Divide    -> TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id)
 
-                | LT        -> TAC_lt  (self_id, lhs_id, rhs_id)
-                | LE        -> TAC_lte (self_id, lhs_id, rhs_id)
+                | LT        ->
+                    begin match left._type with
+                    | "String" -> TAC_str_lt (self_id, lhs_id, rhs_id)
+                    | _        -> TAC_lt (self_id, lhs_id, rhs_id)
+                    end
+                | LE        ->
+                    begin match left._type with
+                    | "String" -> TAC_str_lte (self_id, lhs_id, rhs_id)
+                    | _        -> TAC_lte (self_id, lhs_id, rhs_id)
+                    end
                 | EQ        -> 
-                    match left._type with
+                    begin match left._type with
                     | "String" -> TAC_str_eq (self_id, lhs_id, rhs_id)
                     | _        -> TAC_eq (self_id, lhs_id, rhs_id)
+                    end
             in
             
             (self_id, lhs_cmds @ rhs_cmds @ [cmd])
@@ -425,7 +432,7 @@ let tac_gen_expr_body
             ) mapping_list in
 
             let match_fail = [
-                TAC_inline_assembly ("movq\t  $" ^ string_of_int expr.ident.line_number ^ ", %rax");
+                TAC_inline_assembly ("movq\t  $" ^ string_of_int expr.ident.line_number ^ ", %rsi");
                 TAC_jmp "error_case_unmatched";
             ] in
 

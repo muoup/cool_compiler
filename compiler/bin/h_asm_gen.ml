@@ -276,6 +276,28 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             SETE;
             MOV_mem (RAX, get_symbol_storage id)
         ]
+    | TAC_str_lt (id, s1, s2) ->
+        [
+            MOV_reg ((get_symbol_storage s1), RDI);
+            MOV_reg ((get_symbol_storage s2), RSI);
+            CALL "strcmp";
+            MOV_reg (REG RAX, RDI);
+            XOR (RAX, RAX);
+            CMP (RAX, RDI);
+            SETL;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_str_lte (id, s1, s2) ->
+        [
+            MOV_reg ((get_symbol_storage s1), RDI);
+            MOV_reg ((get_symbol_storage s2), RSI);
+            CALL "strcmp";
+            MOV_reg (REG RAX, RDI);
+            XOR (RAX, RAX);
+            CMP (RAX, RDI);
+            SETLE;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
 
     | TAC_default (id, _type) ->
         (match _type with
@@ -328,6 +350,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             XOR         (RAX, RAX);
             CALL        "calloc";
 
+            MOV_mem     (RAX, REG R12);
             MOV_mem     (RAX, get_symbol_storage id);
 
             MOV_reg     (LABEL (obj_name_mem_gen object_name), RDI);

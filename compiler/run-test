@@ -16,20 +16,13 @@ fi
 
 cool_output=$(cat "test_input" | cool "$1.cl")
 
+echo "Expected: $cool_output"
+echo "Got:      $dune_output"
+
 if [ "$cool_output" != "$dune_output" ]; then
     echo "Test failed: $1"
-    echo "Expected: $(echo $cool_output | xxd -p)"
-    echo $cool_output
-    echo "Got:      $(echo $dune_output | xxd -p)"
-    echo $dune_output
-
     exit 1
 fi
-
-echo "Expected: $(echo $cool_output | xxd -p)"
-echo $cool_output
-echo "Got:      $(echo $dune_output | xxd -p)"
-echo $dune_output
 
 rm "$1".cl-type
 rm "$1".s

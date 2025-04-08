@@ -13,6 +13,51 @@ class IntList {
         fi
     };
 
+    elem() : Object {
+        if (isvoid head) then
+            0
+        else
+            head
+        fi
+    };
+
+    next() : IntList {
+        tail
+    };
+
+    null() : Object {
+        let x : Object in x
+    };
+
+    remove(i : Int) : Int {
+        if (isvoid head) then
+            0
+        else
+            let head_int : Int <- case head of
+                i : Int => i;
+            esac in
+
+            if (head_int = i) then
+                if (isvoid tail) then
+                    head <- null()
+                else 
+                {
+                    head <- tail.elem();
+                    tail <- tail.next();
+
+                    if (isvoid tail) then
+                        tail <- new IntList
+                    else
+                        0
+                    fi;
+                } 
+                fi
+            else
+                tail.remove(i)
+            fi
+        fi
+    };
+
     print(io : IO) : Object {
         if (isvoid head) then
             0
@@ -46,6 +91,14 @@ class Main inherits IO {
             out_string("\n");
 
             list.insert(4);
+            list.print(self);
+            out_string("\n");
+
+            list.remove(2);
+            list.print(self);
+            out_string("\n");
+
+            list.remove(4);
             list.print(self);
             out_string("\n");
         }    

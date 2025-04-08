@@ -363,7 +363,6 @@ error_dispatch:
     xorq    %rax, %rax
     callq   printf
 
-
     movq    $1, %rdi
     callq   exit
     ret
