@@ -29,11 +29,48 @@ __f_out_str:
     .type  out_string, @function
 #   1 arg (char*) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
 out_string:
-    movq    $__f_out_str, %rdi
-    movq    8(%rsp), %rsi
     xorq    %rax, %rax
-    callq   printf
-    retq
+    movq    8(%rsp), %r9
+    
+.out_loop:
+    movb    (%r9), %al
+    incq    %r9
+
+.out_char:
+    testb   %al, %al
+    je      .finish
+
+    cmpb    $0x5C, %al       # If '\' then try to escape the character
+    je      .escape_char
+
+.put_char:
+    movl    %eax, %edi
+    movq    stdin(%rip), %rsi
+    call    fputc
+    jmp     .out_loop
+
+.escape_char:
+    movb    (%r9), %al
+    incq    %r9
+
+    cmpb    $0x6E, %al
+    je      .escape_n
+
+    cmpb    $0x74, %al
+    je      .escape_t
+
+    jmp     .out_char
+
+.escape_n:
+    movb    $0x0A, %al
+    jmp     .put_char   
+
+.escape_t:
+    movb    $0x09, %al
+    jmp     .put_char
+
+.finish:
+    ret
 
     .section .rodata
 __f_out_int:
@@ -53,6 +90,7 @@ out_int:
     xorq    %rax, %rax
     
     call    printf
+    movq    %r12, %rax
     ret
 
     .section .rodata
@@ -136,6 +174,7 @@ in_string:
     movq    stdin(%rip), %rdi
     callq   fgetc
 
+.char_collected:
     testl   %eax, %eax      #   If a \0 is detected, set the invalid flag
     je      .fail_flag   
 
@@ -145,6 +184,9 @@ in_string:
     cmpl    $-1, %eax       #   If EOF is detected, stop reading
     je      .in_complete
 
+    testl   %eax, %eax      #   If \0 then fail
+    je      .fail_flag
+
     movb    %al, (%r9)      #   Otherwise, store the character in the string and increment the pointer
     incq    %r9
     jmp     .loop_begin
@@ -152,10 +194,6 @@ in_string:
 .fail_flag:
     movq    $1, %rbp        #   Set the invalid flag, however consume the rest of the characters
     jmp     .loop_begin     #   to flush the input buffer
-
-.try_end:
-    testq   %r9, %r8        #   If a new line is found at the beginning of the string, skip
-    je      .loop_begin     #   Otherwise, complete
 
 .in_complete:
     testq   %rbp, %rbp
