@@ -25,6 +25,7 @@ type asm_cmd =
     | MUL       of asm_mem * asm_reg
     | DIV       of asm_reg
     | XOR       of asm_reg * asm_reg
+    | AND       of asm_mem * asm_reg
 
     | NEG       of asm_reg
     | NOT       of asm_reg
@@ -150,6 +151,8 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | DIV reg -> format_cmd1 "idivl" (asm_reg32_to_string reg)
     | XOR (reg1, reg2) -> format_cmd2 "xorq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
     | NEG reg -> format_cmd1 "negq" (asm_reg_to_string reg)
+    | AND (mem, reg) -> format_cmd2 "andq" (asm_mem_to_string mem) (asm_reg_to_string reg)
+
 
     | TEST (reg1, reg2) -> format_cmd2 "testq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
     | CMP (reg1, reg2) -> format_cmd2 "cmpl" (asm_reg32_to_string reg1) (asm_reg32_to_string reg2)

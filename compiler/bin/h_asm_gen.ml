@@ -240,6 +240,9 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
 
         arg_cmds @ [
+            COMMENT "16-bit align stack pointer";
+            (* AND (0xFFFFFFFFFFFFFFF0, RSP); *)
+            AND (IMMEDIATE (-16), RSP);
             CALL method_name;
             MOV_mem (RAX, get_symbol_storage id)
         ] @ pop_cmds
