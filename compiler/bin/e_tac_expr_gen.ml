@@ -22,7 +22,7 @@ let rec last_id (ids : tac_id list) : tac_id =
 let tac_gen_expr_body 
     (data : program_data) (class_name : string) (return_type : string) 
     (method_body : ast_expression) (symbol_table : symbol_table ref) 
-    (temp_counter : int ref) (local_counter : int ref) : (tac_id list * tac_cmd list) =
+    (temp_counter : int ref) (local_counter : int ref) : tac_id * (tac_id list * tac_cmd list) =
 
     let tac_id_list : tac_id list ref = ref [] in
 
@@ -89,14 +89,12 @@ let tac_gen_expr_body
         let len = String.length s in
         let rec aux i acc =
           if i >= len then String.concat "" (List.rev acc)
-          else if s.[i] = '\\' && i + 1 < len then
-            let next_char = s.[i + 1] in
-            if next_char <> 't' && next_char <> 'n' then
-              aux (i + 2) (("\\" ^ "\\" ^ String.make 1 next_char) :: acc)
-            else
-              aux (i + 2) (("\\" ^ String.make 1 next_char) :: acc)
+          else if s.[i] = '"' then
+            aux (i + 1) ("\\\"" :: acc)
+          else if s.[i] = '\\' then
+            aux (i + 1) ("\\\\" :: acc)
           else
-            aux (i + 1) (String.make 1 s.[i] :: acc)
+            aux (i + 1) ((String.make 1 s.[i]) :: acc)
         in
         aux 0 []
     
@@ -129,7 +127,9 @@ let tac_gen_expr_body
 
             (casted_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
         | DynamicDispatch   { call_on; _method; args } ->
-            let return_type, arg_types = get_method_signature data call_on._type _method.name in
+            let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
+
+            let return_type, arg_types = get_method_signature data call_on_type _method.name in
 
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args arg_types args in
@@ -137,12 +137,10 @@ let tac_gen_expr_body
             let self_id = temp_id () in
 
             let comment = TAC_comment ("DynamicDispatch: " ^ _method.name) in
-
             let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
 
-
             if not (StringSet.mem call_on._type data.overriden_classes) then
-                let dispatch = method_name_gen call_on._type _method.name in
+                let dispatch = method_name_gen call_on_type _method.name in
 
                 if _method.name = "copy" && (
                     call_on._type = "Int" ||
@@ -155,7 +153,7 @@ let tac_gen_expr_body
                     (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
             else
 
-            let method_id = get_dispatch data call_on._type _method.name in
+            let method_id = get_dispatch data call_on_type _method.name in
 
             let call_cmd = TAC_dispatch { 
                 line_number = _method.line_number;
@@ -167,7 +165,7 @@ let tac_gen_expr_body
 
             let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
 
-            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd]))
+            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd] @ casted_cmds))
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let return_type, arg_types = get_method_signature data _type.name _method.name in
 
@@ -191,7 +189,7 @@ let tac_gen_expr_body
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
             let casted_id, casted_cmds = cast_val self_id return_type _type.name in
 
-            (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
+            (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
 
@@ -218,12 +216,24 @@ let tac_gen_expr_body
 
             let casted_id, casted_cmds = cast_val self_id return_type class_name in
             
-            (casted_id, List.concat args_cmds @ casted_cmds @ [comment; call_cmd])
+            (casted_id, List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             let (then_id, then_cmds) = rec_tac_gen _then in
             let (else_id, else_cmds) = rec_tac_gen _else in
 
+            (* This isn't strictly correct, but to the compiler, all that matters is whether a
+               type is a lifted int/string/bool or an object. *)
+            let merge_type = match _then._type, _else._type with
+                | "Int", "Int" -> "Int"
+                | "String", "String" -> "String"
+                | "Bool", "Bool" -> "Bool"
+                | _ -> "Object"
+            in
+
+            let casted_then_id, casted_then_cmds = cast_val then_id _then._type merge_type in
+            let casted_else_id, casted_else_cmds = cast_val else_id _else._type merge_type in
+            
             let self_id = temp_id () in
 
             let then_name = label_id () ^ "_then" in
@@ -238,8 +248,8 @@ let tac_gen_expr_body
             let label_merge = TAC_label merge_name in
 
             let condition = cond_cmds @ [bt_cmd; jmp_cmd] in
-            let then_ = [label_then] @ then_cmds @ [TAC_ident (self_id, then_id)] @ [TAC_jmp merge_name] in
-            let else_ = [label_else] @ else_cmds @ [TAC_ident (self_id, else_id)] @ [label_merge] in
+            let then_ = [label_then] @ then_cmds @ casted_then_cmds @ [TAC_ident (self_id, casted_then_id)] @ [TAC_jmp merge_name] in
+            let else_ = [label_else] @ else_cmds @ casted_else_cmds @ [TAC_ident (self_id, casted_else_id)] @ [label_merge] in
 
             (self_id, condition @ then_ @ else_)
         | While             { predicate; body } ->
@@ -298,12 +308,21 @@ let tac_gen_expr_body
                 | Times     -> TAC_mul (self_id, lhs_id, rhs_id)
                 | Divide    -> TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id)
 
-                | LT        -> TAC_lt  (self_id, lhs_id, rhs_id)
-                | LE        -> TAC_lte (self_id, lhs_id, rhs_id)
+                | LT        ->
+                    begin match left._type with
+                    | "String" -> TAC_str_lt (self_id, lhs_id, rhs_id)
+                    | _        -> TAC_lt (self_id, lhs_id, rhs_id)
+                    end
+                | LE        ->
+                    begin match left._type with
+                    | "String" -> TAC_str_lte (self_id, lhs_id, rhs_id)
+                    | _        -> TAC_lte (self_id, lhs_id, rhs_id)
+                    end
                 | EQ        -> 
-                    match left._type with
+                    begin match left._type with
                     | "String" -> TAC_str_eq (self_id, lhs_id, rhs_id)
                     | _        -> TAC_eq (self_id, lhs_id, rhs_id)
+                    end
             in
             
             (self_id, lhs_cmds @ rhs_cmds @ [cmd])
@@ -348,7 +367,7 @@ let tac_gen_expr_body
                     let (casted_id, casted_cmds) = cast_val rhs_id value._type _type.name in
                     add_symbol variable.name casted_id _type.name;
 
-                    rhs_cmds @ casted_cmds
+                    TAC_default (casted_id, _type.name) :: rhs_cmds @ casted_cmds
             in
 
             let tac_remove_binding (binding : ast_let_binding_type) : unit =
@@ -367,20 +386,31 @@ let tac_gen_expr_body
             (in_id, init_cmds @ in_cmds)
         | Case              { expression; mapping_list } ->
             let (expr_id, expr_cmds) = rec_tac_gen expression in
+            let merge_type = expr._type in
 
             let merge_val = temp_id () in
             let type_name = temp_id () in
 
-            let cmds = expr_cmds @ [
-                TAC_void_check (expression.ident.line_number, expr_id, "error_case_void");
-                TAC_dispatch { 
-                    line_number = expression.ident.line_number;
-                    store = type_name; 
-                    obj = expr_id;
-                    method_id = 2; (* type_name *)
-                    args = [expr_id];
-                }
-            ] in
+            let type_cmd =
+                match expression._type with
+                | "Int" | "String" | "Bool" -> 
+                    let method_name = method_name_gen (expression._type) "type_name" in
+                    
+                    [ TAC_call (type_name, method_name, []) ]
+                | _ ->
+                    [
+                        TAC_void_check (expression.ident.line_number, expr_id, "error_case_void");
+                        TAC_dispatch { 
+                            line_number = expression.ident.line_number;
+                            store = type_name; 
+                            obj = expr_id;
+                            method_id = 2; (* type_name *)
+                            args = [expr_id];
+                        }
+                    ]
+            in
+
+            let cmds = expr_cmds @ type_cmd in
 
             let merge_label = label_id () ^ "_case_merge" in
 
@@ -390,9 +420,11 @@ let tac_gen_expr_body
 
                     let casted_id, casted_cmds = cast_val expr_id expression._type mapping._type.name in
 
-                    add_symbol mapping._type.name casted_id mapping._type.name;
+                    add_symbol mapping.name.name casted_id mapping._type.name;
                     let body_id, body_cmds = rec_tac_gen mapping.maps_to in
-                    remove_symbol mapping._type.name;
+                    remove_symbol mapping.name.name;
+
+                    let casted_body_id, cast_body_cmds = cast_val body_id mapping.maps_to._type merge_type in
 
                     let cond = temp_id () in
                     let str = temp_id () in
@@ -403,14 +435,14 @@ let tac_gen_expr_body
                         TAC_bt (cond, label)
                     ] in
 
-                    jump, TAC_label label :: casted_cmds @ body_cmds @ [
-                        TAC_ident (merge_val, body_id);
+                    jump, TAC_label label :: casted_cmds @ body_cmds @ cast_body_cmds @ [
+                        TAC_ident (merge_val, casted_body_id);
                         TAC_jmp merge_label
                     ]
             ) mapping_list in
 
             let match_fail = [
-                TAC_inline_assembly ("\tmovq\t$" ^ string_of_int expr.ident.line_number ^ ", %rax");
+                TAC_inline_assembly ("movq\t  $" ^ string_of_int expr.ident.line_number ^ ", %rsi");
                 TAC_jmp "error_case_unmatched";
             ] in
 
@@ -422,4 +454,4 @@ let tac_gen_expr_body
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
     let (casted_id, casted_cmds) = cast_val tac_id method_body._type return_type in
     
-    (!tac_id_list, tac_cmds @ casted_cmds @ [TAC_return casted_id])
+    casted_id, (!tac_id_list, tac_cmds @ casted_cmds)

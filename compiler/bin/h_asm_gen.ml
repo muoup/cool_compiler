@@ -47,13 +47,16 @@ let generate_stack_map (tac_ids : tac_id list) : stack_map =
         temporaries_offset = temporaries_offset;
     }
 
+let get_parameter_memory (i : int) : asm_mem =
+    RBP_offset (24 + (i * 8))
+
 let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     match id with
     | Local     i -> RBP_offset (-stack_map.local_variable_offset - ((i + 1) * 8))
     | Temporary i -> RBP_offset (-stack_map.temporaries_offset - ((i + 1) * 8))
     | Attribute i -> REG_offset (R12, 24 + 8 * i)
     | Self        -> REG R12
-    | Parameter i -> RBP_offset (32 + (i * 8))
+    | Parameter i -> get_parameter_memory i
 
 let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd list =
     match internal_id with
@@ -64,7 +67,7 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
         ]
     | "IO.out_string" ->
         [
-            MOV_reg (RBP_offset 32, RAX);
+            MOV_reg (get_parameter_memory 0, RAX);
             PUSH RAX;
             CALL "out_string";
             POP RAX;
@@ -77,7 +80,7 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
         ]
     | "IO.out_int" ->
         [
-            MOV_reg (RBP_offset 32, RAX);
+            MOV_reg (get_parameter_memory 0, RAX);
             PUSH RAX;
             CALL "out_int";
             POP RAX;
@@ -273,6 +276,28 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             SETE;
             MOV_mem (RAX, get_symbol_storage id)
         ]
+    | TAC_str_lt (id, s1, s2) ->
+        [
+            MOV_reg ((get_symbol_storage s1), RDI);
+            MOV_reg ((get_symbol_storage s2), RSI);
+            CALL "strcmp";
+            MOV_reg (REG RAX, RDI);
+            XOR (RAX, RAX);
+            CMP (RAX, RDI);
+            SETL;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
+    | TAC_str_lte (id, s1, s2) ->
+        [
+            MOV_reg ((get_symbol_storage s1), RDI);
+            MOV_reg ((get_symbol_storage s2), RSI);
+            CALL "strcmp";
+            MOV_reg (REG RAX, RDI);
+            XOR (RAX, RAX);
+            CMP (RAX, RDI);
+            SETLE;
+            MOV_mem (RAX, get_symbol_storage id)
+        ]
 
     | TAC_default (id, _type) ->
         (match _type with
@@ -325,6 +350,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             XOR         (RAX, RAX);
             CALL        "calloc";
 
+            MOV_mem     (RAX, REG R12);
             MOV_mem     (RAX, get_symbol_storage id);
 
             MOV_reg     (LABEL (obj_name_mem_gen object_name), RDI);

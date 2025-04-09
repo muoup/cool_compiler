@@ -162,7 +162,7 @@ class Task {
 	};
 };
 
-class TaskList {
+class TaskList inherits IO {
 	element : Task;
 	next_element : TaskList;
 
@@ -194,11 +194,16 @@ class TaskList {
 	};
 
 	nth(i : Int) : Task {
-		if (i = 0) then
-			element
-		else
-			next_element.nth(i - 1)
-		fi
+		{
+			out_int(i);
+			out_string("\n");
+
+			if (i = 0) then
+				element
+			else
+				next().nth(i - 1)
+			fi;
+		}
 	};
 };
 
@@ -269,11 +274,14 @@ class Main inherits IO {
 								.nth(dep_id)
 								.req_to()
 								.append(task_id);
+
 							state
 								.tasks()
 								.nth(task_id)
 								.deps()
 								.append(dep_id);
+
+							out_string("done\n");
 						};
 
 						line_one <- in_string();

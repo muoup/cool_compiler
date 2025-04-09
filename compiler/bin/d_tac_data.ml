@@ -51,6 +51,8 @@ type tac_cmd =
 
   (* Special Internal Nodes *)
   | TAC_str_eq  of tac_id * tac_id * tac_id
+  | TAC_str_lt  of tac_id * tac_id * tac_id
+  | TAC_str_lte of tac_id * tac_id * tac_id
 
   (* Since this has to cache the line number, it is a separate node, at least for now *)
   | TAC_void_check of int * tac_id * string
