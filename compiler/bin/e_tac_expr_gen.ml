@@ -92,10 +92,7 @@ let tac_gen_expr_body
           else if s.[i] = '"' then
             aux (i + 1) ("\\\"" :: acc)
           else if s.[i] = '\\' then
-            if i + 1 < len && s.[i + 1] <> 'n' && s.[i + 1] <> 't' then
-                aux (i + 1) ("\\\\" :: acc)
-            else
-                aux (i + 1) ("\\" :: acc)
+            aux (i + 1) ("\\\\" :: acc)
           else
             aux (i + 1) ((String.make 1 s.[i]) :: acc)
         in

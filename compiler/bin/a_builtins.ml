@@ -28,12 +28,22 @@ __f_out_str:
     .globl out_string
     .type  out_string, @function
 #   1 arg (char*) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
-out_string:
+out_string: 
     pushq   %rbp
+    movq    %rsp, %rbp
+    subq    $8, %rsp
 
-    xorq    %rax, %rax
-    movq    16(%rsp), %r9
+    movq    16(%rbp), %rdi
+    call    strlen
     
+    leaq    2(%rax), %rdi        #   Add 2 so glibc doesn't yell at us
+    call    malloc
+
+    movq    %rax, -8(%rbp)       #   Store the pointer to the new string
+    movq    %rax, %r8
+
+    movq    16(%rbp), %r9
+
 .out_loop:
     movzbl  (%r9), %eax
     incq    %r9
@@ -46,9 +56,9 @@ out_string:
     je      .escape_char
 
 .put_char:
-    movl    %eax, %edi
-    movq    stdout(%rip), %rsi
-    call    fputc
+    movb    %al, (%r8)
+    incq    %r8
+
     jmp     .out_loop
 
 .escape_char:
@@ -61,9 +71,8 @@ out_string:
     cmpb    $0x74, %al
     je      .escape_t
 
-    movl    $0x5C, %edi
-    movq    stdout(%rip), %rsi
-    call    fputc
+    movb    $0x5C, (%r8)
+    incq    %r8
 
     movzbl  -1(%r9), %eax    
     jmp     .out_char
@@ -77,10 +86,15 @@ out_string:
     jmp     .put_char
 
 .finish:
-    movq    stdout(%rip), %rdi
-    call    fflush
+    movb    $0, (%r8)       #   Null terminate the string
 
-    popq    %rbp
+    movq    $__f_out_str, %rdi
+    movq    -8(%rbp), %rsi
+    xorq    %rax, %rax
+
+    call    printf
+
+    leave
     ret
 
     .section .rodata
