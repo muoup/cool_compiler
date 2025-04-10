@@ -18,6 +18,8 @@ type asm_cmd =
     | MOV_imem  of int     * asm_mem
     | MOV_mem   of asm_reg * asm_mem
 
+    | MOV       of asm_mem * asm_mem
+
     | MOV_reg32 of asm_mem * asm_reg
     | MOV_mem32 of asm_reg * asm_mem
 
@@ -39,7 +41,7 @@ type asm_cmd =
     | SETNE
 
 
-    | PUSH      of asm_reg
+    | PUSH      of asm_mem
     | POP       of asm_reg
 
     | CALL      of string
@@ -143,6 +145,20 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | MOV_imem (i, reg)  -> format_cmd2 "movq" (asm_mem_to_string (IMMEDIATE i)) (asm_mem_to_string reg)
     | MOV_mem (reg, mem) -> format_cmd2 "movq" (asm_reg_to_string reg) (asm_mem_to_string mem)
 
+    | MOV     (mem1, mem2) ->
+        begin match mem1, mem2 with
+        | REG reg1, _ ->
+            format_cmd2 "movq" (asm_reg_to_string reg1) (asm_mem_to_string mem2)
+        | _, REG reg2 ->
+            format_cmd2 "movq" (asm_mem_to_string mem1) (asm_reg_to_string reg2)
+        | LABEL _, _
+        | IMMEDIATE _, _ ->
+            format_cmd2 "movq" (asm_mem_to_string mem1) (asm_mem_to_string mem2)
+        | _, _ ->
+            format_cmd2 "movq" (asm_mem_to_string mem1) (asm_reg_to_string RAX);
+            format_cmd2 "movq" (asm_reg_to_string RAX) (asm_mem_to_string mem2) 
+        end
+
     | MOV_reg32 (mem, reg) -> format_cmd2 "movl" (asm_mem32_to_string mem) (asm_reg32_to_string reg)
     | MOV_mem32 (reg, mem) -> format_cmd2 "movl" (asm_reg32_to_string reg) (asm_mem32_to_string mem)
     
@@ -161,7 +177,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | SETE   -> format_cmd1 "sete" "%al"
     | SETNE  -> format_cmd1 "setne" "%al"
 
-    | PUSH reg       -> format_cmd1 "pushq" (asm_reg_to_string reg)
+    | PUSH reg       -> format_cmd1 "pushq" (asm_mem_to_string reg)
     | POP reg        -> format_cmd1 "popq" (asm_reg_to_string reg)
 
     | JMP label      -> format_cmd1 "jmp" label

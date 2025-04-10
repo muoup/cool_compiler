@@ -59,10 +59,9 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
         ]
     | "IO.out_string" ->
         [
-            MOV_reg (get_parameter_memory 0, RAX);
-            PUSH RAX;
+            PUSH (get_parameter_memory 0);
             CALL "out_string";
-            POP RAX;
+            ADD  (IMMEDIATE 8, RSP);
             RET
         ]
     | "IO.in_int" ->
@@ -72,8 +71,7 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
         ]
     | "IO.out_int" ->
         [
-            MOV_reg (get_parameter_memory 0, RAX);
-            PUSH RAX;
+            PUSH (get_parameter_memory 0);
             CALL "out_int";
             POP RAX;
             RET
@@ -220,7 +218,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     | TAC_call (id, method_name, args) ->
         let arg_cmds = List.concat @@ List.map (fun arg -> 
             let load = MOV_reg ((get_symbol_storage arg), RAX) in    
-            let push = PUSH RAX in
+            let push = PUSH (REG RAX) in
 
             [load; push]
         ) @@ List.rev args in
@@ -244,7 +242,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
 
         let arg_cmds = List.concat @@ List.map (fun arg -> 
             let load = MOV_reg ((get_symbol_storage arg), RAX) in    
-            let push = PUSH RAX in
+            let push = PUSH (REG RAX) in
 
             [load; push]
         ) @@ List.rev args in
@@ -333,22 +331,17 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         let size = 8 * (3 + attributes) in
 
         [
-            MOV_reg     (IMMEDIATE 1, RDI);
-            MOV_reg     (IMMEDIATE size, RSI);
+            MOV         (IMMEDIATE 1, REG RDI);
+            MOV         (IMMEDIATE size, REG RSI);
             XOR         (RAX, RAX);
             CALL        "calloc";
 
-            MOV_mem     (RAX, REG R12);
-            MOV_mem     (RAX, get_symbol_storage id);
+            MOV         (REG RAX, REG R12);
+            MOV         (REG RAX, get_symbol_storage id);
 
-            MOV_reg     (LABEL (obj_name_mem_gen object_name), RDI);
-            MOV_mem     (RDI, REG_offset (RAX, 0));
-
-            MOV_reg     (IMMEDIATE size, RDI);
-            MOV_mem     (RDI, REG_offset (RAX, 8));
-
-            MOV_reg     (LABEL (vtable_name_gen object_name), RDI);
-            MOV_mem     (RDI, REG_offset (RAX, 16))
+            MOV         (LABEL (obj_name_mem_gen object_name), REG RDI);
+            MOV         (IMMEDIATE size, REG_offset (RAX, 8));
+            MOV         (LABEL (vtable_name_gen object_name), REG_offset (RAX, 16))
         ]
 
     | TAC_inline_assembly asm_code ->
