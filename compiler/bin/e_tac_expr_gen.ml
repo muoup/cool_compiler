@@ -22,13 +22,13 @@ let rec last_id (ids : tac_id list) : tac_id =
 let tac_gen_expr_body 
     (data : program_data) (class_name : string) (return_type : string) 
     (method_body : ast_expression) (symbol_table : symbol_table ref) 
-    (temp_counter : int ref) (local_counter : int ref) : tac_id * (tac_id list * tac_cmd list) =
+    (local_counter : int ref) (global_temp_counter : int ref) : tac_id * (tac_cmd list) =
 
-    let tac_id_list : tac_id list ref = ref [] in
+    let free_temps : tac_id list ref = ref [] in
+    let temp_counter : int ref = ref 0 in
 
     let add_symbol (x : string) (id : tac_id) (_type : string) : unit =
         StringTbl.add !symbol_table x (id, _type);
-        tac_id_list := id :: !tac_id_list;
     in
 
     let remove_symbol (x : string) : unit =
@@ -50,38 +50,45 @@ let tac_gen_expr_body
     let local_id () : tac_id =
         let id = Local !local_counter in
         local_counter := !local_counter + 1;
-        tac_id_list := id :: !tac_id_list;
         id
     in
 
     let temp_id () : tac_id =
-        let id = Temporary !temp_counter in
-        temp_counter := !temp_counter + 1;
-        tac_id_list := id :: !tac_id_list;
-        id
+        match !free_temps with
+        | x :: xs ->
+            free_temps := xs;
+            x
+        | [] ->
+            let id = Temporary !temp_counter in
+            temp_counter := !temp_counter + 1;
+            id    
+    in
+
+    let free_temp (id : tac_id) : unit =
+        match id with
+        | Temporary _ -> 
+            if List.mem id !free_temps then
+                failwith @@ "Duplicate free! " ^ (f_id id)
+            else
+                free_temps := id :: !free_temps
+        | _ -> ()
     in
 
     let cast_val (value : tac_id) (val_type : string) (cast_type : string) : tac_id * tac_cmd list =
         let val_type = if val_type = "SELF_TYPE" then class_name else val_type in
         let cast_type = if cast_type = "SELF_TYPE" then class_name else cast_type in
 
-        (* Printf.printf "Casting %s (%s) to %s\n" (f_id value) val_type cast_type; *)
-
         match val_type, cast_type with
         | "Object", "Int"
         | "Object", "String"
         | "Object", "Bool" ->
-            let temp = temp_id () in
-            temp, [TAC_call (temp, "lift_val", [value])]
+            value, [TAC_call (value, "lift_val", [value])]
         | "Int", "Object" ->
-            let temp = temp_id () in
-            temp, [TAC_call (temp, "unlift_int", [value])]
+            value, [TAC_call (value, "unlift_int", [value])]
         | "String", "Object" ->
-            let temp = temp_id () in
-            temp, [TAC_call (temp, "unlift_string", [value])]
+            value, [TAC_call (value, "unlift_string", [value])]
         | "Bool", "Object" ->
-            let temp = temp_id () in
-            temp, [TAC_call (temp, "unlift_bool", [value])]
+            value, [TAC_call (value, "unlift_bool", [value])]
         | _ -> value, []
     in
 
@@ -107,14 +114,16 @@ let tac_gen_expr_body
                 Printf.printf "Error: %s\n" text;
                 exit 1;
             else
-            
-            List.split @@ List.map(
-                fun (arg, _type) ->
-                    let arg_id, arg_cmds = rec_tac_gen arg in
-                    let casted_id, casted_cmds = cast_val arg_id arg._type _type in
 
-                    casted_id, arg_cmds @ casted_cmds
-            ) @@ List.combine args _types
+            List.combine args _types
+            |> List.map (
+                    fun (arg, _type) ->
+                        let arg_id, arg_cmds = rec_tac_gen arg in
+                        let casted_id, casted_cmds = cast_val arg_id arg._type _type in
+
+                        casted_id, arg_cmds @ casted_cmds
+                )
+            |> List.split
         in
 
         match expr.data with
@@ -189,6 +198,8 @@ let tac_gen_expr_body
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
             let casted_id, casted_cmds = cast_val self_id return_type _type.name in
 
+            List.iter (free_temp) args_ids;
+
             (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
@@ -215,12 +226,17 @@ let tac_gen_expr_body
             } in
 
             let casted_id, casted_cmds = cast_val self_id return_type class_name in
+
+            List.iter (free_temp) args_ids;
             
             (casted_id, List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
+            free_temp cond_id;
             let (then_id, then_cmds) = rec_tac_gen _then in
+            free_temp then_id;
             let (else_id, else_cmds) = rec_tac_gen _else in
+            free_temp else_id;
 
             (* This isn't strictly correct, but to the compiler, all that matters is whether a
                type is a lifted int/string/bool or an object. *)
@@ -254,7 +270,9 @@ let tac_gen_expr_body
             (self_id, condition @ then_ @ else_)
         | While             { predicate; body } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
+            free_temp cond_id;
             let (body_id, body_cmds) = rec_tac_gen body in
+            free_temp body_id;
 
             let self_id = temp_id () in
 
@@ -290,16 +308,21 @@ let tac_gen_expr_body
             end
         | IsVoid           { expr } ->
             let (expr_id, expr_cmds) = rec_tac_gen expr in
-            let self_id = temp_id () in
 
             begin match expr._type with
             (* isvoid on intrinsic types is always false *)
-            | "String" | "Int" | "Bool" -> (self_id, expr_cmds @ [TAC_bool (self_id, false)])
-            | _ -> (self_id, expr_cmds @ [TAC_isvoid (self_id, expr_id)])
+            | "String" | "Int" | "Bool" -> 
+                (expr_id, expr_cmds @ [TAC_bool (expr_id, false)])
+            | _ -> 
+                (expr_id, expr_cmds @ [TAC_isvoid (expr_id, expr_id)])
             end
         | BinOp             { left; right; op } ->
             let (lhs_id, lhs_cmds) = rec_tac_gen left in
             let (rhs_id, rhs_cmds) = rec_tac_gen right in
+
+            free_temp lhs_id;
+            free_temp rhs_id;
+
             let self_id = temp_id () in
 
             let cmd = match op with
@@ -328,8 +351,10 @@ let tac_gen_expr_body
             (self_id, lhs_cmds @ rhs_cmds @ [cmd])
         | UnOp             { expr; op } ->
             let (expr_id, expr_cmds) = rec_tac_gen expr in
-            let self_id = temp_id () in
 
+            free_temp expr_id;
+            let self_id = temp_id () in
+            
             let cmd = match op with
                 | Not       -> TAC_not (self_id, expr_id)
                 | Negate    -> TAC_neg (self_id, expr_id)
@@ -350,24 +375,30 @@ let tac_gen_expr_body
             let self_id = temp_id () in
             (self_id, [TAC_bool (self_id, false)])
         | Identifier        ident ->
-            let var_name = find_symbol ident.name in
-            let self_id = temp_id () in
+            let id = find_symbol ident.name in
 
-            (self_id, [TAC_ident (self_id, var_name)])
+            id, []
         | Let               { bindings; _in } ->
             let tac_initialize (binding : ast_let_binding_type) : tac_cmd list =
+                let id = local_id () in
+
                 match binding with
                 | LetBindingNoInit  { variable; _type } ->
-                    let id = local_id () in
                     add_symbol variable.name id _type.name;
 
                     [TAC_default (id, _type.name)]
                 | LetBindingInit    { variable; _type; value } ->
                     let (rhs_id, rhs_cmds) = rec_tac_gen value in
                     let (casted_id, casted_cmds) = cast_val rhs_id value._type _type.name in
-                    add_symbol variable.name casted_id _type.name;
 
-                    TAC_default (casted_id, _type.name) :: rhs_cmds @ casted_cmds
+                    add_symbol variable.name id _type.name;
+
+                    free_temp casted_id;
+
+                    TAC_default (id, _type.name) :: 
+                    rhs_cmds @ 
+                    casted_cmds @ 
+                    [TAC_ident (id, casted_id)]
             in
 
             let tac_remove_binding (binding : ast_let_binding_type) : unit =
@@ -395,7 +426,7 @@ let tac_gen_expr_body
                 match expression._type with
                 | "Int" | "String" | "Bool" -> 
                     let method_name = method_name_gen (expression._type) "type_name" in
-                    
+
                     [ TAC_call (type_name, method_name, []) ]
                 | _ ->
                     [
@@ -453,5 +484,9 @@ let tac_gen_expr_body
 
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
     let (casted_id, casted_cmds) = cast_val tac_id method_body._type return_type in
+
+    free_temp casted_id;
     
-    casted_id, (!tac_id_list, tac_cmds @ casted_cmds)
+    global_temp_counter := max !global_temp_counter !temp_counter;
+
+    casted_id, (tac_cmds @ casted_cmds)

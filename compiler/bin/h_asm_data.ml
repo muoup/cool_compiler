@@ -15,6 +15,7 @@ type asm_cmd =
     | FRAME     of int 
 
     | MOV_reg   of asm_mem * asm_reg
+    | MOV_imem  of int     * asm_mem
     | MOV_mem   of asm_reg * asm_mem
 
     | MOV_reg32 of asm_mem * asm_reg
@@ -139,6 +140,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         output "\n";
 
     | MOV_reg (mem, reg) -> format_cmd2 "movq" (asm_mem_to_string mem) (asm_reg_to_string reg)
+    | MOV_imem (i, reg)  -> format_cmd2 "movq" (asm_mem_to_string (IMMEDIATE i)) (asm_mem_to_string reg)
     | MOV_mem (reg, mem) -> format_cmd2 "movq" (asm_reg_to_string reg) (asm_mem_to_string mem)
 
     | MOV_reg32 (mem, reg) -> format_cmd2 "movl" (asm_mem32_to_string mem) (asm_reg32_to_string reg)

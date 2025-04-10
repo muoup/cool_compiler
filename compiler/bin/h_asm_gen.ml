@@ -30,17 +30,9 @@ let generate_strlit_map (tac_cmds : tac_cmd list) : strlit_map =
         | _ -> None
     ) tac_cmds
 
-let generate_stack_map (tac_ids : tac_id list) : stack_map =
-    let (locals, temps) = List.fold_left (
-        fun (acc_locals, acc_temps) id ->
-            match id with
-            | Local _ -> (acc_locals + 1, acc_temps)
-            | Temporary _ -> (acc_locals, acc_temps + 1)
-            | _ -> (acc_locals, acc_temps)
-    ) (0, 0) tac_ids in
-
+let generate_stack_map (_method : method_tac) : stack_map =
     let local_variable_offset = 0 in
-    let temporaries_offset = local_variable_offset + (locals * 8) in
+    let temporaries_offset = local_variable_offset + _method.locals * 8 in
 
     {
         local_variable_offset = local_variable_offset;
@@ -132,23 +124,20 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     | TAC_add (id, a, b) ->
         [
             MOV_reg ((get_symbol_storage a), RAX);
-            MOV_reg ((get_symbol_storage b), RBX);
-            ADD (REG RAX, RBX);
-            MOV_mem (RBX, get_symbol_storage id)
+            ADD     ((get_symbol_storage b), RAX);
+            MOV_mem (RAX, get_symbol_storage id)
         ]
     | TAC_sub (id, a, b) ->
         [
             MOV_reg ((get_symbol_storage a), RAX);
-            MOV_reg ((get_symbol_storage b), RBX);
-            SUB (REG RBX, RAX);
+            SUB     ((get_symbol_storage b), RAX);
             MOV_mem (RAX, get_symbol_storage id)
         ]
     | TAC_mul (id, a, b) ->
         [
             MOV_reg ((get_symbol_storage a), RAX);
-            MOV_reg ((get_symbol_storage b), RBX);
-            MUL (REG RAX, RBX);
-            MOV_mem (RBX, get_symbol_storage id)
+            MUL     ((get_symbol_storage b), RAX);
+            MOV_mem (RAX, get_symbol_storage id)
         ]
     | TAC_div (line_number, id, a, b) ->
         [
@@ -163,7 +152,6 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             MISC "cdq";
             DIV RBX;
             MOV_mem (RAX, get_symbol_storage id)
-
         ]
     | TAC_lt (id, a, b) -> 
         [
@@ -194,8 +182,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         ]
     | TAC_int (id, i) ->
         [
-            MOV_reg (IMMEDIATE i, RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV_imem (i, get_symbol_storage id);
         ]
     | TAC_str (id, s) ->
         let str_id = fst @@ List.find (fun (_, _s) -> _s = s) asm_data.strlit_map in
@@ -224,8 +211,9 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         ]
     | TAC_not (id, a) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            TEST (RAX, RAX);
+            XOR  (RAX, RAX);
+            MOV_reg ((get_symbol_storage a), RBX);
+            TEST (RBX, RBX);
             SETE;
             MOV_mem (RAX, get_symbol_storage id)
         ]
@@ -382,18 +370,18 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     | TAC_void_check (line_number, object_id, error) ->
         [
             MOV_reg     (IMMEDIATE line_number, RSI);
-            MOV_reg     (get_symbol_storage object_id, RBX);
-            XOR         (RAX, RAX);
-            TEST        (RBX, RBX);
+            MOV_reg     (get_symbol_storage object_id, RAX);
+            TEST        (RAX, RAX);
             JE          error
         ]
 
 let generate_asm (method_tac : method_tac) : asm_method =
-    let stack_space = 8 * (List.length method_tac.ids) in
     let asm_data = {
         strlit_map = generate_strlit_map method_tac.commands;
-        stack_map = generate_stack_map method_tac.ids;
+        stack_map = generate_stack_map method_tac;
     } in
+
+    let stack_space = (method_tac.locals + method_tac.temps) * 8 in
 
     let cmds = 
         List.concat @@ 

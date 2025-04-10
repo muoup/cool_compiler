@@ -67,8 +67,8 @@ let parent_of (data : program_data) (class_name : string) : string =
 
 let get_internal_signature (method_name : string) : string * string list =
     match method_name with
-    | "out_string" -> "String", ["String"]
-    | "out_int" -> "Int", ["Int"]
+    | "out_string" -> "IO", ["String"]
+    | "out_int" -> "IO", ["Int"]
     | "in_string" -> "String", []
     | "in_int" -> "Int", []
     | "length" -> "Int", []

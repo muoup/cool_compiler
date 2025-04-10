@@ -64,7 +64,9 @@ type method_tac = {
     arg_count: int;
 
     commands: tac_cmd list;
-    ids: tac_id list;
+
+    locals : int;
+    temps : int;
 }
 
 let f_id (id : tac_id) : string =
