@@ -114,7 +114,16 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
     | "String.length" ->
         [
             MOV_reg (REG R12, RDI);
-            CALL "strlen";
+
+             COMMENT "16 bit align stack before strlen call";
+             PUSH RBP;
+             MOV_reg (REG RSP, RBP);
+             AND (IMMEDIATE (-16), RSP);
+             CALL "strlen";
+             MOV_reg (REG RBP, RSP);
+             POP RBP;
+
+
             RET;
         ]
     | x -> 
@@ -240,9 +249,6 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
 
         arg_cmds @ [
-            COMMENT "16-bit align stack pointer";
-            (* AND (0xFFFFFFFFFFFFFFF0, RSP); *)
-            AND (IMMEDIATE (-16), RSP);
             CALL method_name;
             MOV_mem (RAX, get_symbol_storage id)
         ] @ pop_cmds
@@ -272,7 +278,15 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         [
             MOV_reg ((get_symbol_storage s1), RDI);
             MOV_reg ((get_symbol_storage s2), RSI);
-            CALL "strcmp";
+            
+             COMMENT "16 bit align stack before strcmp call";
+             PUSH RBP;
+             MOV_reg (REG RSP, RBP);
+             AND (IMMEDIATE (-16), RSP);
+             CALL "strcmp";
+             MOV_reg (REG RBP, RSP);
+             POP RBP;
+
             MOV_reg (REG RAX, RDI);
             XOR (RAX, RAX);
             TEST (RDI, RDI);
@@ -283,7 +297,15 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         [
             MOV_reg ((get_symbol_storage s1), RDI);
             MOV_reg ((get_symbol_storage s2), RSI);
+
+            COMMENT "16 bit align stack before strcmp call";
+            PUSH RBP;
+            MOV_reg (REG RSP, RBP);
+            AND (IMMEDIATE (-16), RSP);
             CALL "strcmp";
+            MOV_reg (REG RBP, RSP);
+            POP RBP;
+
             MOV_reg (REG RAX, RDI);
             XOR (RAX, RAX);
             CMP (RAX, RDI);
@@ -294,7 +316,15 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         [
             MOV_reg ((get_symbol_storage s1), RDI);
             MOV_reg ((get_symbol_storage s2), RSI);
+            
+            COMMENT "16 bit align stack before strcmp call";
+            PUSH RBP;
+            MOV_reg (REG RSP, RBP);
+            AND (IMMEDIATE (-16), RSP);
             CALL "strcmp";
+            MOV_reg (REG RBP, RSP);
+            POP RBP;
+
             MOV_reg (REG RAX, RDI);
             XOR (RAX, RAX);
             CMP (RAX, RDI);
