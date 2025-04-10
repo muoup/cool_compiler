@@ -29,7 +29,7 @@ type asm_cmd =
     | DIV       of asm_reg
     | XOR       of asm_reg * asm_reg
 
-    | NEG       of asm_reg
+    | NEG       of asm_mem
     | NOT       of asm_reg
 
     | TEST      of asm_reg * asm_reg
@@ -156,6 +156,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
             format_cmd2 "movq" (asm_mem_to_string mem1) (asm_mem_to_string mem2)
         | _, _ ->
             format_cmd2 "movq" (asm_mem_to_string mem1) (asm_reg_to_string RAX);
+            output "\n";
             format_cmd2 "movq" (asm_reg_to_string RAX) (asm_mem_to_string mem2) 
         end
 
@@ -167,7 +168,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | MUL (mem, reg) -> format_cmd2 "imulq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | DIV reg -> format_cmd1 "idivl" (asm_reg32_to_string reg)
     | XOR (reg1, reg2) -> format_cmd2 "xorq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
-    | NEG reg -> format_cmd1 "negq" (asm_reg_to_string reg)
+    | NEG mem -> format_cmd1 "negq" (asm_mem_to_string mem)
 
     | TEST (reg1, reg2) -> format_cmd2 "testq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
     | CMP (reg1, reg2) -> format_cmd2 "cmpl" (asm_reg32_to_string reg1) (asm_reg32_to_string reg2)

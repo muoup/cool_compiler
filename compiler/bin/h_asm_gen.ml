@@ -78,15 +78,15 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
         ]
     | "Object.type_name" ->
         [
-            MOV_reg (LABEL (obj_name_mem_gen class_name), RAX);
+            MOV     (LABEL (obj_name_mem_gen class_name), REG RAX);
             RET
         ]
     | "Object.abort" ->
         [
-            MOV_reg (LABEL "abort_msg", RDI);
+            MOV     (LABEL "abort_msg", REG RDI);
             CALL "puts";
 
-            MOV_reg (IMMEDIATE 1, RDI);
+            MOV     (IMMEDIATE 1, REG RDI);
             CALL "exit";
         ]
     | "Object.copy" ->
@@ -103,7 +103,7 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
         ]
     | "String.length" ->
         [
-            MOV_reg (REG R12, RDI);
+            MOV     (REG R12, REG RDI);
             CALL "strlen";
             RET;
         ]
@@ -121,99 +121,96 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     match tac_cmd with
     | TAC_add (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
+            MOV     ((get_symbol_storage a), REG RAX);
             ADD     ((get_symbol_storage b), RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_sub (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
+            MOV     ((get_symbol_storage a), REG RAX);
             SUB     ((get_symbol_storage b), RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_mul (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
+            MOV     ((get_symbol_storage a), REG RAX);
             MUL     ((get_symbol_storage b), RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_div (line_number, id, a, b) ->
         [
-            COMMENT "Division by zero check";
-            MOV_reg (IMMEDIATE line_number, RSI);
-            MOV_reg32 ((get_symbol_storage b), RBX);
-            TEST (RBX, RBX);
-            JZ "error_div_zero";
+            COMMENT     "Division by zero check";
+            MOV         (IMMEDIATE line_number, REG RSI);
+            MOV_reg32   ((get_symbol_storage b), RBX);
+            TEST        (RBX, RBX);
+            JZ          "error_div_zero";
 
             COMMENT "Division";
             MOV_reg32 ((get_symbol_storage a), RAX);
             MISC "cdq";
             DIV RBX;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_lt (id, a, b) -> 
         [
-            MOV_reg ((get_symbol_storage a), RBX);
-            MOV_reg ((get_symbol_storage b), RCX);
+            MOV     ((get_symbol_storage a), REG RBX);
+            MOV     ((get_symbol_storage b), REG RCX);
             XOR (RAX, RAX);
             CMP (RCX, RBX);
             SETL;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_lte (id, a, b) -> 
         [
-            MOV_reg ((get_symbol_storage a), RBX);
-            MOV_reg ((get_symbol_storage b), RCX);
+            MOV     ((get_symbol_storage a), REG RBX);
+            MOV     ((get_symbol_storage b), REG RCX);
             XOR (RAX, RAX);
             CMP (RCX, RBX);
             SETLE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_eq (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RBX);
-            MOV_reg ((get_symbol_storage b), RCX);
+            MOV     ((get_symbol_storage a), REG RBX);
+            MOV     ((get_symbol_storage b), REG RCX);
             XOR (RAX, RAX);
             CMP (RBX, RCX);
             SETE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_int (id, i) ->
         [
-            MOV_imem (i, get_symbol_storage id);
+            MOV     (IMMEDIATE i, get_symbol_storage id);
         ]
     | TAC_str (id, s) ->
         let str_id = fst @@ List.find (fun (_, _s) -> _s = s) asm_data.strlit_map in
         
         [
-            MOV_reg (LABEL str_id, RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (LABEL str_id, REG RAX);
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_bool (id, b) ->
         let bool_val = if b then 1 else 0 in
 
         [
-            MOV_reg (IMMEDIATE bool_val, RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (IMMEDIATE bool_val, get_symbol_storage id);
         ]
     | TAC_ident (id, s) ->
         [
-            MOV_reg ((get_symbol_storage s), RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (get_symbol_storage s, get_symbol_storage id)
         ]
     | TAC_neg (id, a) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            NEG RAX;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (get_symbol_storage a, get_symbol_storage id);
+            NEG     (get_symbol_storage id);
         ]
     | TAC_not (id, a) ->
         [
-            XOR  (RAX, RAX);
-            MOV_reg ((get_symbol_storage a), RBX);
-            TEST (RBX, RBX);
+            XOR     (RAX, RAX);
+            MOV     (get_symbol_storage a, REG RBX);
+            TEST    (RBX, RBX);
             SETE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_call (id, method_name, args) ->
         let arg_cmds = List.concat @@ List.map (fun arg -> 
@@ -253,76 +250,73 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
 
     | TAC_str_eq  (id, s1, s2) ->
         [
-            MOV_reg ((get_symbol_storage s1), RDI);
-            MOV_reg ((get_symbol_storage s2), RSI);
-            CALL "strcmp";
-            MOV_reg (REG RAX, RDI);
-            XOR (RAX, RAX);
-            TEST (RDI, RDI);
+            MOV     ((get_symbol_storage s1), REG RDI);
+            MOV     ((get_symbol_storage s2), REG RSI);
+            CALL    "strcmp";
+            MOV     (REG RAX, REG RDI);
+            XOR     (RAX, RAX);
+            TEST    (RDI, RDI);
             SETE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_str_lt (id, s1, s2) ->
         [
-            MOV_reg ((get_symbol_storage s1), RDI);
-            MOV_reg ((get_symbol_storage s2), RSI);
+            MOV     ((get_symbol_storage s1), REG RDI);
+            MOV     ((get_symbol_storage s2), REG RSI);
             CALL "strcmp";
-            MOV_reg (REG RAX, RDI);
-            XOR (RAX, RAX);
-            CMP (RAX, RDI);
+            MOV     (REG RAX, REG RDI);
+            XOR     (RAX, RAX);
+            CMP     (RAX, RDI);
             SETL;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_str_lte (id, s1, s2) ->
         [
-            MOV_reg ((get_symbol_storage s1), RDI);
-            MOV_reg ((get_symbol_storage s2), RSI);
-            CALL "strcmp";
-            MOV_reg (REG RAX, RDI);
-            XOR (RAX, RAX);
-            CMP (RAX, RDI);
+            MOV     ((get_symbol_storage s1), REG RDI);
+            MOV     ((get_symbol_storage s2), REG RSI);
+            CALL    "strcmp";
+            MOV     (REG RAX, REG RDI);
+            XOR     (RAX, RAX);
+            CMP     (RAX, RDI);
             SETLE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
 
     | TAC_default (id, _type) ->
         (match _type with
         | "String" ->
             [
-                MOV_reg (LABEL "default_string", RAX);
-                MOV_mem (RAX, get_symbol_storage id)
+                MOV     (LABEL "default_string", get_symbol_storage id);
             ]
         | _ ->
             [
-                MOV_reg (IMMEDIATE 0, RAX);
-                MOV_mem (RAX, get_symbol_storage id)
+                MOV     (IMMEDIATE 0, get_symbol_storage id);
             ])
 
     | TAC_label label -> [LABEL label]
     | TAC_jmp label -> [JMP label]
     | TAC_bt (id, label) ->
         [
-            MOV_reg ((get_symbol_storage id), RAX);
+            MOV     (get_symbol_storage id, REG RAX);
             TEST (RAX, RAX);
             JNZ label
         ]
     | TAC_return id ->
         [
-            MOV_reg ((get_symbol_storage id), RAX);
+            MOV     (get_symbol_storage id, REG RAX);
             RET
         ]
     | TAC_comment s -> [COMMENT s]
     | TAC_new (id, name) ->
         [
-            CALL (constructor_name_gen name);
-            MOV_mem (RAX, (get_symbol_storage id))
+            CALL    (constructor_name_gen name);
+            MOV     (REG RAX, (get_symbol_storage id))
         ]
 
     | TAC_attribute { object_id; attribute_id; value } ->
         [
-            MOV_reg ((get_symbol_storage object_id), RAX);
-            MOV_reg ((get_symbol_storage value), RBX);
-            MOV_mem (RBX, REG_offset (RAX, 24 + 8 * attribute_id))
+            MOV     (get_symbol_storage object_id, REG RSI);
+            MOV     (get_symbol_storage value, REG_offset (RSI, 24 + 8 * attribute_id))
         ]
 
     (* Object creation *)
@@ -353,17 +347,17 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
 
     | TAC_isvoid (store, _val) -> 
         [
-            MOV_reg     (get_symbol_storage _val, RBX);
+            MOV         (get_symbol_storage _val, REG RBX);
             XOR         (RAX, RAX);
             TEST        (RBX, RBX);
             SETE;
-            MOV_mem     (RAX, get_symbol_storage store);
+            MOV         (REG RAX, get_symbol_storage store);
         ]
 
     | TAC_void_check (line_number, object_id, error) ->
         [
-            MOV_reg     (IMMEDIATE line_number, RSI);
-            MOV_reg     (get_symbol_storage object_id, RAX);
+            MOV         (IMMEDIATE line_number, REG RSI);
+            MOV         (get_symbol_storage object_id, REG RAX);
             TEST        (RAX, RAX);
             JE          error
         ]
