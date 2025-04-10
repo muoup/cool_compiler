@@ -82,18 +82,25 @@ let tac_gen_expr_body
         | "Object", "Int"
         | "Object", "String"
         | "Object", "Bool" ->
+            free_temp value;
             let _val = temp_id () in
             _val, [TAC_call (_val, "lift_val", [value])]
         | "Int", "Object" ->
+            free_temp value;
             let _val = temp_id () in
             _val, [TAC_call (_val, "unlift_int", [value])]
         | "String", "Object" ->
+            free_temp value;
             let _val = temp_id () in
             _val, [TAC_call (_val, "unlift_string", [value])]
         | "Bool", "Object" ->
+            free_temp value;
             let _val = temp_id () in
             _val, [TAC_call (_val, "unlift_bool", [value])]
-        | _ -> value, []
+        | _ ->
+            free_temp value;
+            let _val = temp_id () in
+            _val, [TAC_ident (_val, value)]
     in
 
     let rec escape_backslashes s =
@@ -125,8 +132,6 @@ let tac_gen_expr_body
                         let arg_id, arg_cmds = rec_tac_gen arg in
                         let casted_id, casted_cmds = cast_val arg_id arg._type _type in
 
-                        free_temp casted_id;
-
                         casted_id, arg_cmds @ casted_cmds
                 )
             |> List.split
@@ -140,7 +145,9 @@ let tac_gen_expr_body
             let var_type = find_symbol_type var.name in
             let casted_id, casted_cmds = cast_val rhs_id rhs._type var_type in
 
-            (casted_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
+            free_temp casted_id;
+
+            (var_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
         | DynamicDispatch   { call_on; _method; args } ->
             let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
 
@@ -148,6 +155,9 @@ let tac_gen_expr_body
 
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args arg_types args in
+
+            List.iter (free_temp) args_ids;
+            free_temp obj_id;
 
             let self_id = temp_id () in
 
@@ -182,8 +192,11 @@ let tac_gen_expr_body
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let return_type, arg_types = get_method_signature data _type.name _method.name in
 
-            let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args arg_types args in
+            let (obj_id, obj_cmds) = rec_tac_gen call_on in
+            
+            free_temp obj_id;
+            List.iter (free_temp) args_ids;
             
             let self_id = temp_id () in
             let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
@@ -202,13 +215,13 @@ let tac_gen_expr_body
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
             let casted_id, casted_cmds = cast_val self_id return_type _type.name in
 
-            List.iter (free_temp) args_ids;
-
             (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
 
             let (args_ids, args_cmds) = gen_args arg_types args in
+            List.iter (free_temp) args_ids;
+
             let self_id = temp_id () in
             let comment = TAC_comment ("SelfDispatch: " ^ _method.name) in
 
@@ -229,30 +242,28 @@ let tac_gen_expr_body
                 args = Self :: args_ids;
             } in
 
-            let casted_id, casted_cmds = cast_val self_id return_type class_name in
-
-            List.iter (free_temp) args_ids;
-            
+            let casted_id, casted_cmds = cast_val self_id return_type class_name in            
             (casted_id, List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
         | If                { predicate; _then; _else } ->
-            let (cond_id, cond_cmds) = rec_tac_gen predicate in
-            free_temp cond_id;
-            let (then_id, then_cmds) = rec_tac_gen _then in
-            free_temp then_id;
-            let (else_id, else_cmds) = rec_tac_gen _else in
-            free_temp else_id;
-
             (* This isn't strictly correct, but to the compiler, all that matters is whether a
                type is a lifted int/string/bool or an object. *)
             let merge_type = match _then._type, _else._type with
-                | "Int", "Int" -> "Int"
-                | "String", "String" -> "String"
-                | "Bool", "Bool" -> "Bool"
-                | _ -> "Object"
+               | "Int", "Int" -> "Int"
+               | "String", "String" -> "String"
+               | "Bool", "Bool" -> "Bool"
+               | _ -> "Object"
             in
 
+            let (cond_id, cond_cmds) = rec_tac_gen predicate in
+            free_temp cond_id;
+
+            let (then_id, then_cmds) = rec_tac_gen _then in
             let casted_then_id, casted_then_cmds = cast_val then_id _then._type merge_type in
+            free_temp casted_then_id;
+            
+            let (else_id, else_cmds) = rec_tac_gen _else in
             let casted_else_id, casted_else_cmds = cast_val else_id _else._type merge_type in
+            free_temp casted_else_id;
             
             let self_id = temp_id () in
 
@@ -296,9 +307,19 @@ let tac_gen_expr_body
 
             (self_id, condition @ body_ @ [label_merge])
         | Block            { body } ->
-            let (ids, cmds) = List.split (List.map rec_tac_gen body) in
+            let rec rec_gen exprs =
+                match exprs with
+                | x :: [] ->
+                    rec_tac_gen x
+                | x :: xs ->
+                    let x_id, x_cmds = rec_tac_gen x in
+                    free_temp x_id;
+                    let id, cmds = rec_gen xs in
+                    id, x_cmds @ cmds
+                | [] -> failwith "Empty block!"
+            in
 
-            (last_id ids, List.concat cmds)
+            rec_gen body
         | New              { _class } ->
             let self_id = temp_id () in
 
@@ -313,12 +334,16 @@ let tac_gen_expr_body
         | IsVoid           { expr } ->
             let (expr_id, expr_cmds) = rec_tac_gen expr in
 
+            free_temp expr_id;
+
+            let self_id = temp_id () in
+
             begin match expr._type with
             (* isvoid on intrinsic types is always false *)
             | "String" | "Int" | "Bool" -> 
-                (expr_id, expr_cmds @ [TAC_bool (expr_id, false)])
+                (self_id, expr_cmds @ [TAC_bool (self_id, false)])
             | _ -> 
-                (expr_id, expr_cmds @ [TAC_isvoid (expr_id, expr_id)])
+                (self_id, expr_cmds @ [TAC_isvoid (self_id, expr_id)])
             end
         | BinOp             { left; right; op } ->
             let (lhs_id, lhs_cmds) = rec_tac_gen left in
@@ -420,11 +445,22 @@ let tac_gen_expr_body
 
             (in_id, init_cmds @ in_cmds)
         | Case              { expression; mapping_list } ->
+            let case_memory = local_id () in
+
             let (expr_id, expr_cmds) = rec_tac_gen expression in
+            let expr_cmds = expr_cmds @ [TAC_ident (case_memory, expr_id)] in
+
             let merge_type = expr._type in
 
             let merge_val = temp_id () in
             let type_name = temp_id () in
+            let cond = temp_id () in
+            let str = temp_id () in
+
+            free_temp expr_id;
+            free_temp type_name;
+            free_temp cond;
+            free_temp str;
 
             let type_cmd =
                 match expression._type with
@@ -452,17 +488,17 @@ let tac_gen_expr_body
             let jumps, bodies = List.split @@ List.map (
                 fun (mapping : ast_case_mapping) ->
                     let label = label_id () ^ "_case" in
-
-                    let casted_id, casted_cmds = cast_val expr_id expression._type mapping._type.name in
+                    let casted_id, casted_cmds = cast_val case_memory expression._type mapping._type.name in
 
                     add_symbol mapping.name.name casted_id mapping._type.name;
                     let body_id, body_cmds = rec_tac_gen mapping.maps_to in
-                    remove_symbol mapping.name.name;
-
                     let casted_body_id, cast_body_cmds = cast_val body_id mapping.maps_to._type merge_type in
+                    remove_symbol mapping.name.name;
+                    free_temp casted_body_id;
 
-                    let cond = temp_id () in
-                    let str = temp_id () in
+                    let casted_cmds = casted_cmds @ [
+                        TAC_ident (case_memory, casted_id)
+                    ] in
 
                     let jump = [
                         TAC_str (str, mapping._type.name);

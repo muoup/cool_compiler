@@ -381,7 +381,7 @@ let generate_asm (method_tac : method_tac) : asm_method =
         stack_map = generate_stack_map method_tac;
     } in
 
-    let stack_space = (method_tac.locals + method_tac.temps) * 8 in
+    let stack_space = (method_tac.locals + method_tac.temps + 1) * 8 in
 
     let cmds = 
         List.concat @@ 
