@@ -139,16 +139,16 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         ]
     | TAC_div (line_number, id, a, b) ->
         [
-            COMMENT     "Division by zero check";
-            MOV         (IMMEDIATE line_number, REG RSI);
-            MOV_reg32   ((get_symbol_storage b), RBX);
-            TEST        (RBX, RBX);
-            JZ          "error_div_zero";
+            COMMENT "Division by zero check";
+            MOV     (IMMEDIATE line_number, REG RSI);
+            MOV32   ((get_symbol_storage b), REG RBX);
+            TEST    (RBX, RBX);
+            JZ      "error_div_zero";
 
             COMMENT "Division";
-            MOV_reg32 ((get_symbol_storage a), RAX);
-            MISC "cdq";
-            DIV RBX;
+            MOV32   ((get_symbol_storage a), REG RAX);
+            MISC    "cdq";
+            DIV     RBX;
             MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_lt (id, a, b) -> 
@@ -214,7 +214,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         ]
     | TAC_call (id, method_name, args) ->
         let arg_cmds = List.concat @@ List.map (fun arg -> 
-            let load = MOV_reg ((get_symbol_storage arg), RAX) in    
+            let load = MOV ((get_symbol_storage arg), REG RAX) in    
             let push = PUSH (REG RAX) in
 
             [load; push]
@@ -224,21 +224,21 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
 
         arg_cmds @ [
             CALL method_name;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV (REG RAX, get_symbol_storage id)
         ] @ pop_cmds
 
     | TAC_dispatch { line_number; store; obj; method_id; args } ->
         let load_vtable = [
             COMMENT ("Load Vtable ID " ^ (string_of_int method_id));
-            MOV_reg (get_symbol_storage obj, RAX);
-            MOV_reg (REG_offset (RAX, 16), RAX);
-            MOV_reg (REG_offset (RAX, 8 * method_id), RAX);
+            MOV     (get_symbol_storage obj, REG RAX);
+            MOV     (REG_offset (RAX, 16), REG RAX);
+            MOV     (REG_offset (RAX, 8 * method_id), REG RAX);
             CALL_indirect RAX;
-            MOV_mem (RAX, get_symbol_storage store)
+            MOV     (REG RAX, get_symbol_storage store)
         ] in
 
         let arg_cmds = List.concat @@ List.map (fun arg -> 
-            let load = MOV_reg ((get_symbol_storage arg), RAX) in    
+            let load = MOV  ((get_symbol_storage arg), REG RAX) in    
             let push = PUSH (REG RAX) in
 
             [load; push]

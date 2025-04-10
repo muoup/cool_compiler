@@ -14,14 +14,8 @@ type asm_mem =
 type asm_cmd =
     | FRAME     of int 
 
-    | MOV_reg   of asm_mem * asm_reg
-    | MOV_imem  of int     * asm_mem
-    | MOV_mem   of asm_reg * asm_mem
-
     | MOV       of asm_mem * asm_mem
-
-    | MOV_reg32 of asm_mem * asm_reg
-    | MOV_mem32 of asm_reg * asm_mem
+    | MOV32     of asm_mem * asm_mem
 
     | ADD       of asm_mem * asm_reg
     | SUB       of asm_mem * asm_reg
@@ -141,10 +135,6 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         format_cmd2 "movq" "16(%rbp)" "%r12";
         output "\n";
 
-    | MOV_reg (mem, reg) -> format_cmd2 "movq" (asm_mem_to_string mem) (asm_reg_to_string reg)
-    | MOV_imem (i, reg)  -> format_cmd2 "movq" (asm_mem_to_string (IMMEDIATE i)) (asm_mem_to_string reg)
-    | MOV_mem (reg, mem) -> format_cmd2 "movq" (asm_reg_to_string reg) (asm_mem_to_string mem)
-
     | MOV     (mem1, mem2) ->
         begin match mem1, mem2 with
         | REG reg1, _ ->
@@ -160,9 +150,21 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
             format_cmd2 "movq" (asm_reg_to_string RAX) (asm_mem_to_string mem2) 
         end
 
-    | MOV_reg32 (mem, reg) -> format_cmd2 "movl" (asm_mem32_to_string mem) (asm_reg32_to_string reg)
-    | MOV_mem32 (reg, mem) -> format_cmd2 "movl" (asm_reg32_to_string reg) (asm_mem32_to_string mem)
-    
+    | MOV32     (mem1, mem2) ->
+        begin match mem1, mem2 with
+        | REG reg1, _ ->
+            format_cmd2 "movl" (asm_reg32_to_string reg1) (asm_mem32_to_string mem2)
+        | _, REG reg2 ->
+            format_cmd2 "movl" (asm_mem32_to_string mem1) (asm_reg32_to_string reg2)
+        | LABEL _, _
+        | IMMEDIATE _, _ ->
+            format_cmd2 "movl" (asm_mem32_to_string mem1) (asm_mem32_to_string mem2)
+        | _, _ ->
+            format_cmd2 "movl" (asm_mem32_to_string mem1) (asm_reg32_to_string RAX);
+            output "\n";
+            format_cmd2 "movl" (asm_reg32_to_string RAX) (asm_mem32_to_string mem2) 
+        end
+
     | ADD (mem, reg) -> format_cmd2 "addq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | SUB (mem, reg) -> format_cmd2 "subq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MUL (mem, reg) -> format_cmd2 "imulq" (asm_mem_to_string mem) (asm_reg_to_string reg)
