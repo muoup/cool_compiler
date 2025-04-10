@@ -150,7 +150,8 @@ let tac_gen_expr_body
                     (self_id, obj_cmds @ List.concat args_cmds @ [comment; TAC_ident (self_id, obj_id)])
                 else
                     let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-                    (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
+                    let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
+                    (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
             else
 
             let method_id = get_dispatch data call_on_type _method.name in
@@ -411,35 +412,55 @@ let tac_gen_expr_body
             in
 
             let cmds = expr_cmds @ type_cmd in
-
             let merge_label = label_id () ^ "_case_merge" in
 
-            let jumps, bodies = List.split @@ List.map (
-                fun (mapping : ast_case_mapping) ->
-                    let label = label_id () ^ "_case" in
+            let generate_case_commands (mapping : ast_case_mapping) =
+                let label = label_id () ^ "_case" in
+                let casted_id, casted_cmds = cast_val expr_id expression._type mapping._type.name in
 
-                    let casted_id, casted_cmds = cast_val expr_id expression._type mapping._type.name in
+                add_symbol mapping.name.name casted_id mapping._type.name;
+                let body_id, body_cmds = rec_tac_gen mapping.maps_to in
+                remove_symbol mapping.name.name;
 
-                    add_symbol mapping.name.name casted_id mapping._type.name;
-                    let body_id, body_cmds = rec_tac_gen mapping.maps_to in
-                    remove_symbol mapping.name.name;
+                let casted_body_id, cast_body_cmds = cast_val body_id mapping.maps_to._type merge_type in
 
-                    let casted_body_id, cast_body_cmds = cast_val body_id mapping.maps_to._type merge_type in
+                let cond = temp_id () in
+                let str = temp_id () in
 
-                    let cond = temp_id () in
-                    let str = temp_id () in
+                let trace = [mapping._type.name] @ get_subtypes data mapping._type.name in
 
-                    let jump = [
-                        TAC_str (str, mapping._type.name);
-                        TAC_str_eq (cond, type_name, str);
-                        TAC_bt (cond, label)
-                    ] in
+                let jump = match mapping._type.name with
+                    | "Object" -> [TAC_jmp label]
+                    | name ->
+                        trace
+                        |> List.map (
+                            fun _type ->
+                                [
+                                    TAC_str (str, _type);
+                                    TAC_str_eq (cond, type_name, str);
+                                    TAC_bt (cond, label)
+                                ]
+                            ) 
+                        |> List.concat
+                in
 
-                    jump, TAC_label label :: casted_cmds @ body_cmds @ cast_body_cmds @ [
-                        TAC_ident (merge_val, casted_body_id);
-                        TAC_jmp merge_label
-                    ]
-            ) mapping_list in
+                jump, TAC_label label :: casted_cmds @ body_cmds @ cast_body_cmds @ [
+                    TAC_ident (merge_val, casted_body_id);
+                    TAC_jmp merge_label
+                ]
+            in
+
+            let jumps, bodies = 
+                mapping_list
+                |> List.sort (fun (m1 : ast_case_mapping) (m2 : ast_case_mapping) -> 
+                    compare
+                        (type_order data m1._type.name)
+                        (type_order data m2._type.name)
+                    )
+                |> List.rev
+                |> List.map (generate_case_commands)
+                |> List.split
+            in
 
             let match_fail = [
                 TAC_inline_assembly ("movq\t  $" ^ string_of_int expr.ident.line_number ^ ", %rsi");
