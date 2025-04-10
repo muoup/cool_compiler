@@ -82,13 +82,17 @@ let tac_gen_expr_body
         | "Object", "Int"
         | "Object", "String"
         | "Object", "Bool" ->
-            value, [TAC_call (value, "lift_val", [value])]
+            let _val = temp_id () in
+            _val, [TAC_call (_val, "lift_val", [value])]
         | "Int", "Object" ->
-            value, [TAC_call (value, "unlift_int", [value])]
+            let _val = temp_id () in
+            _val, [TAC_call (_val, "unlift_int", [value])]
         | "String", "Object" ->
-            value, [TAC_call (value, "unlift_string", [value])]
+            let _val = temp_id () in
+            _val, [TAC_call (_val, "unlift_string", [value])]
         | "Bool", "Object" ->
-            value, [TAC_call (value, "unlift_bool", [value])]
+            let _val = temp_id () in
+            _val, [TAC_call (_val, "unlift_bool", [value])]
         | _ -> value, []
     in
 
@@ -120,6 +124,8 @@ let tac_gen_expr_body
                     fun (arg, _type) ->
                         let arg_id, arg_cmds = rec_tac_gen arg in
                         let casted_id, casted_cmds = cast_val arg_id arg._type _type in
+
+                        free_temp casted_id;
 
                         casted_id, arg_cmds @ casted_cmds
                 )
@@ -172,9 +178,7 @@ let tac_gen_expr_body
                 args = obj_id :: args_ids;
             } in
 
-            let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
-
-            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd] @ casted_cmds))
+            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd]))
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let return_type, arg_types = get_method_signature data _type.name _method.name in
 
