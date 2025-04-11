@@ -150,8 +150,7 @@ let tac_gen_expr_body
                     (self_id, obj_cmds @ List.concat args_cmds @ [comment; TAC_ident (self_id, obj_id)])
                 else
                     let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-                    let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
-                    (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
+                    (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
             else
 
             let method_id = get_dispatch data call_on_type _method.name in
@@ -164,9 +163,7 @@ let tac_gen_expr_body
                 args = obj_id :: args_ids;
             } in
 
-            let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
-
-            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd] @ casted_cmds))
+            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd]))
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let return_type, arg_types = get_method_signature data _type.name _method.name in
 
@@ -188,9 +185,7 @@ let tac_gen_expr_body
             let dispatch = method_name_gen _type.name _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-            let casted_id, casted_cmds = cast_val self_id return_type _type.name in
-
-            (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
+            (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
 
@@ -214,10 +209,8 @@ let tac_gen_expr_body
                 method_id = dispatch;
                 args = Self :: args_ids;
             } in
-
-            let casted_id, casted_cmds = cast_val self_id return_type class_name in
-            
-            (casted_id, List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
+        
+            (self_id, List.concat args_cmds @ [comment; call_cmd])
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             let (then_id, then_cmds) = rec_tac_gen _then in
@@ -273,7 +266,7 @@ let tac_gen_expr_body
             let condition = label_cond :: cond_cmds @ [bt_cmd; jmp_cmd] in
             let body_ = label_body :: body_cmds @ [TAC_jmp cond_name] in
 
-            (self_id, condition @ body_ @ [label_merge])
+            (self_id, condition @ body_ @ [label_merge] @ [TAC_int (self_id, 0)])
         | Block            { body } ->
             let (ids, cmds) = List.split (List.map rec_tac_gen body) in
 
@@ -469,7 +462,7 @@ let tac_gen_expr_body
 
             (merge_val, cmds @ List.concat jumps @ match_fail @ List.concat bodies @ [TAC_label merge_label])
         | Internal         _ -> 
-            (temp_id (), [TAC_comment "Internal expression not implemented"])
+            failwith "TAC_internal should not be reachable from tac_gen_expr_body"
     in
 
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
