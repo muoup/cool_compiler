@@ -114,16 +114,9 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
     | "String.length" ->
         [
             MOV_reg (REG R12, RDI);
-
-             COMMENT "16 bit align stack before strlen call";
-             PUSH RBP;
-             MOV_reg (REG RSP, RBP);
+             COMMENT "16 byte align stack before strlen call";
              AND (IMMEDIATE (-16), RSP);
              CALL "strlen";
-             MOV_reg (REG RBP, RSP);
-             POP RBP;
-
-
             RET;
         ]
     | x -> 
@@ -279,13 +272,9 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             MOV_reg ((get_symbol_storage s1), RDI);
             MOV_reg ((get_symbol_storage s2), RSI);
             
-             COMMENT "16 bit align stack before strcmp call";
-             PUSH RBP;
-             MOV_reg (REG RSP, RBP);
+             COMMENT "16 byte align stack before strcmp call";
              AND (IMMEDIATE (-16), RSP);
-             CALL "strcmp";
-             MOV_reg (REG RBP, RSP);
-             POP RBP;
+             CALL "my_strcmp";
 
             MOV_reg (REG RAX, RDI);
             XOR (RAX, RAX);
@@ -298,13 +287,9 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             MOV_reg ((get_symbol_storage s1), RDI);
             MOV_reg ((get_symbol_storage s2), RSI);
 
-            COMMENT "16 bit align stack before strcmp call";
-            PUSH RBP;
-            MOV_reg (REG RSP, RBP);
+            COMMENT "16 byte align stack before strcmp call";
             AND (IMMEDIATE (-16), RSP);
-            CALL "strcmp";
-            MOV_reg (REG RBP, RSP);
-            POP RBP;
+            CALL "my_strcmp";
 
             MOV_reg (REG RAX, RDI);
             XOR (RAX, RAX);
@@ -317,13 +302,9 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             MOV_reg ((get_symbol_storage s1), RDI);
             MOV_reg ((get_symbol_storage s2), RSI);
             
-            COMMENT "16 bit align stack before strcmp call";
-            PUSH RBP;
-            MOV_reg (REG RSP, RBP);
+            COMMENT "16 byte align stack before strcmp call";
             AND (IMMEDIATE (-16), RSP);
-            CALL "strcmp";
-            MOV_reg (REG RBP, RSP);
-            POP RBP;
+            CALL "my_strcmp";
 
             MOV_reg (REG RAX, RDI);
             XOR (RAX, RAX);

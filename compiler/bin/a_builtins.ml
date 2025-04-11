@@ -256,6 +256,41 @@ copy:
     leave
     ret
 
+# Custom string comparison because strcmp was breaking
+# in some subtle, weird way. Like calling strcmp(%rdi, %rsi)
+# Returns <0 if rdi < rsi, 0 if rdi = rsi, >0 if rdi > rsi
+
+    .text
+    .globl my_strcmp
+    .type  my_strcmp, @function
+my_strcmp:
+    pushq %rbp
+    movq %rsp, %rbp
+    xorq %rcx, %rcx
+
+strcmp_iter:
+    movq $0, %r14
+    movq $0, %r15
+    addq %rdi, %r14
+    addq %rcx, %r14
+    movq (%r14), %r12
+    addq %rsi, %r15
+    addq %rcx, %r15
+    movq (%r15), %r13
+    cmpq %r12, %r13
+    jne strcmp_end
+    cmpq $0, %r12
+    je strcmp_end
+    incq %rcx
+    jmp strcmp_iter
+
+strcmp_end:
+    subq %r13, %r12
+    movq %r12, %rax
+    movq %rbp, %rsp
+    popq %rbp
+    ret
+
     .text
     .globl concat
     .type  concat, @function
