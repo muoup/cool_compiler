@@ -384,6 +384,87 @@ lift_val:
     movq    24(%rax), %rax
     ret
 
+    .text
+    .globl ambigious_compare
+    .type  ambigious_compare, @function
+ambigious_compare:
+    push    %rbp
+    movq    %rsp, %rbp
+    subq    $16, %rsp
+
+    movq    16(%rbp), %rax    
+    movq    (%rax), %rax
+    movq    %rax, -8(%rbp)
+    movq    %rax, %rdi
+    
+    movq    24(%rbp), %rax
+    movq    (%rax), %rax
+    movq    %rax, -16(%rbp)
+    movq    %rax, %rsi
+
+    callq   strcmp                  # Case 1: Type1 != Type2 -> Standard Pointer-based Compare
+    testq   %rax, %rax
+    jne     .standard_compare 
+
+    movq    -8(%rbp), %rdi          # Case 2: Type1 = "Bool" -> Lift Value then Compare      
+    movq    $.objname_Bool, %rsi
+    callq   strcmp
+    testq   %rax, %rax
+    je      .int_bool_compare
+
+    movq    -8(%rbp), %rdi          # Case 3: Type1 = "Int" -> Lift Value then Compare
+    movq    $.objname_Int, %rsi
+    callq   strcmp
+    testq   %rax, %rax
+    je      .int_bool_compare
+
+    movq    -8(%rbp), %rdi          # Case 4: Type1 = "String" -> Lift Value then Compare
+    movq    $.objname_String, %rsi
+    callq   strcmp
+    testq   %rax, %rax
+    je      .string_compare
+
+    jmp     .standard_compare       # Case 5: Type1 == Type2 and the Type is Unlifted -> Standard Compare
+
+.string_compare:
+    movq    16(%rbp), %rdi
+    movq    24(%rdi), %rdi
+
+    movq    24(%rbp), %rsi
+    movq    24(%rsi), %rsi
+
+    callq   strcmp
+
+    leave
+    ret
+
+.int_bool_compare:
+    movq    16(%rbp), %rdi
+    movq    24(%rdi), %rdi
+    movq    %rdi, 16(%rbp)
+
+    movq    24(%rbp), %rsi
+    movq    24(%rsi), %rsi
+    movq    %rsi, 24(%rbp)
+
+#   Fall through into the standard compare
+
+.standard_compare:
+    movq    16(%rbp), %rdi
+    movq    24(%rbp), %rsi
+
+    xorq    %rax, %rax
+
+    cmpq    %rdi, %rsi
+    movq    $1, %rdi
+    movq    $-1, %rsi
+
+    cmovg   %rdi, %rax
+    cmovl   %rsi, %rax
+
+    leave
+    ret
+
     .section .rodata
 default_string:
     .string ""

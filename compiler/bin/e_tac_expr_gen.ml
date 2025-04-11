@@ -97,7 +97,6 @@ let tac_gen_expr_body
             aux (i + 1) ((String.make 1 s.[i]) :: acc)
         in
         aux 0 []
-    
     in
 
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
@@ -292,34 +291,81 @@ let tac_gen_expr_body
             | _ -> (self_id, expr_cmds @ [TAC_isvoid (self_id, expr_id)])
             end
         | BinOp             { left; right; op } ->
+            let ambigious_compare (left_id : tac_id) (right_id : tac_id) : tac_id * tac_cmd list =
+
+                let l_val, l_cmds = cast_val left_id left._type "Object" in
+                let r_val, r_cmds = cast_val right_id right._type "Object" in
+
+                let cmp_id = temp_id () in
+                let cmp = TAC_call (cmp_id, "ambigious_compare", [l_val; r_val]) in
+
+                cmp_id, l_cmds @ r_cmds @ [cmp]
+            in
+
             let (lhs_id, lhs_cmds) = rec_tac_gen left in
             let (rhs_id, rhs_cmds) = rec_tac_gen right in
             let self_id = temp_id () in
 
-            let cmd = match op with
-                | Plus      -> TAC_add (self_id, lhs_id, rhs_id)
-                | Minus     -> TAC_sub (self_id, lhs_id, rhs_id)
-                | Times     -> TAC_mul (self_id, lhs_id, rhs_id)
-                | Divide    -> TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id)
+            let cmds = match op with
+                | Plus      -> [ TAC_add (self_id, lhs_id, rhs_id) ]
+                | Minus     -> [ TAC_sub (self_id, lhs_id, rhs_id) ]
+                | Times     -> [ TAC_mul (self_id, lhs_id, rhs_id) ]
+                | Divide    -> [ TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id) ]
 
                 | LT        ->
-                    begin match left._type with
-                    | "String" -> TAC_str_lt (self_id, lhs_id, rhs_id)
-                    | _        -> TAC_lt (self_id, lhs_id, rhs_id)
+                    begin match left._type, right._type with
+                    | "Int", "Int"
+                    | "Bool", "Bool"     -> [ TAC_lt (self_id, lhs_id, rhs_id) ]
+                    | "String", "String" -> [ TAC_str_lt (self_id, lhs_id, rhs_id) ]
+
+                    | _, _ ->
+                        let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
+                        
+                        let zero = temp_id () in
+                        let to_cond = [
+                            TAC_int (zero, 0);
+                            TAC_lt  (self_id, cmp_id, zero);
+                        ] in
+
+                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
                     end
                 | LE        ->
-                    begin match left._type with
-                    | "String" -> TAC_str_lte (self_id, lhs_id, rhs_id)
-                    | _        -> TAC_lte (self_id, lhs_id, rhs_id)
+                    begin match left._type, right._type with
+                    | "Int", "Int"
+                    | "Bool", "Bool"     -> [ TAC_lte (self_id, lhs_id, rhs_id) ]
+                    | "String", "String" -> [ TAC_str_lte (self_id, lhs_id, rhs_id) ]
+
+                    | _, _ ->
+                        let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
+        
+                        let zero = temp_id () in
+                        let to_cond = [
+                            TAC_int  (zero, 0);
+                            TAC_lte  (self_id, cmp_id, zero);
+                        ] in
+
+                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
                     end
                 | EQ        -> 
-                    begin match left._type with
-                    | "String" -> TAC_str_eq (self_id, lhs_id, rhs_id)
-                    | _        -> TAC_eq (self_id, lhs_id, rhs_id)
+                    begin match left._type, right._type with
+                    | "Int", "Int"
+                    | "Bool", "Bool"     -> [ TAC_eq (self_id, lhs_id, rhs_id) ]
+                    | "String", "String" -> [ TAC_str_eq (self_id, lhs_id, rhs_id) ]
+
+                    | _, _ ->
+                        let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
+                        
+                        let zero = temp_id () in
+                        let to_cond = [
+                            TAC_int  (zero, 0);
+                            TAC_eq   (self_id, cmp_id, zero);
+                        ] in
+
+                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
                     end
             in
             
-            (self_id, lhs_cmds @ rhs_cmds @ [cmd])
+            (self_id, lhs_cmds @ rhs_cmds @ cmds)
         | UnOp             { expr; op } ->
             let (expr_id, expr_cmds) = rec_tac_gen expr in
             let self_id = temp_id () in
