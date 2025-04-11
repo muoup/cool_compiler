@@ -392,33 +392,39 @@ ambigious_compare:
     movq    %rsp, %rbp
     subq    $16, %rsp
 
-    movq    16(%rbp), %rax    
+    movq    16(%rbp), %rax
+    testq   %rax, %rax
+    je      .standard_compare       # Case 1: Type1 == Void -> Standard Compare
+
     movq    (%rax), %rax
     movq    %rax, -8(%rbp)
     movq    %rax, %rdi
     
     movq    24(%rbp), %rax
+    testq   %rax, %rax
+    je      .standard_compare       # Case 2: Type2 == Void -> Standard Compare
+
     movq    (%rax), %rax
     movq    %rax, -16(%rbp)
     movq    %rax, %rsi
 
-    callq   strcmp                  # Case 1: Type1 != Type2 -> Standard Pointer-based Compare
+    callq   strcmp                  # Case 3: Type1 != Type2 -> Standard Pointer-based Compare
     testq   %rax, %rax
     jne     .standard_compare 
 
-    movq    -8(%rbp), %rdi          # Case 2: Type1 = "Bool" -> Lift Value then Compare      
+    movq    -8(%rbp), %rdi          # Case 4: Type1 = "Bool" -> Lift Value then Compare      
     movq    $.objname_Bool, %rsi
     callq   strcmp
     testq   %rax, %rax
     je      .int_bool_compare
 
-    movq    -8(%rbp), %rdi          # Case 3: Type1 = "Int" -> Lift Value then Compare
+    movq    -8(%rbp), %rdi          # Case 5: Type1 = "Int" -> Lift Value then Compare
     movq    $.objname_Int, %rsi
     callq   strcmp
     testq   %rax, %rax
     je      .int_bool_compare
 
-    movq    -8(%rbp), %rdi          # Case 4: Type1 = "String" -> Lift Value then Compare
+    movq    -8(%rbp), %rdi          # Case 6: Type1 = "String" -> Lift Value then Compare
     movq    $.objname_String, %rsi
     callq   strcmp
     testq   %rax, %rax
@@ -455,7 +461,7 @@ ambigious_compare:
 
     xorq    %rax, %rax
 
-    cmpq    %rdi, %rsi
+    cmpq    %rsi, %rdi
     movq    $1, %rdi
     movq    $-1, %rsi
 
