@@ -443,7 +443,7 @@ let tac_gen_expr_body
             let merge_val = temp_id () in
             let type_name = temp_id () in
 
-            let type_cmd =
+            let type_cmd = 
                 match expression._type with
                 | "Int" | "String" | "Bool" -> 
                     let method_name = method_name_gen (expression._type) "type_name" in

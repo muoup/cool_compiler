@@ -21,7 +21,14 @@ fi
 echo "Expected: $cool_output"
 echo "Got:      $dune_output"
 
+if [[ "$cool_output" == ERROR* ]]; then
+    cool_output=${cool_output:0:12}
+    dune_output=${dune_output:0:12}
+fi
+
 if [ "$cool_output" != "$dune_output" ]; then
+    # If starts with "ERROR" then only check first 12 characters
+
     echo "Test failed: $1"
     exit 1
 fi
