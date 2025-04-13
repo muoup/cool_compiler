@@ -15,6 +15,22 @@ class Main inherits IO {
 
     main() : Object {
         out_int(
+            case
+                if isvoid out_string("Hello, world!") then
+                    self
+                else
+                    0
+                fi
+            of
+                i : Int => i;
+                o : Object => { abort(); 0; };
+            esac
+                .copy()
+                .type_name()
+                .length()
+
+            +
+
             o()
                 .copy()
                 .type_name()

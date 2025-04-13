@@ -135,17 +135,24 @@ let tac_gen_expr_body
 
             let self_id = temp_id () in
 
+            let lifted_type = 
+                match call_on._type with
+                | "Int" | "String" | "Bool" -> true
+                | _ -> false
+            in
+            
             let comment = TAC_comment ("DynamicDispatch: " ^ _method.name) in
-            let check_dispatch = [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")] in
+            let check_dispatch = 
+                if lifted_type then
+                    []
+                else
+                    [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")] 
+            in
 
             if not (StringSet.mem call_on._type data.overriden_classes) then
                 let dispatch = method_name_gen call_on_type _method.name in
 
-                if _method.name = "copy" && (
-                    call_on._type = "Int" ||
-                    call_on._type = "Bool" ||
-                    call_on._type = "String"
-                ) then
+                if _method.name = "copy" && lifted_type then
                     (self_id, obj_cmds @ List.concat args_cmds @ [comment; TAC_ident (self_id, obj_id)])
                 else
                     let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
@@ -170,13 +177,18 @@ let tac_gen_expr_body
             let (args_ids, args_cmds) = gen_args arg_types args in
             
             let self_id = temp_id () in
-            let check_dispatch = [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")] in
+            let lifted_type = 
+                match call_on._type with
+                | "Int" | "String" | "Bool" -> true
+                | _ -> false
+            in
+            let check_dispatch = if lifted_type then
+                []
+            else
+                [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")]
+            in
 
-            if _method.name = "copy" && (
-                _type.name = "Int" ||
-                _type.name = "Bool" ||
-                _type.name = "String"
-            ) then
+            if _method.name = "copy" && lifted_type then
                 (self_id, obj_cmds @ List.concat args_cmds @ [TAC_ident (self_id, obj_id)])
             else
 

@@ -13,7 +13,7 @@ class B inherits A {
 class Main inherits IO {
     main() : Object {
         let a : A <- new A,
-            b : B <- new B in
+            b : A <- new B in
         {
             a.print(self);
             b.print(self);
