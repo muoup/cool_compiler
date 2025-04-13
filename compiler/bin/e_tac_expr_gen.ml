@@ -136,7 +136,7 @@ let tac_gen_expr_body
             let self_id = temp_id () in
 
             let comment = TAC_comment ("DynamicDispatch: " ^ _method.name) in
-            let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
+            let check_dispatch = [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")] in
 
             if not (StringSet.mem call_on._type data.overriden_classes) then
                 let dispatch = method_name_gen call_on_type _method.name in
@@ -170,7 +170,7 @@ let tac_gen_expr_body
             let (args_ids, args_cmds) = gen_args arg_types args in
             
             let self_id = temp_id () in
-            let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
+            let check_dispatch = [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")] in
 
             if _method.name = "copy" && (
                 _type.name = "Int" ||
@@ -439,9 +439,9 @@ let tac_gen_expr_body
                     [ TAC_call (type_name, method_name, []) ]
                 | _ ->
                     [
-                        TAC_void_check (expression.ident.line_number, expr_id, "error_case_void");
+                        TAC_void_check (expr.ident.line_number, expr_id, "error_case_void");
                         TAC_dispatch { 
-                            line_number = expression.ident.line_number;
+                            line_number = expr.ident.line_number;
                             store = type_name; 
                             obj = expr_id;
                             method_id = 2; (* type_name *)
