@@ -124,7 +124,7 @@ let tac_gen_expr_body
             let var_type = find_symbol_type var.name in
             let casted_id, casted_cmds = cast_val rhs_id rhs._type var_type in
 
-            (casted_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
+            (rhs_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
         | DynamicDispatch   { call_on; _method; args } ->
             let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
 
