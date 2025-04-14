@@ -8,7 +8,6 @@ open C_parser_data
 open D_tac_data
 open F_tac_gen
 open G_metadata_output
-open G_tac_to_cfg
 open H_asm_data
 open H_asm_gen
 
@@ -42,15 +41,6 @@ let () =
 
     let program_data = organize_parser_data parsed_data in
     let method_tacs = generate_tac program_data in
-(* 
-    List.iter (fun (tac : method_tac) ->
-        Printf.printf "Method: %s\n" tac.method_name;
-        List.iter (fun tac_ -> print_tac_cmd (Printf.printf "%s\n") tac_) tac.commands;
-        Printf.printf "\n";
-    ) method_tacs; *)
-
-    (* Generate the CFG for each method *)
-
     let asm = List.map (generate_asm) method_tacs in
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
