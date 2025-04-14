@@ -17,8 +17,6 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
     let instantiate = TAC_object ( object_id, _class.name, attributes) in
     let return = TAC_return object_id in
     
-    (* TODO: Attribute initialization *)
-
     let constructor_name = constructor_name_gen _class.name in
 
     let default_attributes = List.flatten @@ List.map (

@@ -74,5 +74,3 @@ let f_id (id : tac_id) : string =
     | Attribute i   -> Printf.sprintf "A%d" i
     | Parameter i   -> Printf.sprintf "P%d" i
     | Self          -> "self"
-
-(* TODO: Reimplement tac output *)
