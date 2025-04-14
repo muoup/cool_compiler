@@ -4,9 +4,13 @@ class Derived inherits Base {};
 
 class Main inherits IO {
     main() : Object {
-        case (new Derived) of
+        let x : Base <- new Derived  in
+        case (x) of
             s : String => out_string("String");
-            o : Base => out_string("Base");
+            i : Int => out_int(1);
+            b : Base => out_string("Base");
+            d : Derived => out_string("Derived");
+            o : Object => out_string("Object");
         esac
     };
 };
