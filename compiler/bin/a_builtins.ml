@@ -27,7 +27,7 @@ __f_out_str:
     .text
     .globl out_string
     .type  out_string, @function
-#   1 arg (char*) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
+#   1 arg (char*) -> 8 call bytes + 8 arg bytes = 16-byte aligned stack
 out_string: 
     pushq   %rbp
     movq    %rsp, %rbp
@@ -105,7 +105,7 @@ __f_out_int:
     .text
     .globl out_int
     .type  out_int, @function
-#   1 arg (int) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
+#   1 arg (int) -> 8 call bytes + 8 arg bytes = 16-byte aligned stack
 out_int:
     movl    8(%rsp), %eax
     cdqe

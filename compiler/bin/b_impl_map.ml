@@ -34,7 +34,6 @@ let parse_implementation_map (data : parser_data) : (parser_data * impl_class li
     let data, first_line = parse_line data in
 
     if first_line <> "implementation_map" then
-        raise (Invalid_argument ("Expected implementation_map, got " ^ first_line))
-    ;
+        raise (Invalid_argument ("Expected implementation_map, got " ^ first_line));
 
     parse_list data parse_impl_class
