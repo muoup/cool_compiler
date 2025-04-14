@@ -41,8 +41,8 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
             match attr.init with
             | None -> []
             | Some init ->
-                let val_id, (tac_ids, tac_cmds) = tac_gen_expr_body data _class.name _class.name init symbol_table local_counter temp_counter in
-                
+                let val_id, (tac_ids, tac_cmds) = tac_gen_expr_body data _class.name attr._type init symbol_table local_counter temp_counter in
+
                 ids := !ids @ tac_ids;
 
                 tac_cmds @ [
