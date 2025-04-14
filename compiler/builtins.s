@@ -216,6 +216,12 @@ in_string:
     leave
     ret
 
+.in_string_fail:
+    movq    $__empty_string, %rax
+
+    leave
+    ret
+
     .text
     .globl copy
     .type  copy, @function

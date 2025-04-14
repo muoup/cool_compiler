@@ -12,6 +12,6 @@ class Main inherits IO {
     };
 
     main() : Object {
-        drop( get() ).get().get()
+        get().drop( get() )
     };
 };
