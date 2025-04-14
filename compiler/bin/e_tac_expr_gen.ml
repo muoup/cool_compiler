@@ -68,20 +68,25 @@ let tac_gen_expr_body
         (* Printf.printf "Casting %s (%s) to %s\n" (f_id value) val_type cast_type; *)
 
         match val_type, cast_type with
-        | "Object", "Int"
-        | "Object", "String"
-        | "Object", "Bool" ->
+        | "Int", "Int"
+        | "String", "String"
+        | "Bool", "Bool" -> value, []
+
+        | _, "Int"
+        | _, "String"
+        | _, "Bool" ->
             let temp = temp_id () in
             temp, [TAC_call (temp, "lift_val", [value])]
-        | "Int", "Object" ->
+        | "Int", _ ->
             let temp = temp_id () in
             temp, [TAC_call (temp, "unlift_int", [value])]
-        | "String", "Object" ->
+        | "String", _ ->
             let temp = temp_id () in
             temp, [TAC_call (temp, "unlift_string", [value])]
-        | "Bool", "Object" ->
+        | "Bool", _ ->
             let temp = temp_id () in
             temp, [TAC_call (temp, "unlift_bool", [value])]
+
         | _ -> value, []
     in
 
@@ -415,11 +420,13 @@ let tac_gen_expr_body
 
                     [TAC_default (id, _type.name)]
                 | LetBindingInit    { variable; _type; value } ->
+                    let id = local_id () in
+
                     let (rhs_id, rhs_cmds) = rec_tac_gen value in
                     let (casted_id, casted_cmds) = cast_val rhs_id value._type _type.name in
-                    add_symbol variable.name casted_id _type.name;
+                    add_symbol variable.name id _type.name;
 
-                    TAC_default (casted_id, _type.name) :: rhs_cmds @ casted_cmds
+                    TAC_default (id, _type.name) :: rhs_cmds @ casted_cmds @ [TAC_ident (id, casted_id)]
             in
 
             let tac_remove_binding (binding : ast_let_binding_type) : unit =

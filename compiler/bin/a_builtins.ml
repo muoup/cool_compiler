@@ -183,6 +183,47 @@ __empty_string:
 #   0 args      -> 8 call bytes = 8-byte off aligned stack
 in_string:
     pushq   %rbp
+    movq    %rsp, %rbp
+    subq    $16, %rsp
+
+    movq    $0, 8(%rsp)
+    movq    $0, (%rsp)
+
+    leaq    8(%rsp), %rdi
+    movq    %rsp, %rsi
+    movq    stdin(%rip), %rdx
+    callq   getline             # getline(char** buffer, int* n, FILE* stream)
+
+    cmpq    $-1, %rax
+    je      .in_string_fail
+
+    movq    %rax, %rdi
+    addq    8(%rsp), %rdi
+    movq    $0, -1(%rdi)
+
+    movq    8(%rsp), %rdi
+    xorq    %rsi, %rsi
+    leaq    -1(%rax), %rdx
+    callq   memchr              # memchr(char* buffer, char find, int bytes)
+
+    movq    $__empty_string, %rdi
+    movq    %rax, %rsi
+    movq    8(%rsp), %rax
+
+    testq   %rsi, %rsi          # if memchr(...) == 0 then return $__empty_string
+    cmovne  %rdi, %rax
+
+    leave
+    ret
+
+.in_string_fail:
+    movq    $__empty_string, %rax
+
+    leave
+    ret
+
+# Old implementation:
+    pushq   %rbp
     pushq   %r8
     pushq   %r9
 
