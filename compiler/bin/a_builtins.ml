@@ -183,62 +183,44 @@ __empty_string:
 #   0 args      -> 8 call bytes = 8-byte off aligned stack
 in_string:
     pushq   %rbp
-    pushq   %r8
-    pushq   %r9
+    movq    %rsp, %rbp
+    subq    $16, %rsp
 
-    movq    $42960, %rdi
-    xorq    %rax, %rax
-    callq   malloc
+    movq    $0, 8(%rsp)
+    movq    $0, (%rsp)
 
-    movq    $0, %rbp            #   Flag representing if the string is invalid
-    movq    %rax, %r8           #   Store string pointer in %r8
-    movq    %rax, %r9           #   Store copy for iteration in %r9
+    leaq    8(%rsp), %rdi
+    movq    %rsp, %rsi
+    movq    stdin(%rip), %rdx
+    callq   getline             # getline(char** buffer, int* n, FILE* stream)
 
-.loop_begin:
-    xorq    %rax, %rax
-    movq    stdin(%rip), %rdi
-    callq   fgetc
+    cmpq    $-1, %rax
+    je      .in_string_fail
 
-.char_collected:
-    testl   %eax, %eax      #   If a \0 is detected, set the invalid flag
-    je      .fail_flag   
+    movq    %rax, %rdi
+    addq    8(%rsp), %rdi
+    movq    $0, -1(%rdi)
 
-    cmpl    $0xA, %eax      #   If a \n is detected, check whether to stop reading
-    je      .in_complete
+    movq    8(%rsp), %rdi
+    xorq    %rsi, %rsi
+    leaq    -1(%rax), %rdx
+    callq   memchr              # memchr(char* buffer, char find, int bytes)
 
-    cmpl    $-1, %eax       #   If EOF is detected, stop reading
-    je      .in_complete
+    movq    $__empty_string, %rdi
+    movq    %rax, %rsi
+    movq    8(%rsp), %rax
 
-    testl   %eax, %eax      #   If \0 then fail
-    je      .fail_flag
+    testq   %rsi, %rsi          # if memchr(...) == 0 then return $__empty_string
+    cmovne  %rdi, %rax
 
-    movb    %al, (%r9)      #   Otherwise, store the character in the string and increment the pointer
-    incq    %r9
-    jmp     .loop_begin
+    leave
+    ret
 
-.fail_flag:
-    movq    $1, %rbp        #   Set the invalid flag, however consume the rest of the characters
-    jmp     .loop_begin     #   to flush the input buffer
-
-.in_complete:
-    testq   %rbp, %rbp
-    jnz     .in_fail        #   If the string is invalid, return empty string
-
-    movb    $0, (%r9)       #   Add null terminator
-    movq    %r8, %rax
-
-    popq    %r9
-    popq    %r8
-    popq    %rbp
-    retq
-
-.in_fail:
+.in_string_fail:
     movq    $__empty_string, %rax
 
-    popq    %r9
-    popq    %r8
-    popq    %rbp
-    retq
+    leave
+    ret
 
     .text
     .globl copy
@@ -382,6 +364,93 @@ unlift_bool:
 lift_val:
     movq    8(%rsp), %rax
     movq    24(%rax), %rax
+    ret
+
+    .text
+    .globl ambigious_compare
+    .type  ambigious_compare, @function
+ambigious_compare:
+    push    %rbp
+    movq    %rsp, %rbp
+    subq    $16, %rsp
+
+    movq    16(%rbp), %rax
+    testq   %rax, %rax
+    je      .standard_compare       # Case 1: Type1 == Void -> Standard Compare
+
+    movq    (%rax), %rax
+    movq    %rax, -8(%rbp)
+    movq    %rax, %rdi
+    
+    movq    24(%rbp), %rax
+    testq   %rax, %rax
+    je      .standard_compare       # Case 2: Type2 == Void -> Standard Compare
+
+    movq    (%rax), %rax
+    movq    %rax, -16(%rbp)
+    movq    %rax, %rsi
+
+    callq   strcmp                  # Case 3: Type1 != Type2 -> Standard Pointer-based Compare
+    testq   %rax, %rax
+    jne     .standard_compare 
+
+    movq    -8(%rbp), %rdi          # Case 4: Type1 = "Bool" -> Lift Value then Compare      
+    movq    $.objname_Bool, %rsi
+    callq   strcmp
+    testq   %rax, %rax
+    je      .int_bool_compare
+
+    movq    -8(%rbp), %rdi          # Case 5: Type1 = "Int" -> Lift Value then Compare
+    movq    $.objname_Int, %rsi
+    callq   strcmp
+    testq   %rax, %rax
+    je      .int_bool_compare
+
+    movq    -8(%rbp), %rdi          # Case 6: Type1 = "String" -> Lift Value then Compare
+    movq    $.objname_String, %rsi
+    callq   strcmp
+    testq   %rax, %rax
+    je      .string_compare
+
+    jmp     .standard_compare       # Case 5: Type1 == Type2 and the Type is Unlifted -> Standard Compare
+
+.string_compare:
+    movq    16(%rbp), %rdi
+    movq    24(%rdi), %rdi
+
+    movq    24(%rbp), %rsi
+    movq    24(%rsi), %rsi
+
+    callq   strcmp
+
+    leave
+    ret
+
+.int_bool_compare:
+    movq    16(%rbp), %rdi
+    movq    24(%rdi), %rdi
+    movq    %rdi, 16(%rbp)
+
+    movq    24(%rbp), %rsi
+    movq    24(%rsi), %rsi
+    movq    %rsi, 24(%rbp)
+
+#   Fall through into the standard compare
+
+.standard_compare:
+    movq    16(%rbp), %rdi
+    movq    24(%rbp), %rsi
+
+    xorq    %rax, %rax
+
+    cmpq    %rsi, %rdi
+    movq    $1, %rdi
+    movq    $-1, %rsi
+
+    cmovg   %rdi, %rax
+    cmovl   %rsi, %rax
+
+    leave
     ret
 
     .section .rodata

@@ -68,20 +68,25 @@ let tac_gen_expr_body
         (* Printf.printf "Casting %s (%s) to %s\n" (f_id value) val_type cast_type; *)
 
         match val_type, cast_type with
-        | "Object", "Int"
-        | "Object", "String"
-        | "Object", "Bool" ->
+        | "Int", "Int"
+        | "String", "String"
+        | "Bool", "Bool" -> value, []
+
+        | _, "Int"
+        | _, "String"
+        | _, "Bool" ->
             let temp = temp_id () in
             temp, [TAC_call (temp, "lift_val", [value])]
-        | "Int", "Object" ->
+        | "Int", _ ->
             let temp = temp_id () in
             temp, [TAC_call (temp, "unlift_int", [value])]
-        | "String", "Object" ->
+        | "String", _ ->
             let temp = temp_id () in
             temp, [TAC_call (temp, "unlift_string", [value])]
-        | "Bool", "Object" ->
+        | "Bool", _ ->
             let temp = temp_id () in
             temp, [TAC_call (temp, "unlift_bool", [value])]
+
         | _ -> value, []
     in
 
@@ -97,7 +102,6 @@ let tac_gen_expr_body
             aux (i + 1) ((String.make 1 s.[i]) :: acc)
         in
         aux 0 []
-    
     in
 
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
@@ -107,14 +111,16 @@ let tac_gen_expr_body
                 Printf.printf "Error: %s\n" text;
                 exit 1;
             else
-            
-            List.split @@ List.map(
+
+            List.combine args _types
+            |> List.map (
                 fun (arg, _type) ->
                     let arg_id, arg_cmds = rec_tac_gen arg in
                     let casted_id, casted_cmds = cast_val arg_id arg._type _type in
 
                     casted_id, arg_cmds @ casted_cmds
-            ) @@ List.combine args _types
+                )
+            |> List.split
         in
 
         match expr.data with
@@ -125,7 +131,7 @@ let tac_gen_expr_body
             let var_type = find_symbol_type var.name in
             let casted_id, casted_cmds = cast_val rhs_id rhs._type var_type in
 
-            (casted_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
+            (rhs_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
         | DynamicDispatch   { call_on; _method; args } ->
             let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
 
@@ -136,22 +142,31 @@ let tac_gen_expr_body
 
             let self_id = temp_id () in
 
+            let lifted_type = 
+                match call_on._type with
+                | "Int" | "String" | "Bool" -> true
+                | _ -> false
+            in
+            
             let comment = TAC_comment ("DynamicDispatch: " ^ _method.name) in
-            let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
+            let check_dispatch = 
+                if lifted_type then
+                    []
+                else
+                    [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")] 
+            in
 
             if not (StringSet.mem call_on._type data.overriden_classes) then
                 let dispatch = method_name_gen call_on_type _method.name in
 
-                if _method.name = "copy" && (
-                    call_on._type = "Int" ||
-                    call_on._type = "Bool" ||
-                    call_on._type = "String"
-                ) then
-                    (self_id, obj_cmds @ List.concat args_cmds @ [comment; TAC_ident (self_id, obj_id)])
-                else
-                    let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-                    let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
-                    (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
+                let call_cmd =
+                    if _method.name = "copy" && lifted_type then
+                        TAC_ident (self_id, obj_id)
+                    else
+                        TAC_call (self_id, dispatch, obj_id :: args_ids)
+                in
+
+                (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
             else
 
             let method_id = get_dispatch data call_on_type _method.name in
@@ -164,9 +179,7 @@ let tac_gen_expr_body
                 args = obj_id :: args_ids;
             } in
 
-            let casted_id, casted_cmds = cast_val self_id return_type call_on._type in
-
-            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd] @ casted_cmds))
+            (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let return_type, arg_types = get_method_signature data _type.name _method.name in
 
@@ -174,13 +187,18 @@ let tac_gen_expr_body
             let (args_ids, args_cmds) = gen_args arg_types args in
             
             let self_id = temp_id () in
-            let check_dispatch = [TAC_void_check (_method.line_number, obj_id, "error_dispatch")] in
+            let lifted_type = 
+                match call_on._type with
+                | "Int" | "String" | "Bool" -> true
+                | _ -> false
+            in
+            let check_dispatch = if lifted_type then
+                []
+            else
+                [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")]
+            in
 
-            if _method.name = "copy" && (
-                _type.name = "Int" ||
-                _type.name = "Bool" ||
-                _type.name = "String"
-            ) then
+            if _method.name = "copy" && lifted_type then
                 (self_id, obj_cmds @ List.concat args_cmds @ [TAC_ident (self_id, obj_id)])
             else
 
@@ -188,9 +206,7 @@ let tac_gen_expr_body
             let dispatch = method_name_gen _type.name _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-            let casted_id, casted_cmds = cast_val self_id return_type _type.name in
-
-            (casted_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
+            (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
 
@@ -214,10 +230,8 @@ let tac_gen_expr_body
                 method_id = dispatch;
                 args = Self :: args_ids;
             } in
-
-            let casted_id, casted_cmds = cast_val self_id return_type class_name in
-            
-            (casted_id, List.concat args_cmds @ [comment; call_cmd] @ casted_cmds)
+        
+            (self_id, List.concat args_cmds @ [comment; call_cmd])
         | If                { predicate; _then; _else } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             let (then_id, then_cmds) = rec_tac_gen _then in
@@ -273,7 +287,7 @@ let tac_gen_expr_body
             let condition = label_cond :: cond_cmds @ [bt_cmd; jmp_cmd] in
             let body_ = label_body :: body_cmds @ [TAC_jmp cond_name] in
 
-            (self_id, condition @ body_ @ [label_merge])
+            (self_id, condition @ body_ @ [label_merge] @ [TAC_int (self_id, 0)])
         | Block            { body } ->
             let (ids, cmds) = List.split (List.map rec_tac_gen body) in
 
@@ -299,34 +313,81 @@ let tac_gen_expr_body
             | _ -> (self_id, expr_cmds @ [TAC_isvoid (self_id, expr_id)])
             end
         | BinOp             { left; right; op } ->
+            let ambigious_compare (left_id : tac_id) (right_id : tac_id) : tac_id * tac_cmd list =
+
+                let l_val, l_cmds = cast_val left_id left._type "Object" in
+                let r_val, r_cmds = cast_val right_id right._type "Object" in
+
+                let cmp_id = temp_id () in
+                let cmp = TAC_call (cmp_id, "ambigious_compare", [l_val; r_val]) in
+
+                cmp_id, l_cmds @ r_cmds @ [cmp]
+            in
+
             let (lhs_id, lhs_cmds) = rec_tac_gen left in
             let (rhs_id, rhs_cmds) = rec_tac_gen right in
             let self_id = temp_id () in
 
-            let cmd = match op with
-                | Plus      -> TAC_add (self_id, lhs_id, rhs_id)
-                | Minus     -> TAC_sub (self_id, lhs_id, rhs_id)
-                | Times     -> TAC_mul (self_id, lhs_id, rhs_id)
-                | Divide    -> TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id)
+            let cmds = match op with
+                | Plus      -> [ TAC_add (self_id, lhs_id, rhs_id) ]
+                | Minus     -> [ TAC_sub (self_id, lhs_id, rhs_id) ]
+                | Times     -> [ TAC_mul (self_id, lhs_id, rhs_id) ]
+                | Divide    -> [ TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id) ]
 
                 | LT        ->
-                    begin match left._type with
-                    | "String" -> TAC_str_lt (self_id, lhs_id, rhs_id)
-                    | _        -> TAC_lt (self_id, lhs_id, rhs_id)
+                    begin match left._type, right._type with
+                    | "Int", "Int"
+                    | "Bool", "Bool"     -> [ TAC_lt (self_id, lhs_id, rhs_id) ]
+                    | "String", "String" -> [ TAC_str_lt (self_id, lhs_id, rhs_id) ]
+
+                    | _, _ ->
+                        let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
+                        
+                        let zero = temp_id () in
+                        let to_cond = [
+                            TAC_int (zero, 0);
+                            TAC_lt  (self_id, cmp_id, zero);
+                        ] in
+
+                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
                     end
                 | LE        ->
-                    begin match left._type with
-                    | "String" -> TAC_str_lte (self_id, lhs_id, rhs_id)
-                    | _        -> TAC_lte (self_id, lhs_id, rhs_id)
+                    begin match left._type, right._type with
+                    | "Int", "Int"
+                    | "Bool", "Bool"     -> [ TAC_lte (self_id, lhs_id, rhs_id) ]
+                    | "String", "String" -> [ TAC_str_lte (self_id, lhs_id, rhs_id) ]
+
+                    | _, _ ->
+                        let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
+        
+                        let zero = temp_id () in
+                        let to_cond = [
+                            TAC_int  (zero, 0);
+                            TAC_lte  (self_id, cmp_id, zero);
+                        ] in
+
+                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
                     end
                 | EQ        -> 
-                    begin match left._type with
-                    | "String" -> TAC_str_eq (self_id, lhs_id, rhs_id)
-                    | _        -> TAC_eq (self_id, lhs_id, rhs_id)
+                    begin match left._type, right._type with
+                    | "Int", "Int"
+                    | "Bool", "Bool"     -> [ TAC_eq (self_id, lhs_id, rhs_id) ]
+                    | "String", "String" -> [ TAC_str_eq (self_id, lhs_id, rhs_id) ]
+
+                    | _, _ ->
+                        let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
+                        
+                        let zero = temp_id () in
+                        let to_cond = [
+                            TAC_int  (zero, 0);
+                            TAC_eq   (self_id, cmp_id, zero);
+                        ] in
+
+                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
                     end
             in
             
-            (self_id, lhs_cmds @ rhs_cmds @ [cmd])
+            (self_id, lhs_cmds @ rhs_cmds @ cmds)
         | UnOp             { expr; op } ->
             let (expr_id, expr_cmds) = rec_tac_gen expr in
             let self_id = temp_id () in
@@ -364,11 +425,13 @@ let tac_gen_expr_body
 
                     [TAC_default (id, _type.name)]
                 | LetBindingInit    { variable; _type; value } ->
+                    let id = local_id () in
+
                     let (rhs_id, rhs_cmds) = rec_tac_gen value in
                     let (casted_id, casted_cmds) = cast_val rhs_id value._type _type.name in
-                    add_symbol variable.name casted_id _type.name;
+                    add_symbol variable.name id _type.name;
 
-                    TAC_default (casted_id, _type.name) :: rhs_cmds @ casted_cmds
+                    TAC_default (id, _type.name) :: rhs_cmds @ casted_cmds @ [TAC_ident (id, casted_id)]
             in
 
             let tac_remove_binding (binding : ast_let_binding_type) : unit =
@@ -392,7 +455,7 @@ let tac_gen_expr_body
             let merge_val = temp_id () in
             let type_name = temp_id () in
 
-            let type_cmd =
+            let type_cmd = 
                 match expression._type with
                 | "Int" | "String" | "Bool" -> 
                     let method_name = method_name_gen (expression._type) "type_name" in
@@ -400,9 +463,9 @@ let tac_gen_expr_body
                     [ TAC_call (type_name, method_name, []) ]
                 | _ ->
                     [
-                        TAC_void_check (expression.ident.line_number, expr_id, "error_case_void");
+                        TAC_void_check (expr.ident.line_number, expr_id, "error_case_void");
                         TAC_dispatch { 
-                            line_number = expression.ident.line_number;
+                            line_number = expr.ident.line_number;
                             store = type_name; 
                             obj = expr_id;
                             method_id = 2; (* type_name *)
@@ -469,7 +532,7 @@ let tac_gen_expr_body
 
             (merge_val, cmds @ List.concat jumps @ match_fail @ List.concat bodies @ [TAC_label merge_label])
         | Internal         _ -> 
-            (temp_id (), [TAC_comment "Internal expression not implemented"])
+            failwith "TAC_internal should not be reachable from tac_gen_expr_body"
     in
 
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
