@@ -1,6 +1,5 @@
 class Main inherits IO {
     main() : Object {
-        out_string("Hello, ")
-        .out_string(" world!\n")
+        out_string(out_string("Hello, world!\n").type_name())
     };
 };

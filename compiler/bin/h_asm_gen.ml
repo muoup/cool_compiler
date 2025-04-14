@@ -74,6 +74,7 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
             PUSH (get_parameter_memory 0);
             CALL "out_int";
             POP RAX;
+            MOV_reg (REG R12, RAX);
             RET
         ]
     | "Object.type_name" ->

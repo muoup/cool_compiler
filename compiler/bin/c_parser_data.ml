@@ -67,8 +67,8 @@ let parent_of (data : program_data) (class_name : string) : string =
 
 let get_internal_signature (method_name : string) : string * string list =
     match method_name with
-    | "out_string" -> "IO", ["String"]
-    | "out_int" -> "IO", ["Int"]
+    | "out_string" -> "SELF_TYPE", ["String"]
+    | "out_int" -> "SELF_TYPE", ["Int"]
     | "in_string" -> "String", []
     | "in_int" -> "Int", []
     | "length" -> "Int", []
@@ -81,15 +81,29 @@ let get_internal_signature (method_name : string) : string * string list =
         Printf.printf "Warning: Method %s not found in internal signature.\n" method_name;
         exit 0
 
+let rec get_subtypes (data : program_data) (_type : string) : string list = 
+    StringMap.bindings data.parent_map
+    |>  List.filter_map (
+            fun (child, parent) ->
+                if parent = _type then Some child else None
+        )
+
+(* Order - distance from Object in hierarchy *)
+let rec type_order (data : program_data) (_type : string) : int =
+    match StringMap.find_opt _type data.parent_map with
+    | Some parent ->
+        1 + type_order data parent
+    | None -> 0
+
 let rec get_method_signature (data : program_data) (class_name : string) (method_name : string) : string * string list =
     let _method =
         List.find_opt (fun (class_data : ast_class) -> class_data.name.name = class_name) data.ast
-        |> Option.map (fun (class_data : ast_class) ->
-            List.find_opt (
-                fun (method_data : ast_method) -> method_data.name.name = method_name
-            ) class_data.methods
-        )
-        |> Option.join 
+        |>  Option.map (fun (class_data : ast_class) ->
+                List.find_opt (
+                    fun (method_data : ast_method) -> method_data.name.name = method_name
+                ) class_data.methods
+            )
+        |>  Option.join 
     in
     
     match _method with
