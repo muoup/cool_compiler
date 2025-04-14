@@ -65,8 +65,6 @@ let tac_gen_expr_body
         let val_type = if val_type = "SELF_TYPE" then class_name else val_type in
         let cast_type = if cast_type = "SELF_TYPE" then class_name else cast_type in
 
-        (* Printf.printf "Casting %s (%s) to %s\n" (f_id value) val_type cast_type; *)
-
         match val_type, cast_type with
         | "Object", "Int"
         | "Object", "String"
