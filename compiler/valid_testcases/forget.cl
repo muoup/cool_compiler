@@ -7,11 +7,11 @@ class Main inherits IO {
     };
 
     drop(m : Main) : Main {
-        let o : String in
-        m.get()
+        let a : Main in
+        a
     };
 
     main() : Object {
-        get().drop( get() )
+        get().drop( self ).drop( get() )
     };
 };

@@ -111,14 +111,16 @@ let tac_gen_expr_body
                 Printf.printf "Error: %s\n" text;
                 exit 1;
             else
-            
-            List.split @@ List.map(
+
+            List.combine args _types
+            |> List.map (
                 fun (arg, _type) ->
                     let arg_id, arg_cmds = rec_tac_gen arg in
                     let casted_id, casted_cmds = cast_val arg_id arg._type _type in
 
                     casted_id, arg_cmds @ casted_cmds
-            ) @@ List.combine args _types
+                )
+            |> List.split
         in
 
         match expr.data with
@@ -157,11 +159,14 @@ let tac_gen_expr_body
             if not (StringSet.mem call_on._type data.overriden_classes) then
                 let dispatch = method_name_gen call_on_type _method.name in
 
-                if _method.name = "copy" && lifted_type then
-                    (self_id, obj_cmds @ List.concat args_cmds @ [comment; TAC_ident (self_id, obj_id)])
-                else
-                    let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-                    (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
+                let call_cmd =
+                    if _method.name = "copy" && lifted_type then
+                        TAC_ident (self_id, obj_id)
+                    else
+                        TAC_call (self_id, dispatch, obj_id :: args_ids)
+                in
+
+                (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
             else
 
             let method_id = get_dispatch data call_on_type _method.name in
@@ -174,7 +179,7 @@ let tac_gen_expr_body
                 args = obj_id :: args_ids;
             } in
 
-            (self_id, obj_cmds @ check_dispatch @ (List.concat args_cmds @ [comment; call_cmd]))
+            (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let return_type, arg_types = get_method_signature data _type.name _method.name in
 
@@ -201,7 +206,7 @@ let tac_gen_expr_body
             let dispatch = method_name_gen _type.name _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-            (self_id, obj_cmds @ check_dispatch @ List.concat args_cmds @ [comment; call_cmd])
+            (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
 
