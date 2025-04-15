@@ -25,8 +25,8 @@ type asm_cmd =
     | NEG       of asm_mem
     | NOT       of asm_reg
 
-    | TEST      of asm_reg * asm_reg
-    | CMP       of asm_reg * asm_reg
+    | TEST      of asm_mem * asm_mem
+    | CMP       of asm_mem * asm_mem
     | SETL
     | SETLE
     | SETE
@@ -169,8 +169,26 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | XOR (reg1, reg2) -> format_cmd2 "xorq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
     | NEG mem -> format_cmd1 "negq" (asm_mem_to_string mem)
 
-    | TEST (reg1, reg2) -> format_cmd2 "testq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
-    | CMP (reg1, reg2) -> format_cmd2 "cmpl" (asm_reg32_to_string reg1) (asm_reg32_to_string reg2)
+    | TEST (mem1, mem2) -> 
+        begin match mem1, mem2 with
+        | _, REG r2 ->
+            format_cmd2 "testl" (asm_mem32_to_string mem1) (asm_reg32_to_string r2)
+        | REG r1, _ ->
+            format_cmd2 "testl" (asm_mem32_to_string mem2) (asm_reg32_to_string r1)
+        | _ ->
+            format_cmd2 "movl"  (asm_mem32_to_string mem2) (asm_reg32_to_string RAX);
+            output "\n";
+            format_cmd2 "testl" (asm_mem32_to_string mem1) (asm_reg32_to_string RAX)
+        end 
+    | CMP (mem1, mem2) -> 
+        begin match mem1, mem2 with
+        | _, REG r2 ->
+            format_cmd2 "cmpl" (asm_mem32_to_string mem1) (asm_reg32_to_string r2)
+        | _ ->
+            format_cmd2 "movl" (asm_mem32_to_string mem2) (asm_reg32_to_string RAX);
+            output "\n";
+            format_cmd2 "cmpl" (asm_mem32_to_string mem1) (asm_reg32_to_string RAX)
+        end
 
     | SETL   -> format_cmd1 "setl" "%al"
     | SETLE  -> format_cmd1 "setle" "%al"

@@ -4,6 +4,7 @@ type tac_id =
   | Attribute   of int
   | Parameter   of int
   | IntLit      of int
+  | StrLit      of string
   | Self
 
 module StringTbl = Hashtbl.Make (struct
@@ -76,6 +77,7 @@ let f_id (id : tac_id) : string =
     | Attribute i   -> Printf.sprintf "A%d" i
     | Parameter i   -> Printf.sprintf "P%d" i
     | IntLit    i   -> Printf.sprintf "$%d" i
+    | StrLit    s   -> Printf.sprintf "$%s" s
     | Self          -> "self"
 
 (* TODO: Reimplement tac output *)

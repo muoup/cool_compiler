@@ -549,8 +549,7 @@ let tac_gen_expr_body
                         |> List.map (
                             fun _type ->
                                 [
-                                    TAC_str (str, _type);
-                                    TAC_str_eq (cond, type_name, str);
+                                    TAC_eq (cond, type_name, StrLit (obj_name_mem_gen _type));
                                     TAC_bt (cond, case_label ^ string_of_int i)
                                 ]
                             ) 
