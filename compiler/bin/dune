@@ -9,7 +9,7 @@
   e_tac_expr_gen 
   f_tac_gen
   g_metadata_output g_tac_to_cfg
-  h_asm_data
-  h_asm_gen
+  h_asm_data h_asm_gen
+  i_peephole_opt
   main
 ))

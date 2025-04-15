@@ -5,7 +5,6 @@ type asm_reg =
     | R12
 
 type asm_mem = 
-    | RBP_offset    of int
     | REG_offset    of asm_reg * int
     | REG           of asm_reg
     | LABEL         of string
@@ -77,7 +76,6 @@ let asm_reg32_to_string (reg : asm_reg) : string =
 
 let asm_mem_to_string (mem : asm_mem) : string =
     match mem with
-    | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
     | REG_offset (reg, offset) -> Printf.sprintf "%d(%s)" offset @@ asm_reg_to_string reg
     | REG reg -> asm_reg_to_string reg
     | LABEL label -> "$" ^ label
@@ -85,9 +83,8 @@ let asm_mem_to_string (mem : asm_mem) : string =
 
 let asm_mem32_to_string (mem : asm_mem) : string =
     match mem with
-    | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
     | REG reg -> asm_reg32_to_string reg
-    | REG_offset (reg, offset) -> Printf.sprintf "%d(%s)" offset @@ asm_reg32_to_string reg
+    | REG_offset (reg, offset) -> Printf.sprintf "%d(%s)" offset @@ asm_reg_to_string reg
     | LABEL label -> "$" ^ label
     | IMMEDIATE i -> Printf.sprintf "$%d" i
 

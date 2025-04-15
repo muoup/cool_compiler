@@ -31,10 +31,6 @@ class Main inherits IO {
 
             +
 
-            in_string().length()
-
-            +
-
             false.copy().type_name().length()
 
             +

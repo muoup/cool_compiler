@@ -11,6 +11,7 @@ open G_metadata_output
 open G_tac_to_cfg
 open H_asm_data
 open H_asm_gen
+open I_peephole_opt
 
 let change_file_extension (path : string) (new_extension : string) : string =
     Filename.remove_extension path ^ new_extension
@@ -51,7 +52,11 @@ let () =
 
     (* Generate the CFG for each method *)
 
-    let asm = List.map (generate_asm) method_tacs in
+    let asm = method_tacs
+        |> List.map (generate_asm) 
+        |> List.map (peephold_optimize) 
+    in
+
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 

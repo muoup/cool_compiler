@@ -15,37 +15,40 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
 
     let instantiate = TAC_object ( object_id, _class.name, attributes) in
     let return = TAC_return object_id in
-    
+
     (* TODO: Attribute initialization *)
 
     let constructor_name = constructor_name_gen _class.name in
 
-    let default_attributes = List.flatten @@ List.map (
-        fun (attr : attribute_data) ->
-            let id = Temporary 0 in
-
-            [
-                TAC_comment ("AttributeNoInit: " ^ attr.name);
-                TAC_default (id, attr._type);
-                TAC_attribute { object_id; attribute_id = index_of _class.attributes attr; value = id }
-            ]
-    ) _class.attributes in
-
-    let valued_attributes = List.flatten @@ List.map (
-        fun (attr : attribute_data) ->
-            let attribute_id = index_of _class.attributes attr in
-            let object_id = Local 0 in
-
-            match attr.init with
-            | None -> []
-            | Some init ->
-                let val_id, tac_cmds = tac_gen_expr_body data _class.name _class.name init symbol_table local_counter temp_counter in
-                
-                tac_cmds @ [
-                    TAC_comment ("AttributeInit: " ^ attr.name);
-                    TAC_attribute { object_id; attribute_id; value = val_id }
+    let default_attributes = _class.attributes
+        |> List.mapi (
+            fun (i : int) (attr : attribute_data) ->
+                [
+                    TAC_comment ("AttributeNoInit: " ^ attr.name);
+                    TAC_default (Attribute i, attr._type);
                 ]
-    ) _class.attributes in
+            )
+        |> List.flatten
+        in
+
+    let valued_attributes =
+        _class.attributes
+        |> List.mapi (
+            fun (i : int) (attr : attribute_data) ->
+                let attribute_id = index_of _class.attributes attr in
+                let object_id = Local 0 in
+
+                match attr.init with
+                | None -> []
+                | Some init ->
+                    let val_id, val_cmds = tac_gen_expr_body data _class.name attr._type init symbol_table local_counter temp_counter in
+                    
+                    TAC_comment ("AttributeInit: " ^ attr.name) ::
+                    val_cmds @ 
+                    [ TAC_ident (Attribute attribute_id, val_id); ]
+            )
+        |> List.flatten
+    in
 
     {
         class_name = _class.name;
