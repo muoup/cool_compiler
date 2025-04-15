@@ -189,7 +189,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | CALL_indirect reg -> format_cmd1 "callq" ("*" ^ asm_reg_to_string reg)
     | RET            ->
         format_cmd1 "pop" "%r12";
-        output "\n\tleave\n\tret\n";
+        output "\n\tleave\n\tret";
 
     | MISC s         -> output @@ "\t" ^ s
 
