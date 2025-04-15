@@ -62,6 +62,7 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
             PUSH (get_parameter_memory 0);
             CALL "out_string";
             ADD  (IMMEDIATE 8, RSP);
+            MOV  (REG R12, REG RAX);
             RET
         ]
     | "IO.in_int" ->
@@ -187,8 +188,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         let str_id = fst @@ List.find (fun (_, _s) -> _s = s) asm_data.strlit_map in
         
         [
-            MOV     (LABEL str_id, REG RAX);
-            MOV     (REG RAX, get_symbol_storage id)
+            MOV     (LABEL str_id, get_symbol_storage id);
         ]
     | TAC_bool (id, b) ->
         let bool_val = if b then 1 else 0 in
@@ -259,7 +259,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         [
             MOV     ((get_symbol_storage s1), REG RDI);
             MOV     ((get_symbol_storage s2), REG RSI);
-            CALL "strcmp";
+            CALL    "strcmp";
             MOV     (REG RAX, REG RDI);
             XOR     (RAX, RAX);
             CMP     (RAX, RDI);
