@@ -574,7 +574,7 @@ let tac_gen_expr_body
                 let cast_body_id, cast_body_cmds = cast_val body_id mapping.maps_to._type merge_type in
 
                 let merge = [
-                    TAC_ident (merge_val, casted_id);
+                    TAC_ident (merge_val, cast_body_id);
                     TAC_jmp merge_label
                 ] in
 
