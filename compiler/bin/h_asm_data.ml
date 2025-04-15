@@ -99,6 +99,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     (match cmd with
     | FRAME (size) ->
+        output "# -- FRAME INITIALIZATION --\n";
         format_cmd1 "pushq" "%rbp";
         output "\n";
         format_cmd2 "movq" "%rsp" "%rbp";
@@ -123,15 +124,14 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         in             
         
         if adjusted_size > 0 then
-            format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp"
+            format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp\n"
         ;
         
-        output "\n";
         format_cmd1 "pushq" "%r12";
         output "\n";
         format_cmd2 "movq" "16(%rbp)" "%r12";
         output "\n";
-
+        output "# -- FUNCTION START --"
     | MOV     (mem1, mem2) ->
         begin match mem1, mem2 with
         | REG reg1, _ ->
@@ -220,4 +220,6 @@ let print_asm_method (_method : asm_method) (output : string -> unit) : unit =
     output @@ Printf.sprintf "\t.type %s, @function\n" _method.header;
 
     output @@ _method.header ^ ":\n";
-    List.iter (print_asm_cmd output @@ _method.arg_count) _method.commands
+    output @@ "\t.cfi_startproc\n";
+    List.iter (print_asm_cmd output @@ _method.arg_count) _method.commands;
+    output @@ "\t.cfi_endproc\n";
