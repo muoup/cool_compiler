@@ -3,6 +3,7 @@ type tac_id =
   | Temporary   of int
   | Attribute   of int
   | Parameter   of int
+  | IntLit      of int
   | Self
 
 module StringTbl = Hashtbl.Make (struct
@@ -74,6 +75,7 @@ let f_id (id : tac_id) : string =
     | Temporary i   -> Printf.sprintf "T%d" i
     | Attribute i   -> Printf.sprintf "A%d" i
     | Parameter i   -> Printf.sprintf "P%d" i
+    | IntLit    i   -> Printf.sprintf "$%d" i
     | Self          -> "self"
 
 (* TODO: Reimplement tac output *)

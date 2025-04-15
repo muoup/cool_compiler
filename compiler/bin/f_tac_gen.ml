@@ -36,7 +36,6 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
         |> List.mapi (
             fun (i : int) (attr : attribute_data) ->
                 let attribute_id = index_of _class.attributes attr in
-                let object_id = Local 0 in
 
                 match attr.init with
                 | None -> []

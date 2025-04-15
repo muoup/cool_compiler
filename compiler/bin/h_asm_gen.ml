@@ -47,8 +47,9 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     | Local     i -> REG_offset (RBP, -stack_map.local_variable_offset - ((i + 1) * 8))
     | Temporary i -> REG_offset (RBP, -stack_map.temporaries_offset - ((i + 1) * 8))
     | Attribute i -> REG_offset (R12, 24 + 8 * i)
-    | Self        -> REG R12
     | Parameter i -> get_parameter_memory i
+    | Self        -> REG R12
+    | IntLit    i -> IMMEDIATE i
 
 let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd list =
     match internal_id with

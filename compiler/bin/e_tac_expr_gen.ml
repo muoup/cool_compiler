@@ -354,7 +354,7 @@ let tac_gen_expr_body
             begin match expr._type with
             (* isvoid on intrinsic types is always false *)
             | "String" | "Int" | "Bool" -> 
-                (self_id, expr_cmds @ [TAC_bool (self_id, false)])
+                (IntLit 0, expr_cmds @ [])
             | _ -> 
                 (self_id, expr_cmds @ [TAC_isvoid (self_id, expr_id)])
             end
@@ -451,22 +451,17 @@ let tac_gen_expr_body
 
             (self_id, expr_cmds @ [cmd])
         | Integer           i ->
-            let self_id = temp_id () in 
-            (self_id, [TAC_int (self_id, i)])
+            (IntLit i, [])
         | String            s ->
             let escaped_s = escape_backslashes s in
             let self_id = temp_id () in
             (self_id, [TAC_str (self_id, escaped_s)])
         | True                -> 
-            let self_id = temp_id () in
-            (self_id, [TAC_bool (self_id, true)])
+            (IntLit 1, [])
         | False               ->
-            let self_id = temp_id () in
-            (self_id, [TAC_bool (self_id, false)])
+            (IntLit 0, [])
         | Identifier        ident ->
-            let id = find_symbol ident.name in
-
-            id, []
+            find_symbol ident.name, []
         | Let               { bindings; _in } ->
             let tac_initialize (binding : ast_let_binding_type) : tac_cmd list =
                 let id = local_id () in
