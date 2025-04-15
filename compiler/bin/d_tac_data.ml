@@ -3,6 +3,7 @@ type tac_id =
   | Temporary   of int
   | Attribute   of int
   | Parameter   of int
+  | CallSlot    of int
   | IntLit      of int
   | StrLit      of string
   | Self
@@ -56,6 +57,7 @@ type tac_cmd =
   | TAC_str_lte of tac_id * tac_id * tac_id
 
   (* Since this has to cache the line number, it is a separate node, at least for now *)
+  | TAC_call_alloc of int
   | TAC_void_check of int * tac_id * string
   | TAC_inline_assembly of string
 
@@ -76,6 +78,7 @@ let f_id (id : tac_id) : string =
     | Temporary i   -> Printf.sprintf "T%d" i
     | Attribute i   -> Printf.sprintf "A%d" i
     | Parameter i   -> Printf.sprintf "P%d" i
+    | CallSlot  i   -> Printf.sprintf "C%d" i
     | IntLit    i   -> Printf.sprintf "$%d" i
     | StrLit    s   -> Printf.sprintf "$%s" s
     | Self          -> "self"

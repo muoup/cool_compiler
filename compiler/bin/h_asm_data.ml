@@ -104,8 +104,10 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         output "\n";
         format_cmd2 "movq" "%rsp" "%rbp";
         output "\n";
+        output "\t.cfi_def_cfa_register 16\n";
+        output "\t.cfi_offset 6, 16\n";
 
-        (*
+        (* (*
             With a base pointer in %rbp and a object base pointer in %r12,
             the stack's alignment to 16 bytes depends on if the number of
             arguments passed is even (mod 16 = 8), or odd (mod 16 = 0).
@@ -121,7 +123,15 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
                     size
                 else
                     size + 8
-        in             
+        in              *)
+
+        (* Updated: Call procedure now ensures 16-bit alignment in stack-memory for parameters passed *)
+        let adjusted_size =
+            if size mod 16 = 8 then
+                size
+            else
+                size + 8
+        in
         
         if adjusted_size > 0 then
             format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp\n"
@@ -175,6 +185,10 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
             format_cmd2 "testl" (asm_mem32_to_string mem1) (asm_reg32_to_string r2)
         | REG r1, _ ->
             format_cmd2 "testl" (asm_mem32_to_string mem2) (asm_reg32_to_string r1)
+        | l, r when l = r ->
+            format_cmd2 "movl"  (asm_mem32_to_string l) (asm_reg32_to_string RAX);
+            output "\n";
+            format_cmd2 "testl" (asm_reg32_to_string RAX) (asm_reg32_to_string RAX);
         | _ ->
             format_cmd2 "movl"  (asm_mem32_to_string mem2) (asm_reg32_to_string RAX);
             output "\n";

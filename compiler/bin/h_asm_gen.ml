@@ -47,6 +47,7 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     | Local     i -> REG_offset (RBP, -stack_map.local_variable_offset - ((i + 1) * 8))
     | Temporary i -> REG_offset (RBP, -stack_map.temporaries_offset - ((i + 1) * 8))
     | Attribute i -> REG_offset (R12, 24 + 8 * i)
+    | CallSlot  i -> REG_offset (RSP, 8 * i)
     | Parameter i -> get_parameter_memory i
     | Self        -> REG R12
     | IntLit    i -> IMMEDIATE i
@@ -56,42 +57,44 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
     match internal_id with
     | "IO.in_string" ->
         [
-            CALL "in_string";
-            RET
+            CALL    "in_string";
+            RET;
         ]
     | "IO.out_string" ->
         [
-            PUSH (get_parameter_memory 0);
-            CALL "out_string";
-            ADD  (IMMEDIATE 8, RSP);
-            MOV  (REG R12, REG RAX);
+            PUSH    (REG RAX);
+            PUSH    (get_parameter_memory 0);
+            CALL    "out_string";
+            ADD     (IMMEDIATE 16, RSP);
+            MOV     (REG R12, REG RAX);
             RET
         ]
     | "IO.in_int" ->
         [
-            CALL "in_int";
-            RET
+            CALL    "in_int";
+            RET;
         ]
     | "IO.out_int" ->
         [
+            PUSH    (REG RAX);
             PUSH    (get_parameter_memory 0);
             CALL    "out_int";
-            POP     RAX;
+            ADD     (IMMEDIATE 16, RSP);
             MOV     (REG R12, REG RAX);
             RET
         ]
     | "Object.type_name" ->
         [
             MOV     (LABEL (obj_name_mem_gen class_name), REG RAX);
-            RET
+            RET;
         ]
     | "Object.abort" ->
         [
             MOV     (LABEL "abort_msg", REG RDI);
-            CALL "puts";
+            CALL    "puts";
 
             MOV     (IMMEDIATE 1, REG RDI);
-            CALL "exit";
+            CALL    "exit";
         ]
     | "Object.copy" ->
         [
@@ -108,13 +111,13 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
     | "String.length" ->
         [
             MOV     (REG R12, REG RDI);
-            CALL "strlen";
+            CALL    "strlen";
             RET;
         ]
     | x -> 
         [
             COMMENT ("Unimplemented: " ^ x);
-            CALL "exit";
+            CALL    "exit";
         ]
 
 let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : asm_data) : asm_cmd list = 
@@ -209,35 +212,35 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             SETE;
             MOV     (REG RAX, get_symbol_storage id)
         ]
-    | TAC_call (id, method_name, args) ->
-        let arg_cmds = args
-            |> List.rev
-            |> List.map (fun arg -> PUSH (get_symbol_storage arg))
-        in
+    | TAC_call_alloc slots ->
+        let slots = if (slots mod 2 = 0) then slots else slots + 1 in
 
-        arg_cmds @ [
+        [
+            SUB         (IMMEDIATE (8 * slots), RSP);
+        ]
+    | TAC_call (id, method_name, args) ->
+        let slots = List.length args in
+        let slots = if (slots mod 2 = 0) then slots else slots + 1 in
+
+        [
             CALL method_name;
-            ADD (IMMEDIATE (8 * (List.length args)), RSP);
+            ADD (IMMEDIATE (8 * slots), RSP);
             MOV (REG RAX, get_symbol_storage id)
         ]
 
     | TAC_dispatch { line_number; store; obj; method_id; args } ->
-        let load_vtable = [
+        let slots = List.length args in
+        let slots = if (slots mod 2 = 0) then slots else slots + 1 in
+
+        [
             COMMENT ("Load Vtable ID " ^ (string_of_int method_id));
             MOV     (get_symbol_storage obj, REG RAX);
             MOV     (REG_offset (RAX, 16), REG RAX);
             MOV     (REG_offset (RAX, 8 * method_id), REG RAX);
             CALL_indirect   RAX;
-            ADD     (IMMEDIATE (8 * (List.length args)), RSP);
+            ADD     (IMMEDIATE (8 * slots), RSP);
             MOV     (REG RAX, get_symbol_storage store)
-        ] in
-
-        let arg_cmds = args
-            |> List.rev
-            |> List.map (fun arg -> PUSH (get_symbol_storage arg))
-        in
-
-        arg_cmds @ load_vtable
+        ]
 
     | TAC_str_eq  (id, s1, s2) ->
         [
@@ -285,20 +288,19 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     | TAC_jmp label -> [JMP label]
     | TAC_bt (id, label) ->
         [
-            MOV     (get_symbol_storage id, REG RAX);
-            TEST    (REG RAX, REG RAX);
-            JNZ     label
+            TEST        (get_symbol_storage id, get_symbol_storage id);
+            JNZ         label
         ]
     | TAC_return id ->
         [
-            MOV     (get_symbol_storage id, REG RAX);
+            MOV         (get_symbol_storage id, REG RAX);
             RET
         ]
     | TAC_comment s -> [COMMENT s]
     | TAC_new (id, name) ->
         [
-            CALL    (constructor_name_gen name);
-            MOV     (REG RAX, (get_symbol_storage id))
+            CALL        (constructor_name_gen name);
+            MOV         (REG RAX, (get_symbol_storage id))
         ]
 
     (* Object creation *)
@@ -322,16 +324,15 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
 
     | TAC_inline_assembly asm_code ->
         [
-            COMMENT ("Inline assembly: " ^ asm_code);
-            MISC asm_code
+            COMMENT     ("Inline assembly: " ^ asm_code);
+            MISC        asm_code
         ]
     | TAC_internal id -> generate_internal_asm current_class id
 
     | TAC_isvoid (store, _val) -> 
         [
-            MOV         (get_symbol_storage _val, REG RBX);
-            XOR         (RAX, RAX);
-            TEST        (REG RBX, REG RBX);
+            TEST        (get_symbol_storage _val, get_symbol_storage _val);
+            MOV         (IMMEDIATE 0, REG RAX);
             SETE;
             MOV         (REG RAX, get_symbol_storage store);
         ]
@@ -339,8 +340,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     | TAC_void_check (line_number, object_id, error) ->
         [
             MOV         (IMMEDIATE line_number, REG RSI);
-            MOV         (get_symbol_storage object_id, REG RAX);
-            TEST        (REG RAX, REG RAX);
+            TEST        (get_symbol_storage object_id, get_symbol_storage object_id);
             JE          error
         ]
 

@@ -8,16 +8,22 @@
     .globl main
     .type  main, @function
 main:
+    .cfi_startproc
     push    %rbp
+    movq    %rsp, %rbp
+    .cfi_def_cfa_register 6
+    .cfi_def_cfa_offset 16
 
     call    new.Main
     
+    pushq   %rax        # Additional push for alignment
     pushq   %rax
     call    Main.main
-    addq    $8, %rsp
+    addq    $16, %rsp
 
     pop     %rbp
     ret
+    .cfi_endproc
 
     .section .rodata
 __f_out_str:
@@ -31,7 +37,7 @@ __f_out_str:
 out_string: 
     pushq   %rbp
     movq    %rsp, %rbp
-    subq    $8, %rsp
+    subq    $16, %rsp
 
     movq    16(%rbp), %rdi
     call    strlen
@@ -313,6 +319,7 @@ substr:
     .globl  unlift_int
     .type   unlift_int, @function
 unlift_int:
+
     movq    $1, %rdi
     movq    $32, %rsi
     call    calloc

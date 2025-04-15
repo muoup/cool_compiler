@@ -73,6 +73,14 @@ let tac_gen_expr_body
                 free_temps := id :: !free_temps
         | _ -> ()
     in
+    
+    let basic_call (store : tac_id) (method_name : string) (args : tac_id list) : tac_cmd list =
+        let alloc = TAC_call_alloc (List.length args + 1) in
+        let setup = List.mapi (fun i arg -> TAC_ident (CallSlot i, arg)) args in        
+        let call = TAC_call (store, method_name, args) in
+        
+        alloc :: setup @ [call]
+    in
 
     let cast_val_no_free (value : tac_id) (val_type : string) (cast_type : string) : (tac_id * tac_cmd list) =
         let val_type = if val_type = "SELF_TYPE" then class_name else val_type in
@@ -88,13 +96,13 @@ let tac_gen_expr_body
         | _, "Int"
         | _, "String"
         | _, "Bool" ->
-            _val, [TAC_call (_val, "lift_val", [value])]
+            _val, basic_call _val "lift_val" [value]
         | "Int", _ ->
-            _val, [TAC_call (_val, "unlift_int", [value])]
+            _val, basic_call _val "unlift_int" [value]
         | "String", _ ->
-            _val, [TAC_call (_val, "unlift_string", [value])]
+            _val, basic_call _val "unlift_string" [value]
         | "Bool", _ ->
-            _val, [TAC_call (_val, "unlift_bool", [value])]
+            _val, basic_call _val "unlift_bool" [value]
         
         | _ ->
             _val, [TAC_ident (_val, value)]
@@ -120,22 +128,27 @@ let tac_gen_expr_body
     in
 
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
-        let gen_args (_types : string list) (args : ast_expression list) : (tac_id list * tac_cmd list list) =
+        let gen_args (_types : string list) (args : ast_expression list) : (tac_id list * tac_cmd list) =
             if (List.length _types) <> (List.length args) then
                 let text = Printf.sprintf "Expected: %d args, Got: %d" (List.length _types) (List.length args) in
                 Printf.printf "Error: %s\n" text;
                 exit 1;
             else
 
-            List.combine args _types
-            |> List.map (
-                fun (arg, _type) ->
+            let ids, cmds = List.combine args _types
+            |> List.mapi (
+                fun (i : int) (arg, _type) ->
                     let arg_id, arg_cmds = rec_tac_gen arg in
                     let casted_id, casted_cmds = cast_val arg_id arg._type _type in
+                    let store_id = CallSlot (i + 1) in
 
-                    casted_id, arg_cmds @ casted_cmds
+                    free_temp casted_id;
+
+                    store_id, arg_cmds @ casted_cmds @ [TAC_ident (store_id, casted_id)]
                 )
-            |> List.split
+            |> List.split in
+
+            ids, TAC_call_alloc (List.length ids + 1) :: List.concat cmds
         in
 
         match expr.data with
@@ -156,8 +169,8 @@ let tac_gen_expr_body
 
             let (args_ids, args_cmds) = gen_args arg_types args in
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
+            let obj_cmds = obj_cmds @ [TAC_ident (CallSlot 0, obj_id)] in
 
-            List.iter (free_temp) args_ids;
             free_temp obj_id;
 
             let self_id = temp_id () in
@@ -179,14 +192,14 @@ let tac_gen_expr_body
             if not (StringSet.mem call_on._type data.overriden_classes) then
                 let dispatch = method_name_gen call_on_type _method.name in
 
-                let call_cmd =
+                let call_cmds =
                     if _method.name = "copy" && lifted_type then
-                        TAC_ident (self_id, obj_id)
+                        [ TAC_ident (self_id, obj_id) ]
                     else
-                        TAC_call (self_id, dispatch, obj_id :: args_ids)
+                        [ TAC_call (self_id, dispatch, obj_id :: args_ids) ]
                 in
 
-                (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
+                (self_id, args_cmds @ obj_cmds @ check_dispatch @ [comment] @ call_cmds)
             else
 
             let method_id = get_dispatch data call_on_type _method.name in
@@ -199,14 +212,14 @@ let tac_gen_expr_body
                 args = obj_id :: args_ids;
             } in
 
-            (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
+            (self_id, args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
         | StaticDispatch    { call_on; _type; _method; args; } ->
             let return_type, arg_types = get_method_signature data _type.name _method.name in
 
             let (args_ids, args_cmds) = gen_args arg_types args in
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
-            
-            List.iter (free_temp) args_ids;
+            let obj_cmds = obj_cmds @ [TAC_ident (CallSlot 0, obj_id)] in
+        
             free_temp obj_id;
             
             let self_id = temp_id () in
@@ -222,28 +235,29 @@ let tac_gen_expr_body
             in
 
             if _method.name = "copy" && lifted_type then
-                (self_id, obj_cmds @ List.concat args_cmds @ [TAC_ident (self_id, obj_id)])
+                (self_id, args_cmds @ obj_cmds @ [TAC_ident (self_id, obj_id)])
             else
 
             let comment = TAC_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
             let dispatch = method_name_gen _type.name _method.name in
 
             let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-            (self_id, List.concat args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
+            (self_id, args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
 
             let (args_ids, args_cmds) = gen_args arg_types args in
+            let args_cmds = args_cmds @ [TAC_ident (CallSlot 0, Self)] in
             let self_id = temp_id () in
 
-            List.iter (free_temp) args_ids;
             let comment = TAC_comment ("SelfDispatch: " ^ _method.name) in
 
             if not (StringSet.mem class_name data.overriden_classes) then
                 let dispatch = method_name_gen class_name _method.name in
 
                 let call_cmd = TAC_call (self_id, dispatch, Self :: args_ids) in
-                (self_id, List.concat args_cmds @ [comment; call_cmd])
+
+                (self_id, args_cmds @ [comment; call_cmd])
             else
 
             let dispatch = get_dispatch data class_name _method.name in
@@ -256,7 +270,7 @@ let tac_gen_expr_body
                 args = Self :: args_ids;
             } in
         
-            (self_id, List.concat args_cmds @ [comment; call_cmd])
+            (self_id, args_cmds @ [comment; call_cmd])
         | If                { predicate; _then; _else } ->
             (* This isn't strictly correct, but to the compiler, all that matters is whether a
                type is a lifted int/string/bool or an object. *)
@@ -365,9 +379,9 @@ let tac_gen_expr_body
                 let r_val, r_cmds = cast_val right_id right._type "Object" in
 
                 let cmp_id = temp_id () in
-                let cmp = TAC_call (cmp_id, "ambigious_compare", [l_val; r_val]) in
+                let cmp = basic_call cmp_id "ambigious_compare" [l_val; r_val] in
 
-                cmp_id, l_cmds @ r_cmds @ [cmp]
+                cmp_id, l_cmds @ r_cmds @ cmp
             in
 
             let (lhs_id, lhs_cmds) = rec_tac_gen left in
@@ -523,9 +537,11 @@ let tac_gen_expr_body
                 | "Int" | "String" | "Bool" -> 
                     let method_name = method_name_gen (expression._type) "type_name" in
 
-                    [ TAC_call (type_name, method_name, []) ]
+                    basic_call type_name method_name [case_memory]
                 | _ ->
                     [
+                        TAC_call_alloc 2;
+                        TAC_ident (CallSlot 0, case_memory);
                         TAC_void_check (expr.ident.line_number, case_memory, "error_case_void");
                         TAC_dispatch { 
                             line_number = expr.ident.line_number;
