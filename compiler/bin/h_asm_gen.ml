@@ -45,7 +45,7 @@ let get_parameter_memory (i : int) : asm_mem =
 let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     match id with
     | Local     i -> REG_offset (RBP, -stack_map.local_variable_offset - ((i + 1) * 8))
-    | Temporary i -> REG_offset (RBP,-stack_map.temporaries_offset - ((i + 1) * 8))
+    | Temporary i -> REG_offset (RBP, -stack_map.temporaries_offset - ((i + 1) * 8))
     | Attribute i -> REG_offset (R12, 24 + 8 * i)
     | Self        -> REG R12
     | Parameter i -> get_parameter_memory i
@@ -166,8 +166,8 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         [
             MOV     ((get_symbol_storage a), REG RBX);
             MOV     ((get_symbol_storage b), REG RCX);
-            XOR (RAX, RAX);
-            CMP (RCX, RBX);
+            XOR     (RAX, RAX);
+            CMP     (RCX, RBX);
             SETLE;
             MOV     (REG RAX, get_symbol_storage id)
         ]
@@ -232,6 +232,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             MOV     (REG_offset (RAX, 16), REG RAX);
             MOV     (REG_offset (RAX, 8 * method_id), REG RAX);
             CALL_indirect   RAX;
+            ADD     (IMMEDIATE (8 * (List.length args)), RSP);
             MOV     (REG RAX, get_symbol_storage store)
         ] in
 
@@ -240,9 +241,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             |> List.map (fun arg -> PUSH (get_symbol_storage arg))
         in
 
-        let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
-
-        arg_cmds @ load_vtable @ pop_cmds
+        arg_cmds @ load_vtable
 
     | TAC_str_eq  (id, s1, s2) ->
         [

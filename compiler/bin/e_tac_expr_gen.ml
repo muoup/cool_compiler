@@ -154,8 +154,8 @@ let tac_gen_expr_body
 
             let return_type, arg_types = get_method_signature data call_on_type _method.name in
 
-            let (obj_id, obj_cmds) = rec_tac_gen call_on in
             let (args_ids, args_cmds) = gen_args arg_types args in
+            let (obj_id, obj_cmds) = rec_tac_gen call_on in
 
             List.iter (free_temp) args_ids;
             free_temp obj_id;
@@ -206,8 +206,8 @@ let tac_gen_expr_body
             let (args_ids, args_cmds) = gen_args arg_types args in
             let (obj_id, obj_cmds) = rec_tac_gen call_on in
             
-            free_temp obj_id;
             List.iter (free_temp) args_ids;
+            free_temp obj_id;
             
             let self_id = temp_id () in
             let lifted_type = 

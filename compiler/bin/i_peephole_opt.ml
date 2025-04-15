@@ -37,6 +37,21 @@ let double_map (cmd1 : asm_cmd) (cmd2 : asm_cmd) : asm_cmd list =
             MOV (REG RAX, dst1);
             MOV (REG RAX, dst2);
         ]
+
+    | MOV   (REG reg, REG_offset(reg1, off1)),
+      MOV   (REG_offset(reg2, off2), dst) when reg1 = reg2 && off1 = off2 && reg1 <> RAX ->
+        [
+            MOV (REG reg, REG_offset(reg1, off1));
+            MOV (REG reg, dst);
+        ]
+
+    | MOV   (REG_offset(reg1, off1), REG_offset(reg2, off2)),
+      MOV   (REG_offset(reg3, off3), dst) when reg2 = reg3 && off2 = off3 && reg1 <> RAX ->
+        [
+            MOV (REG_offset(reg1, off1), REG RAX);
+            MOV (REG RAX, REG_offset(reg2, off2));
+            MOV (REG RAX, dst)
+        ]
       
     | _ -> [cmd1; cmd2]
 
