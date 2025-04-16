@@ -6,7 +6,16 @@ type tac_id =
   | CallSlot    of int
   | IntLit      of int
   | StrLit      of string
+  | CMP         of cmp_type
   | Self
+
+and cmp_type =
+  | EQ
+  | NE
+  | LT
+  | GT
+  | LE
+  | GE
 
 module StringTbl = Hashtbl.Make (struct
     type t = string
@@ -51,6 +60,11 @@ type tac_cmd =
   | TAC_return  of tac_id
   | TAC_comment of string
 
+  (* Boolean in-lining - seperate nodes to not mess with PA4c1 *)
+  | TAC_cmp     of cmp_type * tac_id * tac_id (* Implicitly gets into 'Comparison' *)
+  | TAC_str_cmp of cmp_type * tac_id * tac_id (* Implicitly gets into 'Comparison' *)
+  | TAC_set     of cmp_type * tac_id          (* Implicitly gets from 'Comparison' *)
+
   (* Special Internal Nodes *)
   | TAC_str_eq  of tac_id * tac_id * tac_id
   | TAC_str_lt  of tac_id * tac_id * tac_id
@@ -81,6 +95,7 @@ let f_id (id : tac_id) : string =
     | CallSlot  i   -> Printf.sprintf "C%d" i
     | IntLit    i   -> Printf.sprintf "$%d" i
     | StrLit    s   -> Printf.sprintf "$%s" s
+    | CMP     _type -> Printf.sprintf "CMP"
     | Self          -> "self"
 
 (* TODO: Reimplement tac output *)

@@ -52,6 +52,7 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     | Self        -> REG R12
     | IntLit    i -> IMMEDIATE i
     | StrLit    s -> LABEL s 
+    | CMP       _ -> failwith "Comparison should not directly be accessed"
 
 let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd list =
     match internal_id with
@@ -287,10 +288,22 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     | TAC_label label -> [LABEL label]
     | TAC_jmp label -> [JMP label]
     | TAC_bt (id, label) ->
-        [
-            TEST        (get_symbol_storage id, get_symbol_storage id);
-            JNZ         label
-        ]
+        begin match id with
+        | CMP _type ->
+            begin match _type with
+            | EQ -> [JMPCC (JE, label)]
+            | NE -> [JMPCC (JNE, label)]
+            | LT -> [JMPCC (JL, label)]
+            | LE -> [JMPCC (JLE, label)]
+            | GT -> [JMPCC (JG, label)]
+            | GE -> [JMPCC (JGE, label)]
+            end
+        | _ ->
+            [
+                TEST        (get_symbol_storage id, get_symbol_storage id);
+                JNZ         label
+            ]
+        end
     | TAC_return id ->
         [
             MOV         (get_symbol_storage id, REG RAX);
@@ -302,6 +315,27 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             CALL        (constructor_name_gen name);
             MOV         (REG RAX, (get_symbol_storage id))
         ]
+
+    | TAC_cmp (_type, l, r) ->
+        [
+            CMP         (get_symbol_storage r, get_symbol_storage l)
+        ]
+    | TAC_str_cmp (_type, l, r) ->
+        [
+            MOV         (get_symbol_storage l, REG RDI);
+            MOV         (get_symbol_storage r, REG RSI);
+            CALL        ("strcmp");
+
+            CMP         (IMMEDIATE 0, REG RAX);
+        ]
+    | TAC_set (_type, id) ->
+        begin match _type with
+        | LT -> SETL
+        | LE -> SETLE
+        | EQ -> SETE
+        | NE -> SETNE
+        | _ -> failwith "Unsupported Set"
+        end :: [ MOV    (REG RAX, get_symbol_storage id)]        
 
     (* Object creation *)
 

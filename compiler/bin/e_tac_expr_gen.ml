@@ -128,6 +128,17 @@ let tac_gen_expr_body
     in
 
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
+        let rec_cache (expr : ast_expression) : (tac_id * tac_cmd list) =
+            let id, cmds = rec_tac_gen expr in
+
+            match id with
+            | CMP _type ->
+                let id' = temp_id () in
+
+                id', cmds @ [ TAC_set (_type, id') ] 
+            | _ -> id, cmds
+        in
+        
         let gen_args (_types : string list) (args : ast_expression list) : (tac_id list * tac_cmd list) =
             if (List.length _types) <> (List.length args) then
                 let text = Printf.sprintf "Expected: %d args, Got: %d" (List.length _types) (List.length args) in
@@ -138,7 +149,7 @@ let tac_gen_expr_body
             let ids, cmds = List.combine args _types
             |> List.mapi (
                 fun (i : int) (arg, _type) ->
-                    let arg_id, arg_cmds = rec_tac_gen arg in
+                    let arg_id, arg_cmds = rec_cache arg in
                     let casted_id, casted_cmds = cast_val arg_id arg._type _type in
                     let store_id = CallSlot (i + 1) in
 
@@ -154,7 +165,7 @@ let tac_gen_expr_body
         match expr.data with
         | Assign            { var; rhs } ->
             let var_id = find_symbol var.name in
-            let (rhs_id, rhs_cmds) = rec_tac_gen rhs in
+            let (rhs_id, rhs_cmds) = rec_cache rhs in
 
             let var_type = find_symbol_type var.name in
             let casted_id, casted_cmds = cast_val_no_free rhs_id rhs._type var_type in
@@ -168,7 +179,7 @@ let tac_gen_expr_body
             let return_type, arg_types = get_method_signature data call_on_type _method.name in
 
             let (args_ids, args_cmds) = gen_args arg_types args in
-            let (obj_id, obj_cmds) = rec_tac_gen call_on in
+            let (obj_id, obj_cmds) = rec_cache call_on in
             let obj_cmds = obj_cmds @ [TAC_ident (CallSlot 0, obj_id)] in
 
             free_temp obj_id;
@@ -217,7 +228,7 @@ let tac_gen_expr_body
             let return_type, arg_types = get_method_signature data _type.name _method.name in
 
             let (args_ids, args_cmds) = gen_args arg_types args in
-            let (obj_id, obj_cmds) = rec_tac_gen call_on in
+            let (obj_id, obj_cmds) = rec_cache call_on in
             let obj_cmds = obj_cmds @ [TAC_ident (CallSlot 0, obj_id)] in
         
             free_temp obj_id;
@@ -284,11 +295,11 @@ let tac_gen_expr_body
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             free_temp cond_id;
 
-            let (then_id, then_cmds) = rec_tac_gen _then in
+            let (then_id, then_cmds) = rec_cache _then in
             let casted_then_id, casted_then_cmds = cast_val then_id _then._type merge_type in
             free_temp casted_then_id;
             
-            let (else_id, else_cmds) = rec_tac_gen _else in
+            let (else_id, else_cmds) = rec_cache _else in
             let casted_else_id, casted_else_cmds = cast_val else_id _else._type merge_type in
             free_temp casted_else_id;
             
@@ -313,7 +324,7 @@ let tac_gen_expr_body
         | While             { predicate; body } ->
             let (cond_id, cond_cmds) = rec_tac_gen predicate in
             free_temp cond_id;
-            let (body_id, body_cmds) = rec_tac_gen body in
+            let (body_id, body_cmds) = rec_cache body in
             free_temp body_id;
 
             let self_id = temp_id () in
@@ -337,9 +348,9 @@ let tac_gen_expr_body
             let rec rec_gen exprs =
                 match exprs with
                 | x :: [] ->
-                    rec_tac_gen x
+                    rec_cache x
                 | x :: xs ->
-                    let x_id, x_cmds = rec_tac_gen x in
+                    let x_id, x_cmds = rec_cache x in
                     free_temp x_id;
                     let id, cmds = rec_gen xs in
                     id, x_cmds @ cmds
@@ -359,7 +370,7 @@ let tac_gen_expr_body
                 (self_id, [TAC_new (self_id, _type)])
             end
         | IsVoid           { expr } ->
-            let (expr_id, expr_cmds) = rec_tac_gen expr in
+            let (expr_id, expr_cmds) = rec_cache expr in
 
             free_temp expr_id;
 
@@ -384,76 +395,49 @@ let tac_gen_expr_body
                 cmp_id, l_cmds @ r_cmds @ cmp
             in
 
-            let (lhs_id, lhs_cmds) = rec_tac_gen left in
-            let (rhs_id, rhs_cmds) = rec_tac_gen right in
+            let (lhs_id, lhs_cmds) = rec_cache left in
+            let (rhs_id, rhs_cmds) = rec_cache right in
 
             free_temp lhs_id;
             free_temp rhs_id;
 
-            let self_id = temp_id () in
-
-            let cmds = match op with
-                | Plus      -> [ TAC_add (self_id, lhs_id, rhs_id) ]
-                | Minus     -> [ TAC_sub (self_id, lhs_id, rhs_id) ]
-                | Times     -> [ TAC_mul (self_id, lhs_id, rhs_id) ]
-                | Divide    -> [ TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id) ]
-
-                | LT        ->
-                    begin match left._type, right._type with
+            let gen_cmp (_type : cmp_type) =
+                let cmp_cmds =
+                    match left._type, right._type with
                     | "Int", "Int"
-                    | "Bool", "Bool"     -> [ TAC_lt (self_id, lhs_id, rhs_id) ]
-                    | "String", "String" -> [ TAC_str_lt (self_id, lhs_id, rhs_id) ]
+                    | "Bool", "Bool"     -> [ TAC_cmp (_type, lhs_id, rhs_id) ]
+                    | "String", "String" -> [ TAC_str_cmp (_type, lhs_id, rhs_id) ]
 
                     | _, _ ->
                         let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
                         
-                        let zero = temp_id () in
-                        let to_cond = [
-                            TAC_int (zero, 0);
-                            TAC_lt  (self_id, cmp_id, zero);
-                        ] in
+                        cmp_cmds @ [TAC_cmp  (_type, cmp_id, IntLit 0)];
+                in
 
-                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
-                    end
-                | LE        ->
-                    begin match left._type, right._type with
-                    | "Int", "Int"
-                    | "Bool", "Bool"     -> [ TAC_lte (self_id, lhs_id, rhs_id) ]
-                    | "String", "String" -> [ TAC_str_lte (self_id, lhs_id, rhs_id) ]
-
-                    | _, _ ->
-                        let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
-        
-                        let zero = temp_id () in
-                        let to_cond = [
-                            TAC_int  (zero, 0);
-                            TAC_lte  (self_id, cmp_id, zero);
-                        ] in
-
-                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
-                    end
-                | EQ        -> 
-                    begin match left._type, right._type with
-                    | "Int", "Int"
-                    | "Bool", "Bool"     -> [ TAC_eq (self_id, lhs_id, rhs_id) ]
-                    | "String", "String" -> [ TAC_str_eq (self_id, lhs_id, rhs_id) ]
-
-                    | _, _ ->
-                        let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
-                        
-                        let zero = temp_id () in
-                        let to_cond = [
-                            TAC_int  (zero, 0);
-                            TAC_eq   (self_id, cmp_id, zero);
-                        ] in
-
-                        lhs_cmds @ rhs_cmds @ cmp_cmds @ to_cond
-                    end
+                
+                CMP _type, lhs_cmds @ rhs_cmds @ cmp_cmds
             in
-            
-            (self_id, lhs_cmds @ rhs_cmds @ cmds)
+
+            begin match op with
+                | Plus      -> 
+                    let self_id = temp_id () in
+                    self_id, [ TAC_add (self_id, lhs_id, rhs_id) ]
+                | Minus     -> 
+                    let self_id = temp_id () in
+                    self_id, [ TAC_sub (self_id, lhs_id, rhs_id) ]
+                | Times     -> 
+                    let self_id = temp_id () in
+                    self_id, [ TAC_mul (self_id, lhs_id, rhs_id) ]
+                | Divide    -> 
+                    let self_id = temp_id () in
+                    self_id, [ TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id) ]
+
+                | LT        -> gen_cmp LT
+                | LE        -> gen_cmp LE
+                | EQ        -> gen_cmp EQ
+            end
         | UnOp             { expr; op } ->
-            let (expr_id, expr_cmds) = rec_tac_gen expr in
+            let (expr_id, expr_cmds) = rec_cache expr in
 
             free_temp expr_id;
             let self_id = temp_id () in
@@ -488,7 +472,7 @@ let tac_gen_expr_body
                 | LetBindingInit    { variable; _type; value } ->
                     let id = local_id () in
 
-                    let (rhs_id, rhs_cmds) = rec_tac_gen value in
+                    let (rhs_id, rhs_cmds) = rec_cache value in
                     let (casted_id, casted_cmds) = cast_val rhs_id value._type _type.name in
 
                     add_symbol variable.name id _type.name;
@@ -510,7 +494,7 @@ let tac_gen_expr_body
             in
 
             let init_cmds = List.concat (List.map tac_initialize bindings) in
-            let (in_id, in_cmds) = rec_tac_gen _in in
+            let (in_id, in_cmds) = rec_cache _in in
 
             List.iter (tac_remove_binding) bindings;
 
@@ -518,7 +502,7 @@ let tac_gen_expr_body
         | Case              { expression; mapping_list } ->
             let case_memory = local_id () in
 
-            let (expr_id, expr_cmds) = rec_tac_gen expression in
+            let (expr_id, expr_cmds) = rec_cache expression in
             let expr_cmds = expr_cmds @ [TAC_ident (case_memory, expr_id)] in
 
             let merge_val = temp_id () in
@@ -577,7 +561,7 @@ let tac_gen_expr_body
 
                 let casted_id, casted_cmds = cast_val case_memory expression._type mapping._type.name in
                 add_symbol mapping.name.name casted_id mapping._type.name;
-                let body_id, body_cmds = rec_tac_gen mapping.maps_to in
+                let body_id, body_cmds = rec_cache mapping.maps_to in
                 remove_symbol mapping.name.name;
 
                 let merge_type = expr._type in

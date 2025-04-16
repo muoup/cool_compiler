@@ -10,6 +10,14 @@ type asm_mem =
     | LABEL         of string
     | IMMEDIATE     of int
 
+type jmp_type =
+    | JE
+    | JNE
+    | JG
+    | JGE
+    | JL
+    | JLE
+
 type asm_cmd =
     | FRAME     of int 
 
@@ -43,6 +51,9 @@ type asm_cmd =
     | JNZ       of string
     | JZ        of string
     | JE        of string
+
+    | JMPCC     of jmp_type * string
+
     | RET
 
     | MISC      of string
@@ -216,6 +227,16 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     | JNZ label      -> format_cmd1 "jnz" label
     | JZ label       -> format_cmd1 "jz" label
     | JE label       -> format_cmd1 "je" label
+
+    | JMPCC (_type, label) ->
+        begin match _type with
+        | JE        -> format_cmd1 "je" label
+        | JNE       -> format_cmd1 "jne" label
+        | JG        -> format_cmd1 "jg" label
+        | JGE       -> format_cmd1 "jge" label
+        | JL        -> format_cmd1 "jl" label
+        | JLE       -> format_cmd1 "jle" label
+        end
 
     | CALL label     -> format_cmd1 "callq" label
     | CALL_indirect reg -> format_cmd1 "callq" ("*" ^ asm_reg_to_string reg)
