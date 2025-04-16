@@ -20,18 +20,24 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
 
     let constructor_name = constructor_name_gen _class.name in
 
-    let default_attributes = _class.attributes
+    let default_attr_cmds =
+        _class.attributes
         |> List.mapi (
             fun (i : int) (attr : attribute_data) ->
-                [
-                    TAC_comment ("AttributeNoInit: " ^ attr.name);
-                    TAC_default (Attribute i, attr._type);
-                ]
+                let attribute_id = index_of _class.attributes attr in
+
+                match attr._type with
+                | "String" -> 
+                    [
+                        TAC_comment ("StringNoInit: " ^ attr.name); 
+                        TAC_default (Attribute attribute_id, "String"); 
+                    ]
+                | _ -> []
             )
         |> List.flatten
-        in
+    in
 
-    let valued_attributes =
+    let valued_attr_cmds =
         _class.attributes
         |> List.mapi (
             fun (i : int) (attr : attribute_data) ->
@@ -41,7 +47,7 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
                 | None -> []
                 | Some init ->
                     let val_id, val_cmds = tac_gen_expr_body data _class.name attr._type init symbol_table local_counter temp_counter in
-                    
+
                     TAC_comment ("AttributeInit: " ^ attr.name) ::
                     val_cmds @ 
                     [ TAC_ident (Attribute attribute_id, val_id); ]
@@ -57,7 +63,7 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
         locals = !local_counter;
         temps = !temp_counter;
 
-        commands = instantiate :: default_attributes @ valued_attributes @ [return];
+        commands = instantiate :: default_attr_cmds @ valued_attr_cmds @ [return];
     }
 
 let generate_tac (data : program_data) : method_tac list =

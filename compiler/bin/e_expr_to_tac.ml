@@ -350,7 +350,7 @@ let tac_gen_expr_body
                 | x :: [] ->
                     rec_cache x
                 | x :: xs ->
-                    let x_id, x_cmds = rec_cache x in
+                    let x_id, x_cmds = rec_tac_gen x in
                     free_temp x_id;
                     let id, cmds = rec_gen xs in
                     id, x_cmds @ cmds
@@ -371,16 +371,14 @@ let tac_gen_expr_body
             end
         | IsVoid           { expr } ->
             let (expr_id, expr_cmds) = rec_cache expr in
-
             free_temp expr_id;
-
-            let self_id = temp_id () in
 
             begin match expr._type with
             (* isvoid on intrinsic types is always false *)
             | "String" | "Int" | "Bool" -> 
                 (IntLit 0, expr_cmds @ [])
             | _ -> 
+                let self_id = temp_id () in
                 (self_id, expr_cmds @ [TAC_isvoid (self_id, expr_id)])
             end
         | BinOp             { left; right; op } ->
@@ -390,6 +388,9 @@ let tac_gen_expr_body
 
                 let cmp_id = temp_id () in
                 let cmp = basic_call cmp_id "ambigious_compare" [l_val; r_val] in
+
+                free_temp l_val;
+                free_temp r_val;
 
                 cmp_id, l_cmds @ r_cmds @ cmp
             in
@@ -409,6 +410,8 @@ let tac_gen_expr_body
 
                     | _, _ ->
                         let cmp_id, cmp_cmds = ambigious_compare lhs_id rhs_id in
+
+                        free_temp cmp_id;
                         
                         cmp_cmds @ [TAC_cmp  (_type, cmp_id, IntLit 0)];
                 in
@@ -518,6 +521,8 @@ let tac_gen_expr_body
 
             let (expr_id, expr_cmds) = rec_cache expression in
             let expr_cmds = expr_cmds @ [TAC_ident (case_memory, expr_id)] in
+            
+            free_temp expr_id;
 
             let merge_val = temp_id () in
             let type_name = temp_id () in
@@ -526,6 +531,7 @@ let tac_gen_expr_body
 
             free_temp cond;
             free_temp str;
+            free_temp type_name;
 
             let case_label = label_id () ^ "_case" in
             let merge_label = label_id () ^ "_case_merge" in
@@ -574,12 +580,17 @@ let tac_gen_expr_body
                 let label = TAC_label (case_label ^ string_of_int i) in
 
                 let casted_id, casted_cmds = cast_val case_memory expression._type mapping._type.name in
-                add_symbol mapping.name.name casted_id mapping._type.name;
+                let casted_cmds = casted_cmds @ [ TAC_ident (case_memory, casted_id) ] in
+                free_temp casted_id;
+                
+                add_symbol mapping.name.name case_memory mapping._type.name;
                 let body_id, body_cmds = rec_cache mapping.maps_to in
                 remove_symbol mapping.name.name;
 
                 let merge_type = expr._type in
                 let cast_body_id, cast_body_cmds = cast_val body_id mapping.maps_to._type merge_type in
+
+                free_temp cast_body_id;
 
                 let merge = [
                     TAC_ident (merge_val, cast_body_id);
@@ -617,7 +628,13 @@ let tac_gen_expr_body
     let (casted_id, casted_cmds) = cast_val tac_id method_body._type return_type in
 
     free_temp casted_id;
-    
+
+    let temps_used = !temp_counter in
+    let temps_freed = List.length !free_temps in
+
+    if temps_used <> temps_freed then
+        Printf.printf "Warning: in some %s %s.???() %d temps used, %d temps freed\n" return_type class_name temps_used temps_freed;
+
     global_temp_counter := max !global_temp_counter !temp_counter;
 
     casted_id, (tac_cmds @ casted_cmds)

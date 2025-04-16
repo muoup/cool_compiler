@@ -52,9 +52,8 @@ let () =
 
     (* Generate the CFG for each method *)
 
-    let main_tac = List.find (fun (tac : method_tac) -> tac.method_name = "Main.main") method_tacs in
-
-    (* List.iter (output_tac_cmd (Printf.printf "%s\n")) main_tac.commands; *)
+    (* let main_tac = List.find (fun (tac : method_tac) -> tac.method_name = "Main.main") method_tacs in
+    List.iter (output_tac_cmd (Printf.printf "%s\n")) main_tac.commands; *)
 
     let asm = method_tacs
         |> List.map (generate_asm) 
