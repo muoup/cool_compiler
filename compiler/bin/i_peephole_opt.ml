@@ -5,9 +5,9 @@ let single_map (cmd : asm_cmd) : asm_cmd list =
     match cmd with
     | MOV   (src, dst) when src = dst -> []
     
-    | ADD   (src, dst)
-    | SUB   (src, dst) when src = IMMEDIATE 0 -> []
-    
+    | ADD   (IMMEDIATE 0, dst)
+    | SUB   (IMMEDIATE 0, dst) -> []
+
     | _ -> [cmd]
 
 let double_map (cmd1 : asm_cmd) (cmd2 : asm_cmd) : asm_cmd list =
@@ -45,18 +45,43 @@ let double_map (cmd1 : asm_cmd) (cmd2 : asm_cmd) : asm_cmd list =
             MOV (REG reg, dst);
         ]
 
-    | SUB   (IMMEDIATE i1, r1),
-      SUB   (IMMEDIATE i2, r2) when r1 = r2 ->
-        [
-            SUB (IMMEDIATE (i1 + i2), r1);
-        ]
-
     | MOV   (REG_offset(reg1, off1), REG_offset(reg2, off2)),
       MOV   (REG_offset(reg3, off3), dst) when reg2 = reg3 && off2 = off3 && reg1 <> RAX ->
         [
             MOV (REG_offset(reg1, off1), REG RAX);
             MOV (REG RAX, REG_offset(reg2, off2));
             MOV (REG RAX, dst)
+        ]
+
+    | MOV   (src, REG_offset (reg1, off1)),
+      MOV   (REG_offset (reg2, off2), REG dst) when reg1 = reg2 && off1 = off2 ->
+        [
+            MOV (src, REG dst);
+            MOV (REG dst, REG_offset (reg2, off2))
+        ]
+
+    | SUB   (IMMEDIATE i1, r1),
+      SUB   (IMMEDIATE i2, r2) when r1 = r2 ->
+        [
+            SUB (IMMEDIATE (i1 + i2), r1);
+        ]
+
+    | ADD   (IMMEDIATE i1, r1),
+      ADD   (IMMEDIATE i2, r2) when r1 = r2 ->
+        [
+            ADD (IMMEDIATE (i1 + i2), r1);
+        ]
+
+    | ADD   (IMMEDIATE i1, r1),
+      SUB   (IMMEDIATE i2, r2) when r1 = r2 ->
+        [
+            ADD (IMMEDIATE (i1 - i2), r1);
+        ]
+
+    | SUB   (IMMEDIATE i1, r1),
+      ADD   (IMMEDIATE i2, r2) when r1 = r2 ->
+        [
+            ADD (IMMEDIATE (i2 - i1), r1);
         ]
       
     | _ -> [cmd1; cmd2]
@@ -66,6 +91,9 @@ let peephold_optimize (_method : asm_method) : asm_method =
         |> List.map (single_map)
         |> List.concat
         |> sliding_window_2 (double_map)
+        |> sliding_window_2 (double_map)
+        |> List.map (single_map)
+        |> List.concat
     in
 
     { _method with commands = body }

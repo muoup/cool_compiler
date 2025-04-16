@@ -147,13 +147,8 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         ]
     | TAC_div (line_number, id, a, b) ->
         [
-            COMMENT "Division by zero check";
-            MOV     (IMMEDIATE line_number, REG RSI);
-            MOV32   ((get_symbol_storage b), REG RBX);
-            TEST    (REG RBX, REG RBX);
-            JZ      "error_div_zero";
-
             COMMENT "Division";
+            MOV32   ((get_symbol_storage b), REG RBX);
             MOV32   ((get_symbol_storage a), REG RAX);
             MISC    "cdq";
             DIV     RBX;
@@ -207,6 +202,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         ]
     | TAC_not (id, a) ->
         [
+            XOR     (RAX, RAX);
             MOV     (get_symbol_storage a, REG RAX);
             TEST    (REG RAX, REG RAX);
             MOV     (IMMEDIATE 0, REG RAX);
@@ -298,6 +294,8 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             | GT -> [JMPCC (JG, label)]
             | GE -> [JMPCC (JGE, label)]
             end
+        | IntLit 1 -> [ COMMENT "Branch Tautology Found"; JMP label ]
+        | IntLit 0 -> [ COMMENT "Branch Contradiction Found" ]
         | _ ->
             [
                 TEST        (get_symbol_storage id, get_symbol_storage id);
@@ -329,6 +327,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             CMP         (IMMEDIATE 0, REG RAX);
         ]
     | TAC_set (_type, id) ->
+        MOV     (IMMEDIATE 0, REG RAX) ::
         begin match _type with
         | LT -> SETL
         | LE -> SETLE
@@ -372,11 +371,15 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         ]
 
     | TAC_void_check (line_number, object_id, error) ->
-        [
-            MOV         (IMMEDIATE line_number, REG RSI);
-            TEST        (get_symbol_storage object_id, get_symbol_storage object_id);
-            JE          error
-        ]
+        match object_id with
+        | IntLit x   when x <> 0 ->
+            [ COMMENT ("'" ^ error ^ "' Omitted for Immediate: " ^ string_of_int x) ]
+        | _ ->
+            [
+                MOV         (IMMEDIATE line_number, REG RSI);
+                TEST        (get_symbol_storage object_id, get_symbol_storage object_id);
+                JE          error
+            ]
 
 let generate_asm (method_tac : method_tac) : asm_method =
     let asm_data = {

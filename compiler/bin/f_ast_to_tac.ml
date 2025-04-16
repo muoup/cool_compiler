@@ -4,7 +4,7 @@ open B_class_map
 open B_impl_map
 open C_parser_data
 open D_tac_data
-open E_tac_expr_gen
+open E_expr_to_tac
 
 let generate_constructor (data : program_data) (symbol_table : symbol_table ref) (_class : program_class_data) : method_tac =
     let temp_counter = ref 0 in

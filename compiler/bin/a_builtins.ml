@@ -485,7 +485,7 @@ error_substring_msg:
     .text
     .globl error_div_on_zero
     .type  error_div_on_zero, @function
-error_div_zero:
+error_divide_zero:
     movq    $error_divide_msg, %rdi
     xorq    %rax, %rax
     callq   printf

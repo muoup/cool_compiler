@@ -385,7 +385,6 @@ let tac_gen_expr_body
             end
         | BinOp             { left; right; op } ->
             let ambigious_compare (left_id : tac_id) (right_id : tac_id) : tac_id * tac_cmd list =
-
                 let l_val, l_cmds = cast_val left_id left._type "Object" in
                 let r_val, r_cmds = cast_val right_id right._type "Object" in
 
@@ -415,10 +414,10 @@ let tac_gen_expr_body
                 in
 
                 
-                CMP _type, lhs_cmds @ rhs_cmds @ cmp_cmds
+                CMP _type, cmp_cmds
             in
 
-            begin match op with
+            let id, cmds = match op with
                 | Plus      -> 
                     let self_id = temp_id () in
                     self_id, [ TAC_add (self_id, lhs_id, rhs_id) ]
@@ -430,24 +429,39 @@ let tac_gen_expr_body
                     self_id, [ TAC_mul (self_id, lhs_id, rhs_id) ]
                 | Divide    -> 
                     let self_id = temp_id () in
-                    self_id, [ TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id) ]
+                    self_id, [ 
+                        TAC_void_check (expr.ident.line_number, rhs_id, "error_divide_zero");
+                        TAC_div (left.ident.line_number, self_id, lhs_id, rhs_id);
+                    ]
 
                 | LT        -> gen_cmp LT
                 | LE        -> gen_cmp LE
                 | EQ        -> gen_cmp EQ
-            end
+            in
+
+            id, lhs_cmds @ rhs_cmds @ cmds
         | UnOp             { expr; op } ->
             let (expr_id, expr_cmds) = rec_cache expr in
 
             free_temp expr_id;
-            let self_id = temp_id () in
             
-            let cmd = match op with
-                | Not       -> TAC_not (self_id, expr_id)
-                | Negate    -> TAC_neg (self_id, expr_id)
-            in
-
-            (self_id, expr_cmds @ [cmd])
+            begin match op with
+                | Not       -> 
+                    begin match expr_id with
+                    | CMP LE -> CMP GT, []
+                    | CMP LT -> CMP GE, []
+                    | CMP EQ -> CMP NE, []
+                    | CMP NE -> CMP EQ, []
+                    | CMP GT -> CMP LE, []
+                    | CMP GE -> CMP LT, []
+                    | _ ->
+                        let self_id = temp_id () in
+                        self_id, expr_cmds @ [TAC_not (self_id, expr_id)]
+                    end
+                | Negate    -> 
+                    let self_id = temp_id () in
+                    self_id, expr_cmds @ [TAC_neg (self_id, expr_id)]
+            end
         | Integer           i ->
             (IntLit i, [])
         | String            s ->

@@ -6,7 +6,7 @@ open B_impl_map
 open B_parent_map
 open C_parser_data
 open D_tac_data
-open F_tac_gen
+open F_ast_to_tac
 open G_metadata_output
 open G_tac_to_cfg
 open H_asm_data
@@ -51,6 +51,10 @@ let () =
     ) method_tacs; *)
 
     (* Generate the CFG for each method *)
+
+    let main_tac = List.find (fun (tac : method_tac) -> tac.method_name = "Main.main") method_tacs in
+
+    (* List.iter (output_tac_cmd (Printf.printf "%s\n")) main_tac.commands; *)
 
     let asm = method_tacs
         |> List.map (generate_asm) 
