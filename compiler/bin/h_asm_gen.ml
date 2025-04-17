@@ -52,6 +52,7 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     | Self        -> REG R12
     | IntLit    i -> IMMEDIATE i
     | StrLit    s -> LABEL s 
+    | RAX         -> REG RAX
     | CMP       _ -> failwith "Comparison should not directly be accessed"
 
 let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd list =
@@ -86,7 +87,7 @@ let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd
         ]
     | "Object.type_name" ->
         [
-            MOV     (LABEL (obj_name_mem_gen class_name), REG RAX);
+            MOV     (REG_offset (R12, 0), REG RAX);
             RET;
         ]
     | "Object.abort" ->
@@ -316,7 +317,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
 
     | TAC_cmp (_type, l, r) ->
         [
-            CMP         (get_symbol_storage r, get_symbol_storage l)
+            CMP     (get_symbol_storage r, get_symbol_storage l)
         ]
     | TAC_str_cmp (_type, l, r) ->
         [

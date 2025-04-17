@@ -540,6 +540,4 @@ error_substr:
 
     movq    $1, %rdi
     callq   exit
-    ret
-
-# -------- COMPILED PROGRAM START ------------|}
+    ret|}

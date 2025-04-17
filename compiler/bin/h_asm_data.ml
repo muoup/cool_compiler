@@ -192,10 +192,12 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     | TEST (mem1, mem2) -> 
         begin match mem1, mem2 with
-        | _, REG r2 ->
-            format_cmd2 "testl" (asm_mem32_to_string mem1) (asm_reg32_to_string r2)
-        | REG r1, _ ->
-            format_cmd2 "testl" (asm_mem32_to_string mem2) (asm_reg32_to_string r1)
+        | _, REG _
+        | LABEL _, _ ->
+            format_cmd2 "testl" (asm_mem32_to_string mem1) (asm_mem32_to_string mem2)
+        | REG _, _
+        | _, LABEL _ ->
+            format_cmd2 "testl" (asm_mem32_to_string mem2) (asm_mem32_to_string mem1)
         | l, r when l = r ->
             format_cmd2 "movl"  (asm_mem32_to_string l) (asm_reg32_to_string RAX);
             output "\n";

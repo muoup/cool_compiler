@@ -6,6 +6,7 @@ type tac_id =
   | CallSlot    of int
   | IntLit      of int
   | StrLit      of string
+  | RAX
   | CMP         of cmp_type
   | Self
 
@@ -95,6 +96,7 @@ let f_id (id : tac_id) : string =
     | CallSlot  i   -> Printf.sprintf "C%d" i
     | IntLit    i   -> Printf.sprintf "$%d" i
     | StrLit    s   -> Printf.sprintf "$%s" s
+    | RAX           -> Printf.sprintf "%%rax"
     | CMP     _type -> Printf.sprintf "cmp"
     | Self          -> "self"
 

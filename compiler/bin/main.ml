@@ -63,13 +63,13 @@ let () =
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 
-    output builtin_asm;
-    output "\n";
-
     List.iter (fun (asm_ : asm_method) -> print_asm_method asm_ (output)) asm;
     output "\n";
 
     emit_metadata output program_data;
     output "\n";
-    
+
+    output builtin_asm;
+    output "\n";
+
     close_out assembly_handle

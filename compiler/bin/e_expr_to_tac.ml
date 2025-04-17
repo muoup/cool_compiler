@@ -138,6 +138,10 @@ let tac_gen_expr_body
                 id', cmds @ [ TAC_set (_type, id') ] 
             | _ -> id, cmds
         in
+
+        let can_use_static_dispatch (_type : string) =
+            _type <> "SELF_TYPE" && not @@ StringSet.mem _type data.overriden_classes
+        in
         
         let gen_args (_types : string list) (args : ast_expression list) : (tac_id list * tac_cmd list) =
             if (List.length _types) <> (List.length args) then
@@ -175,7 +179,6 @@ let tac_gen_expr_body
             (rhs_id, rhs_cmds @ casted_cmds @ [TAC_ident (var_id, casted_id)])
         | DynamicDispatch   { call_on; _method; args } ->
             let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
-
             let return_type, arg_types = get_method_signature data call_on_type _method.name in
 
             let (args_ids, args_cmds) = gen_args arg_types args in
@@ -200,13 +203,16 @@ let tac_gen_expr_body
                     [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")] 
             in
 
-            if not (StringSet.mem call_on._type data.overriden_classes) then
-                let dispatch = method_name_gen call_on_type _method.name in
+            if can_use_static_dispatch call_on._type then
+                let dispatch = get_method_name data call_on_type _method.name in
 
                 let call_cmds =
-                    if _method.name = "copy" && lifted_type then
+                    match _method.name with
+                    | "copy" when lifted_type ->
                         [ TAC_ident (self_id, obj_id) ]
-                    else
+                    | "type_name" ->
+                        [ TAC_ident (self_id, StrLit (obj_name_mem_gen call_on._type))]
+                    | _ ->
                         [ TAC_call (self_id, dispatch, obj_id :: args_ids) ]
                 in
 
@@ -245,15 +251,20 @@ let tac_gen_expr_body
                 [TAC_void_check (expr.ident.line_number, obj_id, "error_dispatch")]
             in
 
-            if _method.name = "copy" && lifted_type then
-                (self_id, args_cmds @ obj_cmds @ [TAC_ident (self_id, obj_id)])
-            else
-
             let comment = TAC_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
-            let dispatch = method_name_gen _type.name _method.name in
+            let dispatch = get_method_name data _type.name _method.name in
 
-            let call_cmd = TAC_call (self_id, dispatch, obj_id :: args_ids) in
-            (self_id, args_cmds @ obj_cmds @ check_dispatch @ [comment; call_cmd])
+            let call_cmds =
+                match _method.name with
+                | "copy" when lifted_type ->
+                    [ TAC_ident (self_id, obj_id) ]
+                | "type_name" ->
+                    [ TAC_ident (self_id, StrLit (obj_name_mem_gen call_on._type))]
+                | _ ->
+                    [ TAC_call (self_id, dispatch, obj_id :: args_ids) ]
+            in
+
+            (self_id, args_cmds @ obj_cmds @ check_dispatch @ [comment] @ call_cmds)
         | SelfDispatch      { _method; args } ->
             let return_type, arg_types = get_method_signature data class_name _method.name in
 
@@ -263,8 +274,8 @@ let tac_gen_expr_body
 
             let comment = TAC_comment ("SelfDispatch: " ^ _method.name) in
 
-            if not (StringSet.mem class_name data.overriden_classes) then
-                let dispatch = method_name_gen class_name _method.name in
+            if can_use_static_dispatch class_name then
+                let dispatch = get_method_name data class_name _method.name in
 
                 let call_cmd = TAC_call (self_id, dispatch, Self :: args_ids) in
 
@@ -361,13 +372,22 @@ let tac_gen_expr_body
         | New              { _class } ->
             let self_id = temp_id () in
 
-            let _type = if _class.name = "SELF_TYPE" then class_name else _class.name in
-
-            begin match _type with
+            begin match _class.name with
             | "Int" | "Bool" | "String" ->
-                (self_id, [TAC_default (self_id, _type)])
+                (self_id, [TAC_default (self_id, _class.name)])
+            | "SELF_TYPE" ->
+                (self_id, [
+                    TAC_comment "-- SPECIAL CASE: new.SELF_TYPE (Uses Dispatch) --";
+                    TAC_dispatch { 
+                        line_number = 0;
+                        store = self_id; 
+                        obj = Self;
+                        method_id = 0;
+                        args = [];
+                    }
+                ])
             | _ ->
-                (self_id, [TAC_new (self_id, _type)])
+                (self_id, [TAC_new (self_id, _class.name)])
             end
         | IsVoid           { expr } ->
             let (expr_id, expr_cmds) = rec_cache expr in
@@ -525,13 +545,11 @@ let tac_gen_expr_body
             free_temp expr_id;
 
             let merge_val = temp_id () in
-            let type_name = temp_id () in
             let cond = temp_id () in
             let str = temp_id () in
 
             free_temp cond;
             free_temp str;
-            free_temp type_name;
 
             let case_label = label_id () ^ "_case" in
             let merge_label = label_id () ^ "_case_merge" in
@@ -539,9 +557,7 @@ let tac_gen_expr_body
             let type_cmd = 
                 match expression._type with
                 | "Int" | "String" | "Bool" -> 
-                    let method_name = method_name_gen (expression._type) "type_name" in
-
-                    basic_call type_name method_name [case_memory]
+                    [ TAC_ident (RAX, StrLit (obj_name_mem_gen expression._type)) ]
                 | _ ->
                     [
                         TAC_call_alloc 2;
@@ -549,9 +565,9 @@ let tac_gen_expr_body
                         TAC_void_check (expr.ident.line_number, case_memory, "error_case_void");
                         TAC_dispatch { 
                             line_number = expr.ident.line_number;
-                            store = type_name; 
+                            store = RAX; 
                             obj = case_memory;
-                            method_id = 2; (* type_name *)
+                            method_id = 3; (* type_name *)
                             args = [case_memory];
                         }
                     ]
@@ -569,8 +585,8 @@ let tac_gen_expr_body
                         |> List.map (
                             fun _type ->
                                 [
-                                    TAC_eq (cond, type_name, StrLit (obj_name_mem_gen _type));
-                                    TAC_bt (cond, case_label ^ string_of_int i)
+                                    TAC_cmp (EQ,     RAX, StrLit (obj_name_mem_gen _type));
+                                    TAC_bt  (CMP EQ, case_label ^ string_of_int i)
                                 ]
                             ) 
                         |> List.concat
