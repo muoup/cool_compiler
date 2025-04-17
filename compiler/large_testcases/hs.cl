@@ -9,7 +9,7 @@ class Foo inherits Bazz {
 
      b : Int <- a.doh() + g.doh() + doh() + printh();
 
-     doh() : Int { (let i : Int <- h in { h <- h + 2; i; } ) };
+     doh() : Int { (let i : Int <- h in { out_string("doh_foo\n"); h <- h + 2; i; } ) };
 
 };
 
@@ -34,6 +34,8 @@ class Razz inherits Foo {
 
 class Bazz inherits IO {
 
+     new_self : Object <- out_string(type_name());
+
      h : Int <- 1;
 
      g : Foo  <- case self of
@@ -45,9 +47,9 @@ class Bazz inherits IO {
 
      i : Object <- printh();
 
-     printh() : Int { { out_int(h); 0; } };
+     printh() : Int { { out_int(h); out_string("\n"); 0; } };
 
-     doh() : Int { (let i: Int <- h in { h <- h + 1; i; } ) };
+     doh() : Int { let i: Int <- h in { out_string("doh_bazz"); h <- h + 1; i; } };
 };
 
 (* scary . . . *)

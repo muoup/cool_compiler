@@ -1,5 +1,5 @@
 class Main inherits IO {
     main() : Object {
-        out_string("Who knows!\a")
+        out_int("1\nsadfg;jklas;ljans\t".length())
     };
 };

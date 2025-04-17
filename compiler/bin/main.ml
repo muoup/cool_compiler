@@ -7,13 +7,18 @@ open B_parent_map
 open C_parser_data
 open D_ssa_data
 open D_tac_data
+<<<<<<< HEAD
 open F_ssa_gen
 open G_ssa_to_tac
+=======
+open F_ast_to_tac
+>>>>>>> opt/better-reg-alloc
 open G_metadata_output
 open G_tac_to_cfg
 open G_ssa_opt
 open H_asm_data
 open H_asm_gen
+open I_peephole_opt
 
 let change_file_extension (path : string) (new_extension : string) : string =
     Filename.remove_extension path ^ new_extension
@@ -42,6 +47,7 @@ let () =
     let parsed_data : parsed_data = { 
         ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; 
     } in
+
     let program_data = organize_parser_data parsed_data in
 
     let ssa = generate_ssa program_data in
@@ -67,17 +73,24 @@ let () =
 
     (* Generate the CFG for each method *)
 
-    (* let asm = List.map (generate_asm) method_tacs in
+    (* let main_tac = List.find (fun (tac : method_tac) -> tac.method_name = "Main.main") method_tacs in
+    List.iter (output_tac_cmd (Printf.printf "%s\n")) main_tac.commands; *)
+
+    let asm = method_tacs
+        |> List.map (generate_asm) 
+        |> List.map (peephold_optimize) 
+    in
+
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
-
-    output builtin_asm;
-    output "\n";
 
     List.iter (fun (asm_ : asm_method) -> print_asm_method asm_ (output)) asm;
     output "\n";
 
     emit_metadata output program_data;
     output "\n";
-    
-    close_out assembly_handle *)
+
+    output builtin_asm;
+    output "\n";
+
+    close_out assembly_handle

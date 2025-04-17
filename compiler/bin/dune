@@ -6,10 +6,10 @@
   b_ast b_class_map b_impl_map b_parent_map 
   c_parser_data 
   d_tac_data d_ssa_data
-  e_ssa_expr_gen
-  f_ssa_gen
-  g_metadata_output g_tac_to_cfg g_ssa_opt g_ssa_to_tac
-  h_asm_data
-  h_asm_gen
+  e_expr_to_tac e_ssa_expr_gen
+  f_ast_to_tac f_ssa_gen
+  g_metadata_output g_tac_to_cfg
+  h_asm_data h_asm_gen
+  i_peephole_opt
   main
 ))

@@ -30,72 +30,73 @@ let generate_strlit_map (tac_cmds : tac_cmd list) : strlit_map =
         | _ -> None
     ) tac_cmds
 
-let generate_stack_map (tac_ids : tac_id list) : stack_map =
-    let (locals, temps) = List.fold_left (
-        fun (acc_locals, acc_temps) id ->
-            match id with
-            | Local _ -> (acc_locals + 1, acc_temps)
-            | Temporary _ -> (acc_locals, acc_temps + 1)
-            | _ -> (acc_locals, acc_temps)
-    ) (0, 0) tac_ids in
-
+let generate_stack_map (_method : method_tac) : stack_map =
     let local_variable_offset = 0 in
-    let temporaries_offset = local_variable_offset + (locals * 8) in
+    let temporaries_offset = local_variable_offset + _method.locals * 8 in
 
     {
         local_variable_offset = local_variable_offset;
         temporaries_offset = temporaries_offset;
     }
 
+let get_parameter_memory (i : int) : asm_mem =
+    REG_offset (RBP, 24 + (i * 8))
+
 let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     match id with
-    | Local     i -> RBP_offset (-stack_map.local_variable_offset - ((i + 1) * 8))
-    | Temporary i -> RBP_offset (-stack_map.temporaries_offset - ((i + 1) * 8))
+    | Local     i -> REG_offset (RBP, -stack_map.local_variable_offset - ((i + 1) * 8))
+    | Temporary i -> REG_offset (RBP, -stack_map.temporaries_offset - ((i + 1) * 8))
     | Attribute i -> REG_offset (R12, 24 + 8 * i)
+    | CallSlot  i -> REG_offset (RSP, 8 * i)
+    | Parameter i -> get_parameter_memory i
     | Self        -> REG R12
-    | Parameter i -> RBP_offset (32 + (i * 8))
+    | IntLit    i -> IMMEDIATE i
+    | StrLit    s -> LABEL s 
+    | RAX         -> REG RAX
+    | CMP       _ -> failwith "Comparison should not directly be accessed"
 
-let generate_internal_asm (internal_id : string) : asm_cmd list =
+let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd list =
     match internal_id with
     | "IO.in_string" ->
         [
-            CALL "in_string";
-            RET
+            CALL    "in_string";
+            RET;
         ]
     | "IO.out_string" ->
         [
-            MOV_reg (RBP_offset 32, RAX);
-            PUSH RAX;
-            CALL "out_string";
-            POP RAX;
+            PUSH    (REG RAX);
+            PUSH    (get_parameter_memory 0);
+            CALL    "out_string";
+            ADD     (IMMEDIATE 16, RSP);
+            MOV     (REG R12, REG RAX);
             RET
         ]
     | "IO.in_int" ->
         [
-            CALL "in_int";
-            RET
+            CALL    "in_int";
+            RET;
         ]
     | "IO.out_int" ->
         [
-            MOV_reg (RBP_offset 32, RAX);
-            PUSH RAX;
-            CALL "out_int";
-            POP RAX;
+            PUSH    (REG RAX);
+            PUSH    (get_parameter_memory 0);
+            CALL    "out_int";
+            ADD     (IMMEDIATE 16, RSP);
+            MOV     (REG R12, REG RAX);
             RET
         ]
     | "Object.type_name" ->
         [
-            MOV_reg (RBP_offset 24, RAX);
-            MOV_reg (REG_offset (RAX, 0), RAX);
-            RET
+            MOV     (REG_offset (R12, 0), REG RAX);
+            RET;
         ]
     | "Object.abort" ->
         [
-            MOV_reg (LABEL "abort_msg", RDI);
-            CALL "puts";
+            MOV     (LABEL "abort_msg", REG RDI);
+            CALL    "puts";
 
-            MOV_reg (IMMEDIATE 1, RDI);
-            CALL "exit";
+            MOV     (IMMEDIATE 1, REG RDI);
+            CALL    "exit";
         ]
     | "Object.copy" ->
         [
@@ -111,17 +112,17 @@ let generate_internal_asm (internal_id : string) : asm_cmd list =
         ]
     | "String.length" ->
         [
-            MOV_reg (REG R12, RDI);
-            CALL "strlen";
+            MOV     (REG R12, REG RDI);
+            CALL    "strlen";
             RET;
         ]
     | x -> 
         [
             COMMENT ("Unimplemented: " ^ x);
-            CALL "exit";
+            CALL    "exit";
         ]
 
-let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list = 
+let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
         get_id_memory id asm_data.stack_map
     in
@@ -129,198 +130,212 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
     match tac_cmd with
     | TAC_add (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            MOV_reg ((get_symbol_storage b), RBX);
-            ADD (REG RAX, RBX);
-            MOV_mem (RBX, get_symbol_storage id)
+            MOV     ((get_symbol_storage a), REG RAX);
+            ADD     ((get_symbol_storage b), RAX);
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_sub (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            MOV_reg ((get_symbol_storage b), RBX);
-            SUB (REG RBX, RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     ((get_symbol_storage a), REG RAX);
+            SUB     ((get_symbol_storage b), RAX);
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_mul (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            MOV_reg ((get_symbol_storage b), RBX);
-            MUL (REG RAX, RBX);
-            MOV_mem (RBX, get_symbol_storage id)
+            MOV     ((get_symbol_storage a), REG RAX);
+            MUL     ((get_symbol_storage b), RAX);
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_div (line_number, id, a, b) ->
         [
-            COMMENT "Division by zero check";
-            MOV_reg (IMMEDIATE line_number, RSI);
-            MOV_reg32 ((get_symbol_storage b), RBX);
-            TEST (RBX, RBX);
-            JZ "error_div_zero";
-
             COMMENT "Division";
-            MOV_reg32 ((get_symbol_storage a), RAX);
-            MISC "cdq";
-            DIV RBX;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV32   ((get_symbol_storage b), REG RBX);
+            MOV32   ((get_symbol_storage a), REG RAX);
+            MISC    "cdq";
+            DIV     RBX;
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_lt (id, a, b) -> 
         [
-            MOV_reg ((get_symbol_storage a), RBX);
-            MOV_reg ((get_symbol_storage b), RCX);
-            XOR (RAX, RAX);
-            CMP (RCX, RBX);
+            CMP     (get_symbol_storage b, get_symbol_storage a);
+            MOV     (IMMEDIATE 0, REG RAX);
             SETL;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_lte (id, a, b) -> 
         [
-            MOV_reg ((get_symbol_storage a), RBX);
-            MOV_reg ((get_symbol_storage b), RCX);
-            XOR (RAX, RAX);
-            CMP (RCX, RBX);
+            CMP     (get_symbol_storage b, get_symbol_storage a);
+            MOV     (IMMEDIATE 0, REG RAX);
             SETLE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_eq (id, a, b) ->
         [
-            MOV_reg ((get_symbol_storage a), RBX);
-            MOV_reg ((get_symbol_storage b), RCX);
-            XOR (RAX, RAX);
-            CMP (RBX, RCX);
+            CMP     (get_symbol_storage b, get_symbol_storage a);
+            MOV     (IMMEDIATE 0, REG RAX);
             SETE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_int (id, i) ->
         [
-            MOV_reg (IMMEDIATE i, RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (IMMEDIATE i, get_symbol_storage id);
         ]
     | TAC_str (id, s) ->
         let str_id = fst @@ List.find (fun (_, _s) -> _s = s) asm_data.strlit_map in
         
         [
-            MOV_reg (LABEL str_id, RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (LABEL str_id, get_symbol_storage id);
         ]
     | TAC_bool (id, b) ->
         let bool_val = if b then 1 else 0 in
 
         [
-            MOV_reg (IMMEDIATE bool_val, RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (IMMEDIATE bool_val, get_symbol_storage id);
         ]
     | TAC_ident (id, s) ->
         [
-            MOV_reg ((get_symbol_storage s), RAX);
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (get_symbol_storage s, get_symbol_storage id)
         ]
     | TAC_neg (id, a) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            NEG RAX;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (get_symbol_storage a, get_symbol_storage id);
+            NEG     (get_symbol_storage id);
         ]
     | TAC_not (id, a) ->
         [
-            MOV_reg ((get_symbol_storage a), RAX);
-            TEST (RAX, RAX);
+            XOR     (RAX, RAX);
+            MOV     (get_symbol_storage a, REG RAX);
+            TEST    (REG RAX, REG RAX);
+            MOV     (IMMEDIATE 0, REG RAX);
             SETE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
+        ]
+    | TAC_call_alloc slots ->
+        let slots = if (slots mod 2 = 0) then slots else slots + 1 in
+
+        [
+            SUB         (IMMEDIATE (8 * slots), RSP);
         ]
     | TAC_call (id, method_name, args) ->
-        let arg_cmds = List.concat @@ List.map (fun arg -> 
-            let load = MOV_reg ((get_symbol_storage arg), RAX) in    
-            let push = PUSH RAX in
+        let slots = List.length args in
+        let slots = if (slots mod 2 = 0) then slots else slots + 1 in
 
-            [load; push]
-        ) @@ List.rev args in
-
-        let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
-
-        arg_cmds @ [
+        [
             CALL method_name;
-            MOV_mem (RAX, get_symbol_storage id)
-        ] @ pop_cmds
+            ADD (IMMEDIATE (8 * slots), RSP);
+            MOV (REG RAX, get_symbol_storage id)
+        ]
 
     | TAC_dispatch { line_number; store; obj; method_id; args } ->
-        let dispatch_check = [
-            COMMENT ("Dispatch on Void Check");
-            MOV_reg (IMMEDIATE line_number, RSI);
-            MOV_reg ((get_symbol_storage obj), RAX);
-            TEST (RAX, RAX);
-            JZ "error_dispatch";
-        ] in
-        
-        let load_vtable = [
+        let slots = List.length args in
+        let slots = if (slots mod 2 = 0) then slots else slots + 1 in
+
+        [
             COMMENT ("Load Vtable ID " ^ (string_of_int method_id));
-            MOV_reg (get_symbol_storage obj, RAX);
-            MOV_reg (REG_offset (RAX, 16), RAX);
-            MOV_reg (REG_offset (RAX, 8 * method_id), RAX);
-            CALL_indirect RAX;
-            MOV_mem (RAX, get_symbol_storage store)
-        ] in
-
-        let arg_cmds = List.concat @@ List.map (fun arg -> 
-            let load = MOV_reg ((get_symbol_storage arg), RAX) in    
-            let push = PUSH RAX in
-
-            [load; push]
-        ) @@ List.rev args in
-
-        let pop_cmds = [ADD (IMMEDIATE (8 * (List.length args)), RSP)] in
-
-        dispatch_check @ arg_cmds @ load_vtable @ pop_cmds
+            MOV     (get_symbol_storage obj, REG RAX);
+            MOV     (REG_offset (RAX, 16), REG RAX);
+            MOV     (REG_offset (RAX, 8 * method_id), REG RAX);
+            CALL_indirect   RAX;
+            ADD     (IMMEDIATE (8 * slots), RSP);
+            MOV     (REG RAX, get_symbol_storage store)
+        ]
 
     | TAC_str_eq  (id, s1, s2) ->
         [
-            MOV_reg ((get_symbol_storage s1), RDI);
-            MOV_reg ((get_symbol_storage s2), RSI);
-            CALL "strcmp";
-            MOV_reg (REG RAX, RDI);
-            XOR (RAX, RAX);
-            TEST (RDI, RDI);
+            MOV     ((get_symbol_storage s1), REG RDI);
+            MOV     ((get_symbol_storage s2), REG RSI);
+            CALL    "strcmp";
+            TEST    (REG RAX, REG RAX);
+            MOV     (IMMEDIATE 0, REG RAX);    
             SETE;
-            MOV_mem (RAX, get_symbol_storage id)
+            MOV     (REG RAX, get_symbol_storage id)
+        ]
+    | TAC_str_lt (id, s1, s2) ->
+        [
+            MOV     ((get_symbol_storage s1), REG RDI);
+            MOV     ((get_symbol_storage s2), REG RSI);
+            CALL    "strcmp";
+            TEST    (REG RAX, REG RAX);
+            MOV     (IMMEDIATE 0, REG RAX);
+            SETL;
+            MOV     (REG RAX, get_symbol_storage id)
+        ]
+    | TAC_str_lte (id, s1, s2) ->
+        [
+            MOV     ((get_symbol_storage s1), REG RDI);
+            MOV     ((get_symbol_storage s2), REG RSI);
+            CALL    "strcmp";
+            TEST    (REG RAX, REG RAX);
+            MOV     (IMMEDIATE 0, REG RAX);
+            SETLE;
+            MOV     (REG RAX, get_symbol_storage id)
         ]
 
     | TAC_default (id, _type) ->
         (match _type with
         | "String" ->
             [
-                MOV_reg (LABEL "default_string", RAX);
-                MOV_mem (RAX, get_symbol_storage id)
+                MOV     (LABEL "default_string", get_symbol_storage id);
             ]
         | _ ->
             [
-                MOV_reg (IMMEDIATE 0, RAX);
-                MOV_mem (RAX, get_symbol_storage id)
+                MOV     (IMMEDIATE 0, get_symbol_storage id);
             ])
 
     | TAC_label label -> [LABEL label]
     | TAC_jmp label -> [JMP label]
     | TAC_bt (id, label) ->
-        [
-            MOV_reg ((get_symbol_storage id), RAX);
-            TEST (RAX, RAX);
-            JNZ label
-        ]
+        begin match id with
+        | CMP _type ->
+            begin match _type with
+            | EQ -> [JMPCC (JE, label)]
+            | NE -> [JMPCC (JNE, label)]
+            | LT -> [JMPCC (JL, label)]
+            | LE -> [JMPCC (JLE, label)]
+            | GT -> [JMPCC (JG, label)]
+            | GE -> [JMPCC (JGE, label)]
+            end
+        | IntLit 1 -> [ COMMENT "Branch Tautology Found"; JMP label ]
+        | IntLit 0 -> [ COMMENT "Branch Contradiction Found" ]
+        | _ ->
+            [
+                TEST        (get_symbol_storage id, get_symbol_storage id);
+                JNZ         label
+            ]
+        end
     | TAC_return id ->
         [
-            MOV_reg ((get_symbol_storage id), RAX);
+            MOV         (get_symbol_storage id, REG RAX);
             RET
         ]
     | TAC_comment s -> [COMMENT s]
     | TAC_new (id, name) ->
         [
-            CALL (constructor_name_gen name);
-            MOV_mem (RAX, (get_symbol_storage id))
+            CALL        (constructor_name_gen name);
+            MOV         (REG RAX, (get_symbol_storage id))
         ]
 
-    | TAC_attribute { object_id; attribute_id; value } ->
+    | TAC_cmp (_type, l, r) ->
         [
-            MOV_reg ((get_symbol_storage object_id), RAX);
-            MOV_reg ((get_symbol_storage value), RBX);
-            MOV_mem (RBX, REG_offset (RAX, 24 + 8 * attribute_id))
+            CMP     (get_symbol_storage r, get_symbol_storage l)
         ]
+    | TAC_str_cmp (_type, l, r) ->
+        [
+            MOV         (get_symbol_storage l, REG RDI);
+            MOV         (get_symbol_storage r, REG RSI);
+            CALL        ("strcmp");
+
+            CMP         (IMMEDIATE 0, REG RAX);
+        ]
+    | TAC_set (_type, id) ->
+        MOV     (IMMEDIATE 0, REG RAX) ::
+        begin match _type with
+        | LT -> SETL
+        | LE -> SETLE
+        | EQ -> SETE
+        | NE -> SETNE
+        | _ -> failwith "Unsupported Set"
+        end :: [ MOV    (REG RAX, get_symbol_storage id)]        
 
     (* Object creation *)
 
@@ -328,37 +343,62 @@ let generate_tac_asm (tac_cmd : tac_cmd) (asm_data : asm_data) : asm_cmd list =
         let size = 8 * (3 + attributes) in
 
         [
-            MOV_reg     (IMMEDIATE 8, RDI);
-            MOV_reg     (IMMEDIATE size, RSI);
+            MOV         (IMMEDIATE 1, REG RDI);
+            MOV         (IMMEDIATE size, REG RSI);
             XOR         (RAX, RAX);
             CALL        "calloc";
 
-            MOV_mem     (RAX, get_symbol_storage id);
+            MOV         (REG RAX, REG R12);
+            MOV         (REG RAX, get_symbol_storage id);
 
-            MOV_reg     (LABEL (obj_name_mem_gen object_name), RDI);
-            MOV_mem     (RDI, REG_offset (RAX, 0));
-
-            MOV_reg     (IMMEDIATE size, RDI);
-            MOV_mem     (RDI, REG_offset (RAX, 8));
-
-            MOV_reg     (LABEL (vtable_name_gen object_name), RDI);
-            MOV_mem     (RDI, REG_offset (RAX, 16))
+            MOV         (LABEL (obj_name_mem_gen object_name), REG_offset (RAX, 0));
+            MOV         (IMMEDIATE size, REG_offset (RAX, 8));
+            MOV         (LABEL (vtable_name_gen object_name), REG_offset (RAX, 16))
         ]
 
-    | TAC_internal id -> generate_internal_asm id
+    | TAC_inline_assembly asm_code ->
+        [
+            COMMENT     ("Inline assembly: " ^ asm_code);
+            MISC        asm_code
+        ]
+    | TAC_internal id -> generate_internal_asm current_class id
 
-    | TAC_isvoid _ -> [COMMENT "Isvoid"]
+    | TAC_isvoid (store, _val) -> 
+        [
+            TEST        (get_symbol_storage _val, get_symbol_storage _val);
+            MOV         (IMMEDIATE 0, REG RAX);
+            SETE;
+            MOV         (REG RAX, get_symbol_storage store);
+        ]
+
+    | TAC_void_check (line_number, object_id, error) ->
+        match object_id with
+        | IntLit x   when x <> 0 ->
+            [ COMMENT ("'" ^ error ^ "' Omitted for Immediate: " ^ string_of_int x) ]
+        | _ ->
+            [
+                MOV         (IMMEDIATE line_number, REG RSI);
+                TEST        (get_symbol_storage object_id, get_symbol_storage object_id);
+                JE          error
+            ]
 
 let generate_asm (method_tac : method_tac) : asm_method =
-    let stack_space = 8 * (List.length method_tac.ids) in
     let asm_data = {
         strlit_map = generate_strlit_map method_tac.commands;
-        stack_map = generate_stack_map method_tac.ids;
+        stack_map = generate_stack_map method_tac;
     } in
 
-    let cmds = List.concat (List.map (fun (cmd : tac_cmd) -> generate_tac_asm cmd asm_data) method_tac.commands) in
+    let stack_space = (method_tac.locals + method_tac.temps + 1) * 8 in
+
+    let cmds = 
+        List.concat @@ 
+        List.map (
+            fun (cmd : tac_cmd) -> generate_tac_asm cmd method_tac.class_name asm_data
+        ) method_tac.commands
+    in
 
     {
+        class_name = method_tac.class_name;
         header = method_tac.method_name;
         arg_count = method_tac.arg_count;
 
