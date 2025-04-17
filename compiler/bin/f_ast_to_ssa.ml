@@ -4,7 +4,7 @@ open B_class_map
 open B_impl_map
 open C_parser_data
 open D_ssa_data
-open E_ssa_expr_gen
+open E_expr_to_ssa
 
 let generate_constructor (data : program_data) (_class : program_class_data) : method_ssa =
     let temp_counter = ref 0 in

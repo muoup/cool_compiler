@@ -8,10 +8,10 @@ let upgrade_const_vars (_method : method_ssa) : method_ssa =
             | _ -> None
     ) _method.stmts in
 
-    let mutated = StringSet.of_list @@ List.map (f_id) assignments in
+    let mutated = StringSet.of_list @@ List.map (f_sid) assignments in
 
     let upgrade_val (stmt : ssa_stmt) : ssa_stmt =
-        if StringSet.mem (f_id stmt.id) mutated then stmt
+        if StringSet.mem (f_sid stmt.id) mutated then stmt
         else
 
         { stmt with _val = 
@@ -32,14 +32,14 @@ let constant_fold (_method : method_ssa) : method_ssa =
     
     let add_ident (id : ssa_id) (value : ssa_id) : unit =
         match id with
-        | Local i -> ident_map := StringMap.add (f_id id) value !ident_map
+        | Local i -> ident_map := StringMap.add (f_sid id) value !ident_map
         | _ -> ()
     in
 
     let rec inline_ident (id : ssa_id) : ssa_id =
         match id with
         | Local _ -> 
-            begin match StringMap.find_opt (f_id id) !ident_map with
+            begin match StringMap.find_opt (f_sid id) !ident_map with
             | Some value ->
                 begin match value with
                 | Local i -> Local i
@@ -57,7 +57,7 @@ let constant_fold (_method : method_ssa) : method_ssa =
         match lhs, rhs with
         | IntLiteral lhs, IntLiteral rhs ->
             let _val = op lhs rhs in
-            ident_map := StringMap.add (f_id stmt.id) (IntLiteral _val) !ident_map;
+            ident_map := StringMap.add (f_sid stmt.id) (IntLiteral _val) !ident_map;
             
             SSA_ident (IntLiteral _val)
         | _ -> stmt._val

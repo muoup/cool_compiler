@@ -7,12 +7,7 @@ open B_parent_map
 open C_parser_data
 open D_ssa_data
 open D_tac_data
-<<<<<<< HEAD
-open F_ssa_gen
-open G_ssa_to_tac
-=======
-open F_ast_to_tac
->>>>>>> opt/better-reg-alloc
+open F_ast_to_ssa
 open G_metadata_output
 open G_tac_to_cfg
 open G_ssa_opt
@@ -60,11 +55,6 @@ let () =
     List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) opt1.stmts;
     Printf.printf "\n";
 
-    let main_tac = ssa_to_tac main_ssa in
-    let main_asm = generate_asm main_tac in
-
-    print_asm_method main_asm (Printf.printf "%s\n");
-
     (* let method_tacs = List.map (ssa_to_tac) ssa in *)
 
     (* let builtin_asm = open_in "builtins.s" in *)
@@ -76,7 +66,7 @@ let () =
     (* let main_tac = List.find (fun (tac : method_tac) -> tac.method_name = "Main.main") method_tacs in
     List.iter (output_tac_cmd (Printf.printf "%s\n")) main_tac.commands; *)
 
-    let asm = method_tacs
+    (* let asm = method_tacs
         |> List.map (generate_asm) 
         |> List.map (peephold_optimize) 
     in
@@ -93,4 +83,4 @@ let () =
     output builtin_asm;
     output "\n";
 
-    close_out assembly_handle
+    close_out assembly_handle *)

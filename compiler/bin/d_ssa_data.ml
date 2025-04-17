@@ -15,9 +15,25 @@ type ssa_id =
 
 type symbol_table = ssa_id StringTbl.t
 
-type ssa_stmt = { id : ssa_id; _val : ssa_val }
+type ssa_stmt =
+    | Valueless     of ssa_val
+    | Valued        of ssa_id * ssa_val
 
 and ssa_val =
+    | SSA_bin_op        of { _type : binop_type; lhs : ssa_id; rhs : ssa_id }
+    | SSA_un_op         of { _type : unop_type;  lhs : ssa_id; rhs : ssa_id }
+
+    | SSA_alias         of ssa_id
+
+    | SSA_new           of string
+    | SSA_default       of string
+
+    | SSA_is_zero       of { _val : ssa_id }
+    | SSA_zero_check    of { _val : ssa_id; error_proc : string }
+    
+    | SSA_new           of ssa_id * string
+    | SSA_default       of ssa_id
+
     | SSA_add of ssa_id * ssa_id
     | SSA_sub of ssa_id * ssa_id
     | SSA_mul of ssa_id * ssa_id
@@ -60,6 +76,11 @@ and ssa_val =
 
     (* Special Internal Nodes *)
     | SSA_str_eq  of ssa_id * ssa_id
+
+type ssa_block = {
+    label : string;
+    cmds : ssa_stmt list;
+}
 
 type method_ssa = {
     class_name : string;
