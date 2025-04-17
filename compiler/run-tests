@@ -44,5 +44,10 @@ for file in large_testcases/*.cl; do
     run_test $file $input
 done
 
+for file in benchmarks/*.cl; do
+    printf "Running test: $file -- "
+    run_test $file $input
+done
+
 echo "Success: $success"
 echo "Fail: $fail"
