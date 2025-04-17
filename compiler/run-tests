@@ -12,18 +12,35 @@ run_test() {
 
     if [ "$code" -eq "0" ]; then
         success=$((success+1))
-        echo "Test passed for $file"
+        echo "PASSED!"
     else
         fail=$((fail+1))
-        echo "Test failed for $file"
+        echo "FAILED!"
     fi
 }
 
 for file in restricted_testcases/*.cl; do
+    printf "Running test: $file -- "
     run_test $file $input
 done
 
-for file in input_testcases/*.cl; do
+for file in valid_testcases/*.cl; do
+    printf "Running test: $file -- "
+    run_test $file $input
+done
+
+for file in invalid_testcases/*.cl; do
+    printf "Running test: $file -- "
+    run_test $file $input
+done
+
+for file in medium_testcases/*.cl; do
+    printf "Running test: $file -- "
+    run_test $file $input
+done
+
+for file in large_testcases/*.cl; do
+    printf "Running test: $file -- "
     run_test $file $input
 done
 

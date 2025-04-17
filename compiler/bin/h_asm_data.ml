@@ -5,16 +5,24 @@ type asm_reg =
     | R12
 
 type asm_mem = 
-    | RBP_offset    of int
+    | REG_offset    of asm_reg * int
     | REG           of asm_reg
     | LABEL         of string
     | IMMEDIATE     of int
 
+type jmp_type =
+    | JE
+    | JNE
+    | JG
+    | JGE
+    | JL
+    | JLE
+
 type asm_cmd =
     | FRAME     of int 
 
-    | MOV_reg   of asm_mem * asm_reg
-    | MOV_mem   of asm_reg * asm_mem
+    | MOV       of asm_mem * asm_mem
+    | MOV32     of asm_mem * asm_mem
 
     | ADD       of asm_mem * asm_reg
     | SUB       of asm_mem * asm_reg
@@ -22,23 +30,30 @@ type asm_cmd =
     | DIV       of asm_reg
     | XOR       of asm_reg * asm_reg
 
-    | NEG       of asm_reg
+    | NEG       of asm_mem
     | NOT       of asm_reg
 
-    | TEST      of asm_reg * asm_reg
-    | CMP       of asm_reg * asm_reg
+    | TEST      of asm_mem * asm_mem
+    | CMP       of asm_mem * asm_mem
     | SETL
     | SETLE
     | SETE
 
+    | SETNE
 
-    | PUSH      of asm_reg
+
+    | PUSH      of asm_mem
     | POP       of asm_reg
 
     | CALL      of string
+    | CALL_indirect of asm_reg
     | JMP       of string
     | JNZ       of string
+    | JZ        of string
     | JE        of string
+
+    | JMPCC     of jmp_type * string
+
     | RET
 
     | MISC      of string
@@ -48,10 +63,11 @@ type asm_cmd =
     | COMMENT   of string
 
 type asm_method = {
-    header: string;
-    arg_count: int;
+    class_name  : string;
+    header      : string;
+    arg_count   : int;
 
-    commands: asm_cmd list;
+    commands    : asm_cmd list;
     string_literals: (string * string) list;
 }
     
@@ -71,15 +87,15 @@ let asm_reg32_to_string (reg : asm_reg) : string =
 
 let asm_mem_to_string (mem : asm_mem) : string =
     match mem with
-    | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
+    | REG_offset (reg, offset) -> Printf.sprintf "%d(%s)" offset @@ asm_reg_to_string reg
     | REG reg -> asm_reg_to_string reg
     | LABEL label -> "$" ^ label
     | IMMEDIATE i -> Printf.sprintf "$%d" i
 
 let asm_mem32_to_string (mem : asm_mem) : string =
     match mem with
-    | RBP_offset offset -> Printf.sprintf "%d(%%rbp)" offset
     | REG reg -> asm_reg32_to_string reg
+    | REG_offset (reg, offset) -> Printf.sprintf "%d(%s)" offset @@ asm_reg_to_string reg
     | LABEL label -> "$" ^ label
     | IMMEDIATE i -> Printf.sprintf "$%d" i
 
@@ -94,21 +110,21 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     (match cmd with
     | FRAME (size) ->
+        output "# -- FRAME INITIALIZATION --\n";
         format_cmd1 "pushq" "%rbp";
         output "\n";
         format_cmd2 "movq" "%rsp" "%rbp";
         output "\n";
+        output "\t.cfi_def_cfa_register 16\n";
+        output "\t.cfi_offset 6, 16\n";
 
-        (*
-            Stack-alignment must be 16-byte aligned, the callee will allocate 8 bytes for the return
-            address plus 8 bytes for each pushed argument. Here you allocate 8 bytes for saving
-            %rbp, and so you need to make sure you are either subtracting 8 mod 16 or 0 mod 16 from
-            %rsp to maintain the alignment. With an odd number of arguments, the frame will be aligned
-            at procedure entry, so your %rsp adjustment needs to be 8 mod 16. With an even number of
-            arguments, the frame will be misaligned, so your %rsp adjustment needs to be  mod 16.
+        (* (*
+            With a base pointer in %rbp and a object base pointer in %r12,
+            the stack's alignment to 16 bytes depends on if the number of
+            arguments passed is even (mod 16 = 8), or odd (mod 16 = 0).
          *)
         let adjusted_size = 
-            if arg_count mod 2 = 1 then
+            if arg_count mod 2 = 0 then
                 if size mod 16 = 8 then
                     size
                 else
@@ -118,34 +134,117 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
                     size
                 else
                     size + 8
-        in                
-        format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp"
+        in              *)
 
-    | MOV_reg (mem, reg) -> format_cmd2 "movq" (asm_mem_to_string mem) (asm_reg_to_string reg)
-    | MOV_mem (reg, mem) -> format_cmd2 "movq" (asm_reg_to_string reg) (asm_mem_to_string mem)
-    
+        (* Updated: Call procedure now ensures 16-bit alignment in stack-memory for parameters passed *)
+        let adjusted_size =
+            if size mod 16 = 8 then
+                size
+            else
+                size + 8
+        in
+        
+        if adjusted_size > 0 then
+            format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp\n"
+        ;
+        
+        format_cmd1 "pushq" "%r12";
+        output "\n";
+        format_cmd2 "movq" "16(%rbp)" "%r12";
+        output "\n";
+        output "# -- FUNCTION START --"
+    | MOV     (mem1, mem2) ->
+        begin match mem1, mem2 with
+        | REG reg1, _ ->
+            format_cmd2 "movq" (asm_reg_to_string reg1) (asm_mem_to_string mem2)
+        | _, REG reg2 ->
+            format_cmd2 "movq" (asm_mem_to_string mem1) (asm_reg_to_string reg2)
+        | LABEL _, _
+        | IMMEDIATE _, _ ->
+            format_cmd2 "movq" (asm_mem_to_string mem1) (asm_mem_to_string mem2)
+        | _, _ ->
+            format_cmd2 "movq" (asm_mem_to_string mem1) (asm_reg_to_string RAX);
+            output "\n";
+            format_cmd2 "movq" (asm_reg_to_string RAX) (asm_mem_to_string mem2) 
+        end
+
+    | MOV32     (mem1, mem2) ->
+        begin match mem1, mem2 with
+        | REG reg1, _ ->
+            format_cmd2 "movl" (asm_reg32_to_string reg1) (asm_mem32_to_string mem2)
+        | _, REG reg2 ->
+            format_cmd2 "movl" (asm_mem32_to_string mem1) (asm_reg32_to_string reg2)
+        | LABEL _, _
+        | IMMEDIATE _, _ ->
+            format_cmd2 "movl" (asm_mem32_to_string mem1) (asm_mem32_to_string mem2)
+        | _, _ ->
+            format_cmd2 "movl" (asm_mem32_to_string mem1) (asm_reg32_to_string RAX);
+            output "\n";
+            format_cmd2 "movl" (asm_reg32_to_string RAX) (asm_mem32_to_string mem2) 
+        end
+
     | ADD (mem, reg) -> format_cmd2 "addq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | SUB (mem, reg) -> format_cmd2 "subq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MUL (mem, reg) -> format_cmd2 "imulq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | DIV reg -> format_cmd1 "idivl" (asm_reg32_to_string reg)
     | XOR (reg1, reg2) -> format_cmd2 "xorq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
-    | NEG reg -> format_cmd1 "negq" (asm_reg_to_string reg)
+    | NEG mem -> format_cmd1 "negq" (asm_mem_to_string mem)
 
-    | TEST (reg1, reg2) -> format_cmd2 "testq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
-    | CMP (reg1, reg2) -> format_cmd2 "cmpq" (asm_reg_to_string reg1) (asm_reg_to_string reg2)
+    | TEST (mem1, mem2) -> 
+        begin match mem1, mem2 with
+        | _, REG _
+        | LABEL _, _ ->
+            format_cmd2 "testl" (asm_mem32_to_string mem1) (asm_mem32_to_string mem2)
+        | REG _, _
+        | _, LABEL _ ->
+            format_cmd2 "testl" (asm_mem32_to_string mem2) (asm_mem32_to_string mem1)
+        | l, r when l = r ->
+            format_cmd2 "movl"  (asm_mem32_to_string l) (asm_reg32_to_string RAX);
+            output "\n";
+            format_cmd2 "testl" (asm_reg32_to_string RAX) (asm_reg32_to_string RAX);
+        | _ ->
+            format_cmd2 "movl"  (asm_mem32_to_string mem2) (asm_reg32_to_string RAX);
+            output "\n";
+            format_cmd2 "testl" (asm_mem32_to_string mem1) (asm_reg32_to_string RAX)
+        end 
+    | CMP (mem1, mem2) -> 
+        begin match mem1, mem2 with
+        | _, REG r2 ->
+            format_cmd2 "cmpl" (asm_mem32_to_string mem1) (asm_reg32_to_string r2)
+        | _ ->
+            format_cmd2 "movl" (asm_mem32_to_string mem2) (asm_reg32_to_string RAX);
+            output "\n";
+            format_cmd2 "cmpl" (asm_mem32_to_string mem1) (asm_reg32_to_string RAX)
+        end
+
     | SETL   -> format_cmd1 "setl" "%al"
     | SETLE  -> format_cmd1 "setle" "%al"
     | SETE   -> format_cmd1 "sete" "%al"
+    | SETNE  -> format_cmd1 "setne" "%al"
 
-    | PUSH reg       -> format_cmd1 "pushq" (asm_reg_to_string reg)
+    | PUSH reg       -> format_cmd1 "pushq" (asm_mem_to_string reg)
     | POP reg        -> format_cmd1 "popq" (asm_reg_to_string reg)
 
     | JMP label      -> format_cmd1 "jmp" label
     | JNZ label      -> format_cmd1 "jnz" label
+    | JZ label       -> format_cmd1 "jz" label
     | JE label       -> format_cmd1 "je" label
 
+    | JMPCC (_type, label) ->
+        begin match _type with
+        | JE        -> format_cmd1 "je" label
+        | JNE       -> format_cmd1 "jne" label
+        | JG        -> format_cmd1 "jg" label
+        | JGE       -> format_cmd1 "jge" label
+        | JL        -> format_cmd1 "jl" label
+        | JLE       -> format_cmd1 "jle" label
+        end
+
     | CALL label     -> format_cmd1 "callq" label
-    | RET            -> output "\tleave\n\tret"
+    | CALL_indirect reg -> format_cmd1 "callq" ("*" ^ asm_reg_to_string reg)
+    | RET            ->
+        format_cmd1 "pop" "%r12";
+        output "\n\tleave\n\tret";
 
     | MISC s         -> output @@ "\t" ^ s
 
@@ -176,4 +275,6 @@ let print_asm_method (_method : asm_method) (output : string -> unit) : unit =
     output @@ Printf.sprintf "\t.type %s, @function\n" _method.header;
 
     output @@ _method.header ^ ":\n";
-    List.iter (print_asm_cmd output @@ _method.arg_count) _method.commands
+    output @@ "\t.cfi_startproc\n";
+    List.iter (print_asm_cmd output @@ _method.arg_count) _method.commands;
+    output @@ "\t.cfi_endproc\n";

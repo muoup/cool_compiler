@@ -1,8 +1,6 @@
-open D_ast
+open A_format
 open A_util
-
-module StringMap = Map.Make(String)
-module StringSet = Set.Make(String)
+open D_ast
 
 (*
     Centralized information regarding the AST, used for type checking and output.
