@@ -35,12 +35,6 @@ type asm_cmd =
 
     | TEST      of asm_mem * asm_mem
     | CMP       of asm_mem * asm_mem
-    | SETL
-    | SETLE
-    | SETE
-
-    | SETNE
-
 
     | PUSH      of asm_mem
     | POP       of asm_reg
@@ -53,6 +47,7 @@ type asm_cmd =
     | JE        of string
 
     | JMPCC     of jmp_type * string
+    | SETCC     of jmp_type
 
     | RET
 
@@ -140,7 +135,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         (* Updated: Call procedure now ensures 16-bit alignment in stack-memory for parameters passed *)
         let adjusted_size =
             if size mod 16 = 8 then
-                size
+                size 
             else
                 size + 8
         in
@@ -218,11 +213,6 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
             format_cmd2 "cmpl" (asm_mem32_to_string mem1) (asm_reg32_to_string RAX)
         end
 
-    | SETL   -> format_cmd1 "setl" "%al"
-    | SETLE  -> format_cmd1 "setle" "%al"
-    | SETE   -> format_cmd1 "sete" "%al"
-    | SETNE  -> format_cmd1 "setne" "%al"
-
     | PUSH reg       -> format_cmd1 "pushq" (asm_mem_to_string reg)
     | POP reg        -> format_cmd1 "popq" (asm_reg_to_string reg)
 
@@ -239,6 +229,15 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         | JGE       -> format_cmd1 "jge" label
         | JL        -> format_cmd1 "jl" label
         | JLE       -> format_cmd1 "jle" label
+        end
+    | SETCC _type ->
+        begin match _type with
+        | JE        -> format_cmd1 "sete"   "%al"
+        | JNE       -> format_cmd1 "setne"  "%al"
+        | JG        -> format_cmd1 "setg"   "%al"
+        | JGE       -> format_cmd1 "setge"  "%al"
+        | JL        -> format_cmd1 "setl"   "%al"
+        | JLE       -> format_cmd1 "setle"  "%al"
         end
 
     | CALL label     -> format_cmd1 "callq" label

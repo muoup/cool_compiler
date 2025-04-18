@@ -31,15 +31,17 @@ __f_out_str:
     .align 8
 
     .text
-    .globl out_string
-    .type  out_string, @function
+    .globl IO.out_string
+    .type  IO.out_string, @function
 #   1 arg (char*) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
-out_string: 
+IO.out_string: 
     pushq   %rbp
     movq    %rsp, %rbp
-    subq    $16, %rsp
+    subq    $8, %rsp
+    pushq   %r12
+    movq    16(%rbp), %r12
 
-    movq    16(%rbp), %rdi
+    movq    24(%rbp), %rdi
     call    strlen
     
     leaq    2(%rax), %rdi        #   Add 2 so glibc doesn't yell at us
@@ -48,7 +50,7 @@ out_string:
     movq    %rax, -8(%rbp)       #   Store the pointer to the new string
     movq    %rax, %r8
 
-    movq    16(%rbp), %r9
+    movq    24(%rbp), %r9
 
 .out_loop:
     movzbl  (%r9), %eax
@@ -100,6 +102,8 @@ out_string:
 
     call    printf
 
+    popq    %r12
+    movq    %r12, %rax
     leave
     ret
 
@@ -109,19 +113,20 @@ __f_out_int:
     .align 8
 
     .text
-    .globl out_int
-    .type  out_int, @function
-#   1 arg (int) -> 8 call bytes + 8 arg bytes = 16-bit aligned stack
-out_int:
-    movl    8(%rsp), %eax
+    .globl IO.out_int
+    .type  IO.out_int, @function
+IO.out_int:
+    pushq   %rbp
+
+    movl    24(%rsp), %eax
     cdqe
 
     movq    $__f_out_int, %rdi
     movq    %rax, %rsi
-    xorq    %rax, %rax
-    
     call    printf
-    movq    %r12, %rax
+
+    movq    16(%rsp), %rax
+    popq    %rbp
     ret
 
     .section .rodata
@@ -130,26 +135,17 @@ __f_in_int:
     .align 8
 
     .text
-    .globl in_int
-    .type  in_int, @function
-#   0 args      -> 8 call bytes = 8-byte off aligned stack
-in_int:
+    .globl IO.in_int
+    .type  IO.in_int, @function
+IO.in_int:
     pushq   %rbp
     movq    %rsp, %rbp
     subq    $16, %rsp
-    
-    movq    $4096, %rdi
-    movq    $1, %rsi
-    callq   calloc
 
-    movq    %rax, -8(%rbp)
+    # Technically IO.in_string does not reference 'self', so passing no parameters works
+    call    IO.in_string    
 
-    movq    %rax, %rdi
-    movq    $4096, %rsi
-    movq    stdin(%rip), %rdx
-    callq   fgets
-
-    movq    -8(%rbp), %rdi 
+    movq    %rax, %rdi 
     movq    $__f_in_int, %rsi
     leaq    -16(%rbp), %rdx
     xorq    %rax, %rax
@@ -184,10 +180,10 @@ __empty_string:
     .string ""
 
     .text
-    .globl in_string
-    .type  in_string, @function
+    .globl IO.in_string
+    .type  IO.in_string, @function
 #   0 args      -> 8 call bytes = 8-byte off aligned stack
-in_string:
+IO.in_string:
     pushq   %rbp
     movq    %rsp, %rbp
     subq    $16, %rsp
@@ -195,7 +191,7 @@ in_string:
     movq    $0, 8(%rsp)
     movq    $0, (%rsp)
 
-    leaq    8(%rsp), %rdi
+    leaq    -8(%rbp), %rdi
     movq    %rsp, %rsi
     movq    stdin(%rip), %rdx
     callq   getline             # getline(char** buffer, int* n, FILE* stream)
@@ -204,10 +200,10 @@ in_string:
     je      .in_string_fail
 
     movq    %rax, %rdi
-    addq    8(%rsp), %rdi
+    addq    -8(%rbp), %rdi
     movq    $0, -1(%rdi)
 
-    movq    8(%rsp), %rdi
+    movq    -8(%rbp), %rdi
     xorq    %rsi, %rsi
     leaq    -1(%rax), %rdx
     callq   memchr              # memchr(char* buffer, char find, int bytes)
@@ -229,9 +225,15 @@ in_string:
     ret
 
     .text
-    .globl copy
-    .type  copy, @function
-copy:
+    .globl Object.copy
+    .type  Object.copy, @function
+Object.copy:
+    pushq   %rbp
+    movq    %rsp, %rbp
+    subq    $8, %rsp
+    pushq   %r12
+    movq    16(%rbp), %r12
+
     movq    8(%r12), %rdi
     call    malloc
 
@@ -240,15 +242,43 @@ copy:
     movq    8(%r12), %rdx
     call    memcpy
 
-    pop     %r12
+    popq    %r12
     leave
     ret
 
     .text
-    .globl concat
-    .type  concat, @function
-concat:
-    subq    $16, %rsp
+    .globl Object.type_name
+    .type  Object.type_name, @function
+Object.type_name:
+    movq    8(%rsp), %rax
+    movq    (%rax), %rax
+    ret
+
+    .text
+    .globl Object.abort
+    .type  Object.abort, @function
+Object.abort:
+    pushq   %rbp
+
+    movq    $abort_msg, %rdi
+    callq   puts
+
+    movq    $1, %rdi
+    callq   exit
+    
+    popq    %rbp
+    retq
+
+    .text
+    .globl String.concat
+    .type  String.concat, @function
+String.concat:
+    pushq   %rbp
+    movq    %rsp, %rbp
+    subq    $8, %rsp
+
+    pushq   %r12
+    movq    16(%rbp), %r12
 
     #   Store length of caller string into %rbx
     movq    %r12, %rdi
@@ -267,7 +297,7 @@ concat:
 
     #   Null terminate the empty string
     movq    $0, (%rax)
-    movq    %rax, 8(%rsp)
+    movq    %rax, -8(%rbp)
 
     #   Copy the first string into the new string
     movq    %rax, %rdi
@@ -275,21 +305,28 @@ concat:
     call    strcat
 
     #   Copy the second string into the new string
-    movq    8(%rsp), %rdi
+    movq    -8(%rbp), %rdi
     movq    24(%rbp), %rsi
     call    strcat
 
     #   Return the new string
-    movq    8(%rsp), %rax
-    addq    $16, %rsp
-    pop     %r12
+    movq    -8(%rbp), %rax
+
+    popq    %r12
     leave
     ret
 
     .text
-    .globl substr
-    .type  substr, @function
-substr:
+    .globl String.substr
+    .type  String.substr, @function
+String.substr:
+    pushq   %rbp
+    movq    %rsp, %rbp
+    subq    $8, %rsp
+
+    push    %r12
+    movq    16(%rbp), %r12
+
     movq    %r12, %rdi
     call    strlen
 
@@ -311,14 +348,27 @@ substr:
     movq    32(%rbp), %rdx
     call    memcpy
 
-    pop     %r12
+    popq    %r12
     leave
+    ret
+
+    .text
+    .globl  String.length
+    .type   String.length, @function
+String.length:
+    pushq   %rbp
+
+    movq    16(%rsp), %rdi
+    call    strlen
+
+    popq    %rbp
     ret
 
     .text
     .globl  unlift_int
     .type   unlift_int, @function
 unlift_int:
+    pushq   %rbp
 
     movq    $1, %rdi
     movq    $32, %rsi
@@ -327,15 +377,18 @@ unlift_int:
     movq    $.objname_Int, (%rax)
     movq    $32, 8(%rax)
     movq    $.vtable_Int, 16(%rax)
-    movq    8(%rsp), %rdi
+    movq    16(%rsp), %rdi
     movq    %rdi, 24(%rax)
 
+    popq    %rbp
     ret
 
     .text
     .globl  unlift_int
     .type   unlift_int, @function
 unlift_string:
+    pushq   %rbp
+
     movq    $1, %rdi
     movq    $32, %rsi
     call    calloc
@@ -343,15 +396,18 @@ unlift_string:
     movq    $.objname_String, (%rax)
     movq    $32, 8(%rax)
     movq    $.vtable_String, 16(%rax)
-    movq    8(%rsp), %rdi
+    movq    16(%rsp), %rdi
     movq    %rdi, 24(%rax)
 
+    popq    %rbp
     ret
 
     .text
     .globl  unlift_int
     .type   unlift_int, @function
 unlift_bool:
+    pushq   %rbp
+
     movq    $1, %rdi
     movq    $32, %rsi
     call    calloc
@@ -359,9 +415,10 @@ unlift_bool:
     movq    $.objname_Bool, (%rax)
     movq    $32, 8(%rax)
     movq    $.vtable_Bool, 16(%rax)
-    movq    8(%rsp), %rdi
+    movq    16(%rsp), %rdi
     movq    %rdi, 24(%rax)
 
+    popq    %rbp
     ret
 
     .text

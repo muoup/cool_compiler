@@ -190,7 +190,7 @@ let generate_tac (data : program_data) : method_tac list =
             )
     in
 
-    List.map (generate_tac) (implemented @ intrins) @ constructors
+    List.map (generate_tac) implemented @ constructors
 
 let generate_tac_old (data : program_data) : method_tac list =
     let symbol_table : symbol_table ref = ref @@ StringTbl.create 10 in

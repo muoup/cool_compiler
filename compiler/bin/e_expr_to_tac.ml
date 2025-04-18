@@ -127,20 +127,24 @@ let tac_gen_expr_body
         aux 0 []
     in
 
+    let cache_val (id : tac_id) (cmds : tac_cmd list) : tac_id * tac_cmd list =
+        match id with
+        | CMP _type ->
+            let id' = temp_id () in
+
+            id', cmds @ [ TAC_set (_type, id') ] 
+        | _ -> id, cmds
+    in
+
     let rec rec_tac_gen (expr : ast_expression) : (tac_id * tac_cmd list) =
         let rec_cache (expr : ast_expression) : (tac_id * tac_cmd list) =
             let id, cmds = rec_tac_gen expr in
 
-            match id with
-            | CMP _type ->
-                let id' = temp_id () in
-
-                id', cmds @ [ TAC_set (_type, id') ] 
-            | _ -> id, cmds
+            cache_val id cmds
         in
 
         let can_use_static_dispatch (_type : string) =
-            _type <> "SELF_TYPE" && not @@ StringSet.mem _type data.overriden_classes
+            (not @@ StringSet.mem _type data.overriden_classes) && (_type <> "SELF_TYPE")
         in
         
         let gen_args (_types : string list) (args : ast_expression list) : (tac_id list * tac_cmd list) =
@@ -398,8 +402,7 @@ let tac_gen_expr_body
             | "String" | "Int" | "Bool" -> 
                 (IntLit 0, expr_cmds @ [])
             | _ -> 
-                let self_id = temp_id () in
-                (self_id, expr_cmds @ [TAC_isvoid (self_id, expr_id)])
+                (CMP EQ, expr_cmds @ [TAC_cmp (EQ, IntLit 0, expr_id)])
             end
         | BinOp             { left; right; op } ->
             let ambigious_compare (left_id : tac_id) (right_id : tac_id) : tac_id * tac_cmd list =
@@ -464,24 +467,26 @@ let tac_gen_expr_body
 
             id, lhs_cmds @ rhs_cmds @ cmds
         | UnOp             { expr; op } ->
-            let (expr_id, expr_cmds) = rec_cache expr in
+            let (expr_id, expr_cmds) = rec_tac_gen expr in
 
             free_temp expr_id;
             
             begin match op with
                 | Not       -> 
                     begin match expr_id with
-                    | CMP LE -> CMP GT, []
-                    | CMP LT -> CMP GE, []
-                    | CMP EQ -> CMP NE, []
-                    | CMP NE -> CMP EQ, []
-                    | CMP GT -> CMP LE, []
-                    | CMP GE -> CMP LT, []
+                    | CMP LE -> CMP GT, expr_cmds @ []
+                    | CMP LT -> CMP GE, expr_cmds @ []
+                    | CMP EQ -> CMP NE, expr_cmds @ []
+                    | CMP NE -> CMP EQ, expr_cmds @ []
+                    | CMP GT -> CMP LE, expr_cmds @ []
+                    | CMP GE -> CMP LT, expr_cmds @ []
                     | _ ->
+                        let expr_id, expr_cmds = cache_val expr_id expr_cmds in
                         let self_id = temp_id () in
                         self_id, expr_cmds @ [TAC_not (self_id, expr_id)]
                     end
                 | Negate    -> 
+                    let expr_id, expr_cmds = cache_val expr_id expr_cmds in
                     let self_id = temp_id () in
                     self_id, expr_cmds @ [TAC_neg (self_id, expr_id)]
             end
@@ -641,6 +646,7 @@ let tac_gen_expr_body
     in
 
     let (tac_id, tac_cmds) = rec_tac_gen method_body in
+    let (tac_id, tac_cmds) = cache_val tac_id tac_cmds in
     let (casted_id, casted_cmds) = cast_val tac_id method_body._type return_type in
 
     free_temp casted_id;

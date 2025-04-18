@@ -159,21 +159,21 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         [
             CMP     (get_symbol_storage b, get_symbol_storage a);
             MOV     (IMMEDIATE 0, REG RAX);
-            SETL;
+            SETCC   (JL);
             MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_lte (id, a, b) -> 
         [
             CMP     (get_symbol_storage b, get_symbol_storage a);
             MOV     (IMMEDIATE 0, REG RAX);
-            SETLE;
+            SETCC   (JLE);
             MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_eq (id, a, b) ->
         [
             CMP     (get_symbol_storage b, get_symbol_storage a);
             MOV     (IMMEDIATE 0, REG RAX);
-            SETE;
+            SETCC   (JE);
             MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_int (id, i) ->
@@ -207,7 +207,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             MOV     (get_symbol_storage a, REG RAX);
             TEST    (REG RAX, REG RAX);
             MOV     (IMMEDIATE 0, REG RAX);
-            SETE;
+            SETCC   (JE);
             MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_call_alloc slots ->
@@ -247,7 +247,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             CALL    "strcmp";
             TEST    (REG RAX, REG RAX);
             MOV     (IMMEDIATE 0, REG RAX);    
-            SETE;
+            SETCC   (JE);
             MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_str_lt (id, s1, s2) ->
@@ -257,7 +257,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             CALL    "strcmp";
             TEST    (REG RAX, REG RAX);
             MOV     (IMMEDIATE 0, REG RAX);
-            SETL;
+            SETCC   (JL);
             MOV     (REG RAX, get_symbol_storage id)
         ]
     | TAC_str_lte (id, s1, s2) ->
@@ -267,7 +267,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             CALL    "strcmp";
             TEST    (REG RAX, REG RAX);
             MOV     (IMMEDIATE 0, REG RAX);
-            SETLE;
+            SETCC   (JLE);
             MOV     (REG RAX, get_symbol_storage id)
         ]
 
@@ -296,7 +296,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             | GE -> [JMPCC (JGE, label)]
             end
         | IntLit 1 -> [ COMMENT "Branch Tautology Found"; JMP label ]
-        | IntLit 0 -> [ COMMENT "Branch Contradiction Found" ]
+        | IntLit 0 -> [ COMMENT ("Branch Contradiction Found: " ^ label) ]
         | _ ->
             [
                 TEST        (get_symbol_storage id, get_symbol_storage id);
@@ -317,7 +317,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
 
     | TAC_cmp (_type, l, r) ->
         [
-            CMP     (get_symbol_storage r, get_symbol_storage l)
+            CMP         (get_symbol_storage r, get_symbol_storage l)
         ]
     | TAC_str_cmp (_type, l, r) ->
         [
@@ -330,11 +330,12 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     | TAC_set (_type, id) ->
         MOV     (IMMEDIATE 0, REG RAX) ::
         begin match _type with
-        | LT -> SETL
-        | LE -> SETLE
-        | EQ -> SETE
-        | NE -> SETNE
-        | _ -> failwith "Unsupported Set"
+        | LT -> SETCC (JL)
+        | LE -> SETCC (JLE)
+        | EQ -> SETCC (JE)
+        | NE -> SETCC (JNE)
+        | GT -> SETCC (JG)
+        | GE -> SETCC (JGE)
         end :: [ MOV    (REG RAX, get_symbol_storage id)]        
 
     (* Object creation *)
@@ -367,7 +368,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
         [
             TEST        (get_symbol_storage _val, get_symbol_storage _val);
             MOV         (IMMEDIATE 0, REG RAX);
-            SETE;
+            SETCC       (JE);
             MOV         (REG RAX, get_symbol_storage store);
         ]
 
