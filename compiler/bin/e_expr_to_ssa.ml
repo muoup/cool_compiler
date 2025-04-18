@@ -19,254 +19,183 @@ let rec last_id (ids : ssa_id list) : ssa_id =
     | [id] -> id
     | _ :: tl -> last_id tl
 
-let ssa_gen_expr_body (data : program_data) (class_name : string) (method_body : ast_expression) (symbol_table : symbol_table ref) (temp_counter : int ref) (local_counter : int ref) : (ssa_id list * ssa_stmt list) =
-    let ssa_id_list : ssa_id list ref = ref [] in
+type ssa_expr_body = {
+    end_val : ssa_id;
+    stmts : ssa_stmt list;
+}
 
-    let create_stmt (_val : ssa_val) : ssa_stmt =
-        let id = Local !temp_counter in
-        temp_counter := !temp_counter + 1;
-        { id; _val }
+let ssa_from_expr   (data : program_data) (class_name : string) (return_type : string)
+                    (method_body : ast_expression)
+                    (id_count : int ref) (symbol_table : ssa_sym_table ref) : ssa_expr_body =
+    let stmts : ssa_stmt list ref = ref [] in
+
+    let get_id () : ssa_id =
+        let id = !id_count in
+        id_count := !id_count + 1;
+        SSA_id id
     in
 
-    let add_symbol (x : string) (id : ssa_id) : unit =
-        StringTbl.add !symbol_table x id;
-        ssa_id_list := id :: !ssa_id_list;
+    let add_symbol (ident : string) (id : ssa_id) (_type : string) : unit =
+        StringTbl.add !symbol_table ident { id; _type }
     in
 
-    let remove_symbol (x : string) : unit =
-        StringTbl.remove !symbol_table x
+    let get_symbol (ident : string) : ssa_id =
+        match StringTbl.find_opt !symbol_table ident with
+        | Some sym -> sym.id
+        | None -> raise (Invalid_argument ("Symbol not found: " ^ ident))
     in
 
-    let find_symbol (x : string) : ssa_id =
-        match StringTbl.find_opt !symbol_table x with
-        | Some id -> id
-        | None -> raise (Invalid_argument ("Symbol not found: " ^ x))
+    let get_symbol_type (ident : string) : string =
+        match StringTbl.find_opt !symbol_table ident with
+        | Some sym -> sym._type
+        | None -> raise (Invalid_argument ("Symbol not found: " ^ ident))
     in
 
-    let rec escape_backslashes s =
-        let len = String.length s in
-        let rec aux i acc =
-          if i >= len then String.concat "" (List.rev acc)
-          else if s.[i] = '\\' && i + 1 < len then
-            let next_char = s.[i + 1] in
-            if next_char <> 't' && next_char <> 'n' then
-              aux (i + 2) (("\\" ^ "\\" ^ String.make 1 next_char) :: acc)
+    let add_valued_statement (op : ssa_op) : ssa_id =
+        let id = get_id () in
+        stmts := SSA_Valued (id, op) :: !stmts;  
+
+        id
+    in
+
+    let add_valueless_statement (stmt : ssa_op) : unit =
+        stmts := SSA_Valueless stmt :: !stmts;
+    in
+
+    let cast_val (id : ssa_id) (from_type : string) (to_type : string) : ssa_id =
+        match from_type, to_type with
+        | "Int", "Object" ->
+            add_valued_statement @@ SSA_call { method_name = "unlift_int"; args = [id] }
+        | "String", "Object" ->
+            add_valued_statement @@ SSA_call { method_name = "unlift_string"; args = [id] }
+        | "Bool", "Object" ->
+            add_valued_statement @@ SSA_call { method_name = "unlift_bool"; args = [id] }
+
+        | "Object", "Int"
+        | "Object", "String"
+        | "Object", "Bool" ->
+            add_valued_statement @@ SSA_call { method_name = "lift_value"; args = [id] }
+
+        | _ -> id
+    in
+
+    let can_use_static_dispatch (_type : string) : bool =
+        _type <> "SELF_TYPE" && not @@ StringSet.mem _type data.overriden_classes
+    in
+
+    let rec parse_expr (expr : ast_expression) : ssa_id =
+        let gen_args (arg_types : string list) (args : ast_expression list) : ssa_id list =
+            if (List.length arg_types) <> (List.length args) then
+                raise (Invalid_argument "Argument count mismatch")
             else
-              aux (i + 2) (("\\" ^ String.make 1 next_char) :: acc)
-          else
-            aux (i + 1) (String.make 1 s.[i] :: acc)
-        in
-        aux 0 []
-    
-    in
-
-    let rec rec_ssa_gen (expr : ast_expression) : (ssa_id * ssa_stmt list) =
-        let gen_args (args : ast_expression list) : (ssa_id list * ssa_stmt list list) =
-            let (args_ids, args_cmds) = List.split (List.map rec_ssa_gen args) in
-            let args_ids = args_ids in
-
-            args_ids, args_cmds
+            
+            List.combine args arg_types
+            |> List.mapi (
+                fun (i : int) (arg, _type) ->
+                    let arg_id = parse_expr arg in
+                    cast_val arg_id arg._type _type
+                )
         in
 
-        match expr.data with
+        let gen_void_check (id : ssa_id) (_type : string) : unit =
+            match _type with
+            | "Int" | "String" | "Bool" -> ()
+            | _ ->
+                let is_void = add_valued_statement @@ SSA_is_zero { _val = id } in
+                add_valueless_statement @@ SSA_bt { _val = is_void; label = "error_void" }
+        in
+
+        let is_lifted (obj_type : string) : bool =
+            match obj_type with
+            | "Int" | "String" | "Bool" -> true
+            | _ -> false
+        in
+
+        let gen_static_dispatch (method_name : string) (self_type : string) (self_id : ssa_id) (args : ssa_id list) : ssa_id =
+            match method_name with
+            | "copy"        when is_lifted self_type -> 
+                self_id
+            | "type_name"   when is_lifted self_type ->
+                add_valued_statement @@ SSA_static (obj_name_mem_gen self_type)
+            | _ ->
+                add_valued_statement @@ SSA_call { method_name; args = self_id :: args }
+        in
+
+        match expr.data with 
         | Assign            { var; rhs } ->
-            let (rhs_id, rhs_cmds) = rec_ssa_gen rhs in
-            let var_id = find_symbol var.name in
+            let var_type = get_symbol_type var.name in
 
-            let assign_cmd = create_stmt @@ SSA_store (rhs_id, var_id) in
+            let rhs_id = parse_expr rhs in
+            let casted_id = cast_val rhs_id rhs._type var_type in
 
-            (assign_cmd.id, rhs_cmds @ [assign_cmd])
+            add_symbol var.name casted_id var_type;
+            casted_id
         | DynamicDispatch   { call_on; _method; args } ->
-            let (obj_id, obj_cmds) = rec_ssa_gen call_on in
-            let (args_ids, args_cmds) = gen_args args in
-            let comment = create_stmt @@ SSA_comment ("DynamicDispatch: " ^ _method.name) in
+            let call_on_type = if call_on._type = "SELF_TYPE" then class_name else call_on._type in
+            let return_type, arg_types = get_method_signature data call_on_type _method.name in
 
-            if not (StringSet.mem call_on._type data.overriden_classes) then
-                let dispatch = method_name_gen call_on._type _method.name in
-                let call_cmd = create_stmt @@ SSA_call (dispatch, obj_id :: args_ids) in
+            let args_ids = gen_args arg_types args in
+            let obj_id = parse_expr call_on in
 
-                (call_cmd.id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
+            gen_void_check obj_id return_type;
+
+            if can_use_static_dispatch call_on_type then
+                gen_static_dispatch _method.name call_on_type obj_id args_ids
             else
+                let method_id = get_dispatch data class_name _method.name in
+                add_valued_statement @@ SSA_dispatch { obj = obj_id; method_id; args = args_ids }
+        | StaticDispatch    { call_on; _method; args } ->
+            let return_type, arg_types = get_method_signature data call_on._type _method.name in
 
-            let method_id = get_dispatch data call_on._type _method.name in
-            let call_cmd = create_stmt @@ SSA_dispatch { 
-                line_number = _method.line_number;
-                obj = obj_id;
-                method_id;
-                args = obj_id :: args_ids;
-            } in
+            let args_ids = gen_args arg_types args in
+            let obj_id = parse_expr call_on in
 
-            (call_cmd.id, obj_cmds @ (List.concat args_cmds @ [comment; call_cmd]))
-        | StaticDispatch    { call_on; _type; _method; args; } ->
-            let (obj_id, obj_cmds) = rec_ssa_gen call_on in
-            let (args_ids, args_cmds) = List.split (List.map rec_ssa_gen args) in
-
-            let comment = create_stmt @@ SSA_comment ("StaticDispatch: " ^ _type.name ^ "." ^ _method.name) in
-            let dispatch = method_name_gen _type.name _method.name in
-            let call_cmd = create_stmt @@ SSA_call (dispatch, obj_id :: args_ids) in
-
-            (call_cmd.id, obj_cmds @ List.concat args_cmds @ [comment; call_cmd])
+            gen_void_check obj_id return_type;
+            gen_static_dispatch _method.name call_on._type obj_id args_ids
         | SelfDispatch      { _method; args } ->
-            let (args_ids, args_cmds) = gen_args args in
-            let comment = create_stmt @@ SSA_comment ("SelfDispatch: " ^ _method.name) in
+            let return_type, arg_types = get_method_signature data class_name _method.name in
 
-            if not (StringSet.mem class_name data.overriden_classes) then
-                let dispatch = method_name_gen class_name _method.name in
-                let call_cmd = create_stmt @@ SSA_call (dispatch, Self :: args_ids) in
+            let args_ids = gen_args arg_types args in
+            let obj_id = get_symbol "self" in
 
-                (call_cmd.id, List.concat args_cmds @ [comment; call_cmd])
+            if can_use_static_dispatch class_name then
+                gen_static_dispatch _method.name class_name obj_id args_ids
             else
-
-            let dispatch = get_dispatch data class_name _method.name in
-            let call_cmd = create_stmt @@ SSA_dispatch {
-                line_number = _method.line_number;
-                obj = Self;
-                method_id = dispatch;
-                args = Self :: args_ids;
-            } in
-            
-            (call_cmd.id, List.concat args_cmds @ [comment; call_cmd])
-        | If                { predicate; _then; _else } ->
-            let (cond_id, cond_cmds) = rec_ssa_gen predicate in
-            let (then_id, then_cmds) = rec_ssa_gen _then in
-            let (else_id, else_cmds) = rec_ssa_gen _else in
-
-            let value = create_stmt @@ SSA_default_mem "Object" in
-
-            let then_name = label_id () ^ "_then" in
-            let else_name = label_id () ^ "_else" in
-            let merge_name = label_id () ^ "_merge" in
-
-            let bt_cmd = create_stmt @@ SSA_bt (cond_id, then_name) in
-            let jmp_cmd = create_stmt @@ SSA_jmp else_name in
-
-            let label_then  = create_stmt @@ SSA_label then_name in
-            let label_else  = create_stmt @@ SSA_label else_name in
-            let label_merge = create_stmt @@ SSA_label merge_name in
-
-            let condition = cond_cmds @ [bt_cmd; jmp_cmd] in
-            let then_ = [label_then] @ then_cmds @ [create_stmt @@ SSA_store (then_id, value.id)] @ [create_stmt @@ SSA_jmp merge_name] in
-            let else_ = [label_else] @ else_cmds @ [create_stmt @@ SSA_store (else_id, value.id)] @ [create_stmt @@ SSA_jmp merge_name] in
-            
-            let load = create_stmt @@ SSA_load value.id in
-
-            (load.id, value :: condition @ then_ @ else_ @ [label_merge; load])
-        | While             { predicate; body } ->
-            let (cond_id, cond_cmds) = rec_ssa_gen predicate in
-            let (body_id, body_cmds) = rec_ssa_gen body in
-
-            let cond_name = label_id () ^ "_cond" in
-            let body_name = label_id () ^ "_body" in
-            let merge_name = label_id () ^ "_merge" in
-
-            let bt_cmd = create_stmt @@ SSA_bt (cond_id, body_name) in
-            let jmp_cmd = create_stmt @@ SSA_jmp merge_name in
-
-            let label_body = create_stmt @@ SSA_label body_name in
-            let label_cond = create_stmt @@ SSA_label cond_name in
-            let label_merge = create_stmt @@ SSA_label merge_name in
-
-            let condition = [label_cond] @ cond_cmds @ [bt_cmd; jmp_cmd] in
-            let body_ = label_body :: body_cmds @ [create_stmt @@ SSA_jmp cond_name] in
-
-            (Unit, condition @ body_ @ [label_merge])
-        | Block            { body } ->
-            let (ids, cmds) = List.split (List.map rec_ssa_gen body) in
-
-            (last_id ids, List.concat cmds)
-        | New              { _class } ->
-            let _type = if _class.name = "SELF_TYPE" then class_name else _class.name in
-
-            let cmd = create_stmt @@ match _type with
-            | "Int" | "String" | "Bool" -> SSA_default_mem _type
-            | _ -> SSA_new _type
-            in
-
-            (cmd.id, [cmd])
-        | IsVoid           { expr } ->
-            let (expr_id, expr_cmds) = rec_ssa_gen expr in
-            let cmd = create_stmt @@ SSA_isvoid expr_id in
-
-            (cmd.id, expr_cmds @ [cmd])
+                let method_id = get_dispatch data class_name _method.name in
+                add_valued_statement @@ SSA_dispatch { obj = obj_id; method_id; args = args_ids }
         | BinOp             { left; right; op } ->
-            let (lhs_id, lhs_cmds) = rec_ssa_gen left in
-            let (rhs_id, rhs_cmds) = rec_ssa_gen right in
+            let lhs_id = parse_expr left in
+            let rhs_id = parse_expr right in
 
-            let cmd = create_stmt @@ match op with
-                | Plus      -> SSA_add (lhs_id, rhs_id)
-                | Minus     -> SSA_sub (lhs_id, rhs_id)
-                | Times     -> SSA_mul (lhs_id, rhs_id)
-                | Divide    -> SSA_div (left.ident.line_number, lhs_id, rhs_id)
-
-                | LE        -> SSA_lte (lhs_id, rhs_id)
-                | LT        -> SSA_lt  (lhs_id, rhs_id)
-                | EQ        -> 
-                    match left._type with
-                    | "String" -> SSA_str_eq (lhs_id, rhs_id)
-                    | _        -> SSA_eq (lhs_id, rhs_id)
-            in
-            
-            (cmd.id, lhs_cmds @ rhs_cmds @ [cmd])
-        | UnOp             { expr; op } ->
-            let (expr_id, expr_cmds) = rec_ssa_gen expr in
-
-            let cmd = create_stmt @@ match op with
-                | Not       -> SSA_not (expr_id)
-                | Negate    -> SSA_neg (expr_id)
+            let op_type = match op with
+                | Plus      -> SSA_add 
+                | Minus     -> SSA_sub
+                | Times     -> SSA_mul
+                | Divide    -> SSA_div
+                
+                | LT        -> SSA_lt
+                | LE        -> SSA_lte
+                | EQ        -> SSA_eq
             in
 
-            (cmd.id, expr_cmds @ [cmd])
-        | Integer           i ->
-            let cmd = create_stmt @@ SSA_ident (IntLiteral i) in
-            (cmd.id, [cmd])
+            add_valued_statement @@ SSA_bin_op { _type = op_type; lhs = lhs_id; rhs = rhs_id }
+        | UnOp              { expr; op } ->
+            let arg_id = parse_expr expr in
+            let op_type = match op with
+                | Negate    -> SSA_neg
+                | Not       -> SSA_not
+            in
+
+            add_valued_statement @@ SSA_un_op { _type = op_type; lhs = arg_id; rhs = arg_id }
         | String            s ->
-            let escaped_s = escape_backslashes s in
-            let cmd = create_stmt @@ SSA_ident (StringLiteral escaped_s) in
-            (cmd.id, [cmd])
-        | True                -> 
-            let cmd = create_stmt @@ SSA_ident (BoolLiteral true) in
-            (cmd.id, [cmd])
-        | False               ->
-            let cmd = create_stmt @@ SSA_ident (BoolLiteral false) in
-            (cmd.id, [cmd])
-        | Identifier        ident ->
-            let var_name = find_symbol ident.name in
-            let cmd = create_stmt @@ SSA_ident (var_name) in
-
-            (cmd.id, [cmd])
-        | Let               { bindings; _in } ->
-            let ssa_initialize (binding : ast_let_binding_type) : ssa_stmt list =
-                match binding with
-                | LetBindingNoInit  { variable; _type } ->
-                    let cmd = create_stmt @@ SSA_default_mem _type.name in
-                    add_symbol variable.name cmd.id;
-                    [cmd]
-                | LetBindingInit    { variable; _type; value } ->
-                    let (rhs_id, rhs_cmds) = rec_ssa_gen value in
-                    let cmd = create_stmt @@ SSA_valued_mem (rhs_id, variable.name) in
-                    add_symbol variable.name cmd.id;
-                    rhs_cmds @ [cmd]
-            in
-
-            let ssa_remove_binding (binding : ast_let_binding_type) : unit =
-                match binding with
-                | LetBindingNoInit  { variable; _type } ->
-                    remove_symbol variable.name
-                | LetBindingInit    { variable; _type; value } ->
-                    remove_symbol variable.name
-            in
-
-            let init_cmds = List.concat (List.map ssa_initialize bindings) in
-            let (in_id, in_cmds) = rec_ssa_gen _in in
-
-            List.iter (ssa_remove_binding) bindings;
-
-            (in_id, init_cmds @ in_cmds)
-        | Case              { expression; mapping_list } ->
-            (Unit, [create_stmt @@ SSA_comment "Case not implemented"])
-        | Internal         _ -> 
-            (Unit, [create_stmt @@ SSA_comment "Internal expression not implemented"])
+            add_valued_statement @@ SSA_str s
+        | Integer           i ->
+            add_valued_statement @@ SSA_int i
+        | _ -> failwith "Unsupported expression type"
     in
 
-    let (ssa_id, ssa_cmds) = rec_ssa_gen method_body in
-    (!ssa_id_list, ssa_cmds @ [create_stmt @@ SSA_return ssa_id])
+    let end_val = parse_expr method_body in
+    let casted = cast_val end_val method_body._type return_type in
+    let stmts = List.rev !stmts in
+
+    { end_val = casted; stmts }

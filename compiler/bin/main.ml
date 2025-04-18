@@ -10,7 +10,6 @@ open D_tac_data
 open F_ast_to_ssa
 open G_metadata_output
 open G_tac_to_cfg
-open G_ssa_opt
 open H_asm_data
 open H_asm_gen
 open I_peephole_opt
@@ -46,14 +45,17 @@ let () =
     let program_data = organize_parser_data parsed_data in
 
     let ssa = generate_ssa program_data in
-    let main_ssa = List.find (fun (ssa : method_ssa) -> ssa.method_name = "Main.main") ssa in
-    let opt1 = optimize_ssa main_ssa in
+    let main_ssa = List.find (fun (ssa : method_ssa) -> ssa.method_name = "main") ssa in
+    (* let opt1 = optimize_ssa main_ssa in *)
 
     Printf.printf "Pre-optimized SSA:\n";
     List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) main_ssa.stmts;
-    Printf.printf "\nOptimized SSA:\n";
-    List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) opt1.stmts;
     Printf.printf "\n";
+    (* Printf.printf "Optimized SSA:\n";
+    List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) opt1.stmts;
+    Printf.printf "\n"; *)
+
+    ()
 
     (* let method_tacs = List.map (ssa_to_tac) ssa in *)
 

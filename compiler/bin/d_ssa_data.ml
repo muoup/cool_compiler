@@ -1,25 +1,46 @@
 open A_util
 
 type ssa_id =
-    | Local of int
-    | Attribute of int
-    | Parameter of int
-    
-    | IntLiteral of int
-    | StringLiteral of string
-    | BoolLiteral of bool
+    | SSA_id of int
+    | SSA_param of int
+    | SSA_attr of int
+    | SSA_self
 
-    | Unit
-    
-    | Self
+type ssa_symbol = {
+    id : ssa_id;
+    _type : string;
+}
 
-type symbol_table = ssa_id StringTbl.t
+type ssa_sym_table = ssa_symbol StringTbl.t
 
 type ssa_stmt =
-    | Valueless     of ssa_val
-    | Valued        of ssa_id * ssa_val
+    | SSA_Valueless     of ssa_op
+    | SSA_Valued        of ssa_id * ssa_op
 
-and ssa_val =
+and binop_type =
+    | SSA_add
+    | SSA_sub
+    | SSA_mul
+    | SSA_div
+    | SSA_lt
+    | SSA_lte
+    | SSA_eq
+
+and unop_type =
+    | SSA_neg
+    | SSA_not
+
+and cmp_procedure =
+    | SSA_str_cmp
+    | SSA_dir_cmp
+    | SSA_ambiguous_cmp
+
+and phi_entry = {
+    id : ssa_id;
+    from_label : string;
+}
+
+and ssa_op =
     | SSA_bin_op        of { _type : binop_type; lhs : ssa_id; rhs : ssa_id }
     | SSA_un_op         of { _type : unop_type;  lhs : ssa_id; rhs : ssa_id }
 
@@ -29,53 +50,20 @@ and ssa_val =
     | SSA_default       of string
 
     | SSA_is_zero       of { _val : ssa_id }
-    | SSA_zero_check    of { _val : ssa_id; error_proc : string }
-    
-    | SSA_new           of ssa_id * string
-    | SSA_default       of ssa_id
+    | SSA_bt            of { _val : ssa_id; label : string }
+    | SSA_jmp           of { label : string }
 
-    | SSA_add of ssa_id * ssa_id
-    | SSA_sub of ssa_id * ssa_id
-    | SSA_mul of ssa_id * ssa_id
-    | SSA_div of int * ssa_id * ssa_id
+    | SSA_int           of int
+    | SSA_str           of string
+    | SSA_static        of string
 
-    | SSA_lt  of ssa_id * ssa_id
-    | SSA_lte of ssa_id * ssa_id
-    | SSA_eq  of ssa_id * ssa_id
+    | SSA_phi           of { entries : phi_entry list; }
 
-    | SSA_ident of ssa_id
+    | SSA_internal      of string
+    | SSA_return        of ssa_id
 
-    | SSA_neg of ssa_id
-    | SSA_not of ssa_id
-
-    | SSA_new of string
-    | SSA_default of string
-
-    | SSA_isvoid of ssa_id
-
-    | SSA_call of string * ssa_id list
-    | SSA_dispatch of { line_number : int; obj : ssa_id; method_id : int; args : ssa_id list }
-
-    | SSA_label of string
-    | SSA_jmp of string
-    | SSA_bt of ssa_id * string
-
-    | SSA_object of string * int
-    | SSA_attribute of { object_id : ssa_id; attribute_id : int; value : ssa_id }
-    
-    | SSA_internal of string
-
-    | SSA_return of ssa_id
-    | SSA_comment of string
-
-    | SSA_default_mem of string
-    | SSA_valued_mem of ssa_id * string
-
-    | SSA_store of ssa_id * ssa_id
-    | SSA_load of ssa_id
-
-    (* Special Internal Nodes *)
-    | SSA_str_eq  of ssa_id * ssa_id
+    | SSA_call          of { method_name : string; args : ssa_id list }
+    | SSA_dispatch      of { obj : ssa_id; method_id : int; args : ssa_id list }
 
 type ssa_block = {
     label : string;
@@ -88,109 +76,82 @@ type method_ssa = {
     arg_count : int;
 
     stmts : ssa_stmt list;
-    ids : ssa_id list
 }
 
 let f_sid (id : ssa_id) : string =
     match id with
-    | Local i -> Printf.sprintf "%%%d" i
-    | Attribute i -> Printf.sprintf "A%d" i
-    | Parameter i -> Printf.sprintf "P%d" i
+    | SSA_id i -> Printf.sprintf "%%%d" i
+    | SSA_param i -> Printf.sprintf "param(%d)" i
+    | SSA_attr i -> Printf.sprintf "attr(%d)" i
+    | SSA_self -> "self"
 
-    | IntLiteral i -> Printf.sprintf "%d" i
-    | StringLiteral s -> Printf.sprintf "\"%s\"" s
-    | BoolLiteral b -> Printf.sprintf "%b" b
+let f_binop (op : binop_type) : string =
+    match op with
+    | SSA_add -> "+"
+    | SSA_sub -> "-"
+    | SSA_mul -> "*"
+    | SSA_div -> "/"
 
-    | Unit -> "!"
+    | SSA_lt -> "<"
+    | SSA_lte -> "<="
+    | SSA_eq -> "=="
 
-    | Self -> "self"
+let f_unop (op : unop_type) : string =
+    match op with
+    | SSA_neg -> "-"
+    | SSA_not -> "!"
 
-let val_as_str (_val : ssa_val) : string =
+let val_as_str (_val : ssa_op) : string =
     match _val with
-    | SSA_add (a, b) -> (Printf.sprintf "%s + %s" (f_sid a) (f_sid b))
-    | SSA_sub (a, b) -> (Printf.sprintf "%s - %s" (f_sid a) (f_sid b))
-    | SSA_mul (a, b) -> (Printf.sprintf "%s * %s" (f_sid a) (f_sid b))
-    | SSA_div (_, a, b) -> (Printf.sprintf "%s / %s" (f_sid a) (f_sid b))
+    | SSA_bin_op { _type; lhs; rhs } ->
+        Printf.sprintf "%s %s %s" (f_sid lhs) (f_binop _type) (f_sid rhs)
+    | SSA_un_op { _type; lhs; rhs } ->
+        Printf.sprintf "%s %s %s" (f_sid lhs) (f_unop _type) (f_sid rhs)
 
-    | SSA_lt (a, b) -> (Printf.sprintf "%s < %s" (f_sid a) (f_sid b))
-    | SSA_lte (a, b) -> (Printf.sprintf "%s <= %s" (f_sid a) (f_sid b))
-    | SSA_eq (a, b) -> (Printf.sprintf "%s == %s" (f_sid a) (f_sid b))
+    | SSA_alias id ->
+        Printf.sprintf "alias %s" (f_sid id)
 
-    | SSA_ident a -> (Printf.sprintf "%s" (f_sid a))
-    | SSA_neg a -> (Printf.sprintf "-%s" (f_sid a))
-    | SSA_not a -> (Printf.sprintf "not %s" (f_sid a))
-
-    | SSA_new a -> (Printf.sprintf "new %s" a)
-    | SSA_default a -> (Printf.sprintf "default %s" a)
-    | SSA_isvoid a -> (Printf.sprintf "isvoid %s" (f_sid a))
-
-    | SSA_call (method_name, args) -> 
-        (Printf.sprintf "%s(%s)" (method_name) (String.concat ", " (List.map f_sid args)))
-    | SSA_dispatch { line_number; obj; method_id; args } -> 
-        (Printf.sprintf "%s.%d(%s)" (f_sid obj) method_id (String.concat ", " (List.map f_sid args)))
+    | SSA_new s ->
+        Printf.sprintf "new %s" s
+    | SSA_default s ->
+        Printf.sprintf "default %s" s
         
-    | SSA_label a -> (Printf.sprintf "label %s" a)
-    | SSA_jmp a -> (Printf.sprintf "jmp %s" a)
-    | SSA_bt (a, b) -> (Printf.sprintf "bt %s %s" (f_sid a) b)
+    | SSA_is_zero { _val } ->
+        Printf.sprintf "is_zero %s" (f_sid _val)
+    | SSA_bt { _val; label } ->
+        Printf.sprintf "bt %s %s" (f_sid _val) label
+    | SSA_jmp { label } ->
+        Printf.sprintf "jmp %s" label
 
-    | SSA_object (a, b) -> (Printf.sprintf "%s.%d" a b)
-    | SSA_attribute { object_id; attribute_id; value } -> 
-        (Printf.sprintf "%s.%d = %s" (f_sid object_id) attribute_id (f_sid value))
-    | SSA_internal a -> (Printf.sprintf "internal %s" a)
+    | SSA_int i ->
+        Printf.sprintf "%d" i
+    | SSA_str s ->
+        Printf.sprintf "'%s'" s
+    | SSA_static s ->
+        Printf.sprintf "$%s" s
 
-    | SSA_return a -> (Printf.sprintf "return %s" (f_sid a))
-    | SSA_comment a -> (Printf.sprintf "comment %s" a)
+    | SSA_phi { entries } ->
+        Printf.sprintf "φ %s"
+            (String.concat ", " (List.map (fun { id; from_label } ->
+                Printf.sprintf "%s:%s" from_label (f_sid id)) entries))
 
-    | SSA_default_mem (type_name) -> (Printf.sprintf "alloc default; type = %s" type_name)
-    | SSA_valued_mem (a, type_name) -> (Printf.sprintf "alloc %s; type = %s" (f_sid a) type_name)
+    | SSA_internal id ->
+        Printf.sprintf "internal %s" id
+    | SSA_return id ->
+        Printf.sprintf "return %s" (f_sid id)
 
-    | SSA_store (a, b) -> (Printf.sprintf "store %s -> %s" (f_sid a) (f_sid b))
-    | SSA_load a -> (Printf.sprintf "load %s" (f_sid a))
-
-    | SSA_str_eq (a, b) -> (Printf.sprintf "%s == %s" (f_sid a) (f_sid b))
-
-let referenced_ids (stmt : ssa_stmt) : ssa_id list =
-    stmt.id :: 
-    match stmt._val with
-    | SSA_add (a, b) -> [a; b]
-    | SSA_sub (a, b) -> [a; b]
-    | SSA_mul (a, b) -> [a; b]
-    | SSA_div (_, a, b) -> [a; b]
-
-    | SSA_lt (a, b) -> [a; b]
-    | SSA_lte (a, b) -> [a; b]
-    | SSA_eq (a, b) -> [a; b]
-
-    | SSA_ident a -> [a]
-    | SSA_neg a -> [a]
-    | SSA_not a -> [a]
-
-    | SSA_new _ -> []
-    | SSA_default _ -> []
-    | SSA_isvoid a -> [a]
-
-    | SSA_call (_, args) -> args
-    | SSA_dispatch { obj; args } -> obj :: args
-
-    | SSA_label _ -> []
-    | SSA_jmp _ -> []
-    | SSA_bt (a, _) -> [a]
-
-    | SSA_object (_, _) -> []
-    | SSA_attribute { object_id; value } -> object_id :: [value]
-    
-    | SSA_internal _ -> []
-
-    | SSA_return a -> [a]
-    | SSA_comment _ -> []
-
-    | SSA_default_mem _ -> []
-    | SSA_valued_mem (a, _) -> [a]
-
-    | SSA_store (a, b) -> [a; b]
-    | SSA_load a -> [a]
-
-    | SSA_str_eq (a, b) -> [a; b]
+    | SSA_call { method_name; args } ->
+        Printf.sprintf "call %s(%s)" 
+            method_name 
+            (String.concat ", " (List.map f_sid args))
+    | SSA_dispatch { obj; method_id; args } ->
+        Printf.sprintf "dispatch %s(%s)" 
+            (f_sid obj) 
+            (String.concat ", " (List.map f_sid args))
 
 let print_ssa_stmt (output : string -> unit) (stmt : ssa_stmt) : unit =
-    output (Printf.sprintf "%s = %s" (f_sid stmt.id) (val_as_str stmt._val));
+    match stmt with
+    | SSA_Valueless op ->
+        output (val_as_str op)
+    | SSA_Valued (id, op) ->
+        output (Printf.sprintf "%s = %s" (f_sid id) (val_as_str op))

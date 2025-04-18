@@ -8,7 +8,7 @@
   d_tac_data d_ssa_data
   e_expr_to_tac e_expr_to_ssa
   f_ast_to_tac f_ast_to_ssa
-  g_metadata_output g_tac_to_cfg g_ssa_opt
+  g_metadata_output g_tac_to_cfg
   h_asm_data h_asm_gen
   i_peephole_opt
   main

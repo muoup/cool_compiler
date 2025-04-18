@@ -120,7 +120,7 @@ let output_tac_cmd (f : string -> unit) (cmd : tac_cmd) =
         f (Printf.sprintf "%s <- %s - %s" (f_id dst) (f_id src1) (f_id src2))
     | TAC_mul (dst, src1, src2) ->
         f (Printf.sprintf "%s <- %s * %s" (f_id dst) (f_id src1) (f_id src2))
-    | TAC_div (line_num, dst, src1, src2) ->
+    | TAC_div (_, dst, src1, src2) ->
         f (Printf.sprintf "%s <- %s / %s" (f_id dst) (f_id src1) (f_id src2))
 
     | TAC_lt (dst, src1, src2) ->
@@ -161,7 +161,7 @@ let output_tac_cmd (f : string -> unit) (cmd : tac_cmd) =
 
     | TAC_call_alloc amt ->
         f (Printf.sprintf "allocate %d stack slots for call" amt)
-    | TAC_dispatch { line_number; store; obj; method_id; args } ->
+    | TAC_dispatch { line_number = _; store; obj; method_id; args } ->
         let args_str = String.concat ", " (List.map f_id args) in
         f (Printf.sprintf "%s <- %s.%d(%s)" (f_id store) (f_id obj) method_id args_str)
     | TAC_call (dst, method_name, args) ->
@@ -178,9 +178,9 @@ let output_tac_cmd (f : string -> unit) (cmd : tac_cmd) =
     | TAC_cmp (cmp_type, src1, src2) ->
         f (Printf.sprintf "cmp %s %s %s" (f_id src1) (cmp_str cmp_type) (f_id src2))
     | TAC_str_cmp (cmp_type, src1, src2) ->
-        f (Printf.sprintf "str_cmp %s %s" (f_id src1) (f_id src2))
+        f (Printf.sprintf "str_cmp %s %s %s" (f_id src1) (cmp_str cmp_type) (f_id src2))
     | TAC_set (cmp_type, src) ->
-        f (Printf.sprintf "set %s" (f_id src))
+        f (Printf.sprintf "set(%s) %s" (cmp_str cmp_type) (f_id src))
 
     | TAC_object (dst, cls, slot) ->
         f (Printf.sprintf "%s <- %s(%d)" (f_id dst) cls slot)
@@ -191,7 +191,7 @@ let output_tac_cmd (f : string -> unit) (cmd : tac_cmd) =
     | TAC_comment s ->
         f (Printf.sprintf "/* %s */" s)
 
-    | TAC_void_check (line_num, src, cls) ->
+    | TAC_void_check (_, src, cls) ->
         f (Printf.sprintf "test_error %s %s" (f_id src) cls)
     | TAC_inline_assembly s ->
         f (Printf.sprintf "asm %s" s)
