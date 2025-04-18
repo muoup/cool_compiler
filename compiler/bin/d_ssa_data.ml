@@ -37,7 +37,7 @@ and cmp_procedure =
 
 and phi_entry = {
     id : ssa_id;
-    from_label : string;
+    from_block : ssa_block;
 }
 
 and ssa_op =
@@ -65,9 +65,9 @@ and ssa_op =
     | SSA_call          of { method_name : string; args : ssa_id list }
     | SSA_dispatch      of { obj : ssa_id; method_id : int; args : ssa_id list }
 
-type ssa_block = {
+and ssa_block = {
     label : string;
-    cmds : ssa_stmt list;
+    stmts : ssa_stmt list;
 }
 
 type method_ssa = {
@@ -75,7 +75,7 @@ type method_ssa = {
     method_name : string;
     arg_count : int;
 
-    stmts : ssa_stmt list;
+    blocks : ssa_block list;
 }
 
 let f_sid (id : ssa_id) : string =
@@ -132,8 +132,8 @@ let val_as_str (_val : ssa_op) : string =
 
     | SSA_phi { entries } ->
         Printf.sprintf "φ %s"
-            (String.concat ", " (List.map (fun { id; from_label } ->
-                Printf.sprintf "%s:%s" from_label (f_sid id)) entries))
+            (String.concat ", " (List.map (fun { id; from_block } ->
+                Printf.sprintf "%s:%s" from_block.label (f_sid id)) entries))
 
     | SSA_internal id ->
         Printf.sprintf "internal %s" id

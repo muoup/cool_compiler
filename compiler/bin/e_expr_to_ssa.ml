@@ -21,13 +21,22 @@ let rec last_id (ids : ssa_id list) : ssa_id =
 
 type ssa_expr_body = {
     end_val : ssa_id;
-    stmts : ssa_stmt list;
+    blocks : ssa_block list;
 }
 
 let ssa_from_expr   (data : program_data) (class_name : string) (return_type : string)
                     (method_body : ast_expression)
                     (id_count : int ref) (symbol_table : ssa_sym_table ref) : ssa_expr_body =
-    let stmts : ssa_stmt list ref = ref [] in
+    let blocks : (ssa_block ref) list ref = ref [] in
+    
+    let new_block (subtext : string) : ssa_block ref =
+        let label = label_id () in
+        let block = ref { label; stmts = [] } in
+        blocks := block :: !blocks;
+        block
+    in
+    
+    let current_block : ssa_block ref = new_block "entry" in
 
     let get_id () : ssa_id =
         let id = !id_count in
@@ -53,13 +62,19 @@ let ssa_from_expr   (data : program_data) (class_name : string) (return_type : s
 
     let add_valued_statement (op : ssa_op) : ssa_id =
         let id = get_id () in
-        stmts := SSA_Valued (id, op) :: !stmts;  
+        current_block := { 
+            !current_block with
+                stmts = SSA_Valued (id, op) :: !current_block.stmts
+        };
 
         id
     in
 
     let add_valueless_statement (stmt : ssa_op) : unit =
-        stmts := SSA_Valueless stmt :: !stmts;
+        current_block := { 
+            !current_block with
+                stmts = SSA_Valueless stmt :: !current_block.stmts
+        }
     in
 
     let cast_val (id : ssa_id) (from_type : string) (to_type : string) : ssa_id =
@@ -187,6 +202,33 @@ let ssa_from_expr   (data : program_data) (class_name : string) (return_type : s
             in
 
             add_valued_statement @@ SSA_un_op { _type = op_type; lhs = arg_id; rhs = arg_id }
+        | If                { predicate; _then; _else }  ->
+            let merge_type = match _then._type, _else._type with
+                | "Int", "Int" -> "Int"
+                | "String", "String" -> "String"
+                | "Bool", "Bool" -> "Bool"
+                | _ -> raise (Invalid_argument "If branches must be of the same type")
+            in
+
+            let then_block = new_block "then" in
+            let else_block = new_block "else" in
+            let merge_block = new_block "merge" in
+
+            let cond_id = parse_expr predicate in
+            add_valueless_statement @@ SSA_bt { _val = cond_id; label = !then_block.label };
+
+            current_block := !then_block; 
+            let then_id = parse_expr _then in
+
+            current_block := !else_block;
+            let else_id = parse_expr _else in
+
+            current_block := !merge_block;
+            let from_then = { id = then_id; from_block = !then_block } in
+            let from_else = { id = else_id; from_block = !else_block } in
+            let merge_id = add_valued_statement @@ SSA_phi { entries = [ from_then; from_else ] } in
+
+            merge_id
         | String            s ->
             add_valued_statement @@ SSA_str s
         | Integer           i ->
@@ -196,6 +238,10 @@ let ssa_from_expr   (data : program_data) (class_name : string) (return_type : s
 
     let end_val = parse_expr method_body in
     let casted = cast_val end_val method_body._type return_type in
-    let stmts = List.rev !stmts in
 
-    { end_val = casted; stmts }
+    let blocks = List.map (fun block -> 
+        let block = !block in
+        { block with stmts = List.rev block.stmts }    
+    ) !blocks in
+
+    { end_val = casted; blocks = blocks }

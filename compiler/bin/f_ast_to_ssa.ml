@@ -12,7 +12,7 @@ let generate_ssa (data : program_data) : method_ssa list =
 
     StringTbl.add !symbol_table "self" { id = SSA_self; _type = "self" };
 
-    let generate_ssa (_method : impl_method) : method_ssa =
+    let gen_method_ssa (_method : impl_method) : method_ssa =
         match _method.body.data with
         | Internal id ->
             {
@@ -20,7 +20,14 @@ let generate_ssa (data : program_data) : method_ssa list =
                 method_name = _method.name;
                 arg_count = List.length _method.formals;
 
-                stmts = [ SSA_Valueless (SSA_internal id) ];
+                blocks = [
+                    {
+                        label = "entry";
+                        stmts = [
+                            SSA_Valueless (SSA_internal id);
+                        ]
+                    };
+                ]
             }  
         | _ ->
 
@@ -35,7 +42,15 @@ let generate_ssa (data : program_data) : method_ssa list =
             method_name = _method.name;
             arg_count = List.length _method.formals;
 
-            stmts = body.stmts @ [ SSA_Valueless (SSA_return body.end_val) ];
+            blocks = body.blocks @ 
+                [
+                    {
+                        label = label_id () ^ "_exit";
+                        stmts = [
+                            SSA_Valueless (SSA_return body.end_val);
+                        ]
+                    }
+                ]
         }
     in
 
@@ -43,6 +58,6 @@ let generate_ssa (data : program_data) : method_ssa list =
     |> StringMap.bindings
     |> List.map (
         fun (_, _class) ->
-            List.map (generate_ssa) _class.methods
+            List.map (gen_method_ssa) _class.methods
         )
     |> List.flatten

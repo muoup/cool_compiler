@@ -49,7 +49,11 @@ let () =
     (* let opt1 = optimize_ssa main_ssa in *)
 
     Printf.printf "Pre-optimized SSA:\n";
-    List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) main_ssa.stmts;
+    List.iter (
+        fun (ssa_ : ssa_block) -> 
+            Printf.printf "%s:\n" ssa_.label;
+            List.iter (fun stmt -> print_ssa_stmt (Printf.printf "%s\n") stmt) ssa_.stmts;
+    ) main_ssa.blocks;
     Printf.printf "\n";
     (* Printf.printf "Optimized SSA:\n";
     List.iter (fun ssa_ -> print_ssa_stmt (Printf.printf "%s\n") ssa_) opt1.stmts;
