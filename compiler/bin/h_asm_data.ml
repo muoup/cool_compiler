@@ -111,6 +111,7 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
     (match cmd with
     | FRAME (size) ->
         output "# -- FRAME INITIALIZATION --\n";
+        output @@ "# -- Stack Size Requested: " ^ string_of_int size ^ "\n";
         format_cmd1 "pushq" "%rbp";
         output "\n";
         format_cmd2 "movq" "%rsp" "%rbp";

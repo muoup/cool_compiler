@@ -648,8 +648,8 @@ let tac_gen_expr_body
     let temps_used = !temp_counter in
     let temps_freed = List.length !free_temps in
 
-    if temps_used <> temps_freed then
-        Printf.printf "Warning: in some %s %s.???() %d temps used, %d temps freed\n" return_type class_name temps_used temps_freed;
+    (* if temps_used <> temps_freed then
+        Printf.printf "Warning: in some %s %s.???() %d temps used, %d temps freed\n" return_type class_name temps_used temps_freed; *)
 
     global_temp_counter := max !global_temp_counter !temp_counter;
 
