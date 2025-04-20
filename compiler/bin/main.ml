@@ -11,6 +11,7 @@ open G_metadata_output
 open G_tac_to_cfg
 open H_asm_data
 open H_asm_gen
+open H_dead_code_elim
 
 let change_file_extension (path : string) (new_extension : string) : string =
     Filename.remove_extension path ^ new_extension
@@ -43,8 +44,10 @@ let () =
     let program_data = organize_parser_data parsed_data in
     let method_tacs = generate_tac program_data in
     let cfg = build_cfg method_tacs in
-    print_cfg cfg;
-    let asm = List.map (generate_asm) method_tacs in
+    let cfg = eliminate_dead_code cfg in
+    (* print_cfg cfg; *)
+    let updated_method_tacs = cfg_to_method_tac cfg in
+    let asm = List.map (generate_asm) updated_method_tacs in
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 
