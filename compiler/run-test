@@ -7,9 +7,9 @@ fi
 
 cool --x86 "$1.cl"
 ./run-compile "$1.s" 2> /dev/null
-cool_output=$(cat "test_input" | ./a.out)
+cool_output=$(echo "$input" | ./a.out)
 
-dune_output=$(cat "test_input" | ./run-full "$1")
+dune_output=$(echo "$input" | ./run-full "$1")
 
 if [ "$?" -ne 0 ]; then
     echo "Test failed: $1"

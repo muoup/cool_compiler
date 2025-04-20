@@ -46,7 +46,7 @@ let () =
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in
     (* print_cfg cfg; *)
-    let updated_method_tacs = cfg_to_method_tac cfg in
+    let updated_method_tacs = cfg_to_method_tac_list cfg in
     let asm = List.map (generate_asm) updated_method_tacs in
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in

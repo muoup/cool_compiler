@@ -1,26 +1,26 @@
 open D_tac_data
 open Printf
-module StringSet = Set.Make(String)
 
 type basic_block = {
-  id: int;
-  label: string option;
-  instructions: tac_cmd list;
-
-  mutable predecessors: int list;
-  mutable successors: int list;
-
-  class_name: string;
-  method_name: string;
-  arg_count: int;
+  id : int;
+  label : string option;
+  class_name : string;
+  method_name : string;
+  instructions : tac_cmd list;
+  mutable successors : int list;
+  mutable predecessors : int list;
 }
 
-type cfg = {
-  blocks: (int, basic_block) Hashtbl.t;
-  label_map: (string, int) Hashtbl.t;
-  entry_block: int;
+type method_cfg = {
+  class_name : string;
+  method_name : string;
+  arg_count : int;
+  entry_block : int;
+  blocks : (int, basic_block) Hashtbl.t;
+  ids : tac_id list;
 }
 
+type cfg = method_cfg list
 let string_of_tac_id = function
   | Local i     -> Printf.sprintf "Local(%d)" i
   | Temporary i -> Printf.sprintf "Temp(%d)" i
@@ -80,182 +80,120 @@ let string_of_tac_cmd = function
   | TAC_str_lte (x, y, z) ->
     Printf.sprintf "%s := str-op(%s, %s)" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
 
-let print_cfg (cfg : cfg) : unit =
-  Printf.printf "CFG Entry Block: %d\n" cfg.entry_block;
-  Hashtbl.iter (fun id block ->
-    Printf.printf "\nBlock ID: %d\n" block.id;
-    (match block.label with
-     | Some l -> Printf.printf "Label: %s\n" l
-     | None -> ());
-    Printf.printf "Class.Method: %s.%s\n" block.class_name block.method_name;
-    Printf.printf "Predecessors: [%s]\n"
-      (String.concat ", " (List.map string_of_int block.predecessors));
-    Printf.printf "Successors:   [%s]\n"
-      (String.concat ", " (List.map string_of_int block.successors));
-    Printf.printf "Instructions:\n";
-    List.iter (fun cmd ->
-      Printf.printf "  %s\n" (string_of_tac_cmd cmd)
-    ) block.instructions;
-  ) cfg.blocks
+let print_cfg (cfgs : cfg) : unit =
+  List.iter (fun mcfg ->
+    Printf.printf "Method: %s.%s (args: %d)\n" mcfg.class_name mcfg.method_name mcfg.arg_count;
+    Printf.printf "Entry block: %d\n" mcfg.entry_block;
+    Hashtbl.iter (fun id block ->
+      Printf.printf "  Block %d%s:\n" id (match block.label with Some l -> ":" ^ l | None -> "");
+      List.iter (fun instr ->
+        Printf.printf "    %s\n" (string_of_tac_cmd instr)
+      ) block.instructions;
+      Printf.printf "    Successors: [%s]\n" (String.concat ", " (List.map string_of_int block.successors));
+      Printf.printf "    Predecessors: [%s]\n" (String.concat ", " (List.map string_of_int block.predecessors));
+    ) mcfg.blocks;
+    print_endline ""
+  ) cfgs
+    
 
-
-let rec collect_ids_from_cmd (cmd : tac_cmd) : tac_id list =
-  match cmd with
-  | TAC_add (x, y, z)
-  | TAC_sub (x, y, z)
-  | TAC_mul (x, y, z)
-  | TAC_lt  (x, y, z)
-  | TAC_lte (x, y, z)
-  | TAC_eq  (x, y, z)
-  | TAC_str_eq (x, y, z)
-  | TAC_str_lt (x, y, z)
-  | TAC_str_lte (x, y, z) -> [x; y; z]
-
-  | TAC_div (_, x, y, z) -> [x; y; z]
-  | TAC_int (x, _)
-  | TAC_str (x, _)
-  | TAC_bool (x, _)
-  | TAC_new (x, _)
-  | TAC_default (x, _)
-  | TAC_isvoid (x, _)
-  | TAC_return x
-  | TAC_neg (x, _)
-  | TAC_not (x, _)
-  | TAC_ident (x, _) -> [x]
-
-  | TAC_call (x, _, args) -> x :: args
-  | TAC_dispatch { store; obj; args; _ } -> store :: obj :: args
-  | TAC_object (x, _, _)
-  | TAC_void_check (_, x, _) -> [x]
-
-  | TAC_attribute { object_id; value; _ } -> [object_id; value]
-
-  | TAC_bt (x, _) -> [x]
-  | TAC_jmp _
-  | TAC_label _
-  | TAC_internal _
-  | TAC_inline_assembly _
-  | TAC_comment _ -> []
-
-let collect_ids (cmds : tac_cmd list) : tac_id list =
-  let all_ids = List.flatten (List.map collect_ids_from_cmd cmds) in
-  (* Remove duplicates *)
-  let module IdSet = Set.Make(struct
-    type t = tac_id
-    let compare = compare
-  end) in
-  IdSet.elements (List.fold_left (fun acc id -> IdSet.add id acc) IdSet.empty all_ids)
-
-let build_cfg (methods : method_tac list) : cfg =
-  let blocks = Hashtbl.create 64 in
-  let label_map = Hashtbl.create 64 in
-  let block_id = ref 0 in
-
-  let make_block ~label ~cmds ~cls ~mth ~args =
-    let id = !block_id in
-    incr block_id;
-    let b = {
-      id;
-      label;
-      instructions = cmds;
-      predecessors = [];
-      successors = [];
-      class_name = cls;
-      method_name = mth;
-      arg_count = args;
-    } in
-    Hashtbl.add blocks id b;
-    (match label with Some l -> Hashtbl.add label_map l id | None -> ());
+let fresh_block_id =
+  let counter = ref 0 in
+  fun () ->
+    let id = !counter in
+    incr counter;
     id
-  in
 
-  let rec split_to_blocks acc current cmds cls mth args =
-    match cmds with
-    | [] ->
-      let id = make_block ~label:None ~cmds:(List.rev current) ~cls ~mth ~args in
-      List.rev (id :: acc)
-    | TAC_label l :: rest ->
-      let acc =
-        if current <> [] then
-          let id = make_block ~label:None ~cmds:(List.rev current) ~cls ~mth ~args in
-          id :: acc
-        else acc
-      in
-      let id = make_block ~label:(Some l) ~cmds:[] ~cls ~mth ~args in
-      split_to_blocks (id :: acc) [] rest cls mth args
+let split_into_blocks (commands : tac_cmd list) : (string option * tac_cmd list) list =
+  let rec aux current acc current_label = function
+    | [] -> List.rev ((current_label, List.rev current) :: acc)
+    | TAC_label lbl :: rest ->
+      let new_block = (current_label, List.rev current) in
+      aux [] (new_block :: acc) (Some lbl) rest
     | instr :: rest ->
-      let current = instr :: current in
-      match instr with
-      | TAC_jmp _ | TAC_bt _ | TAC_return _ ->
-        let id = make_block ~label:None ~cmds:(List.rev current) ~cls ~mth ~args in
-        split_to_blocks (id :: acc) [] rest cls mth args
-      | _ -> split_to_blocks acc current rest cls mth args
+      aux (instr :: current) acc current_label rest
   in
+  aux [] [] None commands
 
-  (* build all basic blocks *)
-  List.iter (fun m ->
-    ignore (split_to_blocks [] [] m.commands m.class_name m.method_name m.arg_count)
-  ) methods;
-
-  (* connect successors and predecessors *)
-  Hashtbl.iter (fun _ block ->
-    match List.rev block.instructions with
-    | [] -> ()
-    | last :: _ -> (
-        match last with
-        | TAC_jmp l ->
-          let target = Hashtbl.find label_map l in
-          block.successors <- [target];
-          let t = Hashtbl.find blocks target in
-          t.predecessors <- block.id :: t.predecessors
-        | TAC_bt (_, l) ->
-          let target = Hashtbl.find label_map l in
-          let fallthrough = block.id + 1 in
-          block.successors <- [target; fallthrough];
-          let t1 = Hashtbl.find blocks target in
-          let t2 = Hashtbl.find_opt blocks fallthrough in
-          t1.predecessors <- block.id :: t1.predecessors;
-          (match t2 with Some b2 -> b2.predecessors <- block.id :: b2.predecessors | None -> ())
-        | TAC_return _ -> ()
-        | _ ->
-          let fallthrough = block.id + 1 in
-          match Hashtbl.find_opt blocks fallthrough with
-          | Some b2 ->
-            block.successors <- [fallthrough];
-            b2.predecessors <- block.id :: b2.predecessors
-          | None -> ()
-      )
+let connect_blocks (blocks : (int, basic_block) Hashtbl.t) : unit =
+  let label_to_id = Hashtbl.create 16 in
+  Hashtbl.iter (fun id block ->
+    match block.label with
+    | Some lbl -> Hashtbl.add label_to_id lbl id
+    | None -> ()
   ) blocks;
 
-  (* determine entry block *)
-  let entry_block =
-    Hashtbl.fold (fun _ b acc ->
-      if b.class_name = "Main" && b.method_name = "main" then b.id else acc
-    ) blocks (-1)
+  let block_list = Hashtbl.fold (fun _ b acc -> b :: acc) blocks [] |> List.sort (fun a b -> compare a.id b.id) in
+
+  List.iteri (fun i block ->
+    let last_cmd = match List.rev block.instructions with
+      | cmd :: _ -> Some cmd
+      | [] -> None
+    in
+    let add_succ pid sid =
+      if not (List.mem sid (Hashtbl.find blocks pid).successors) then
+        (Hashtbl.find blocks pid).successors <- sid :: (Hashtbl.find blocks pid).successors;
+      if not (List.mem pid (Hashtbl.find blocks sid).predecessors) then
+        (Hashtbl.find blocks sid).predecessors <- pid :: (Hashtbl.find blocks sid).predecessors
+    in
+    match last_cmd with
+    | Some (TAC_jmp label) ->
+      if Hashtbl.mem label_to_id label then
+        add_succ block.id (Hashtbl.find label_to_id label)
+    | Some (TAC_bt (_, label)) ->
+      if Hashtbl.mem label_to_id label then
+        add_succ block.id (Hashtbl.find label_to_id label);
+      (match List.nth_opt block_list (i+1) with
+       | Some next -> add_succ block.id next.id
+       | None -> ())
+    | Some (TAC_return _) -> ()
+    | _ ->
+      (match List.nth_opt block_list (i+1) with
+       | Some next -> add_succ block.id next.id
+       | None -> ())
+  ) block_list
+
+let method_tac_to_cfg (m : method_tac) : method_cfg =
+  let blocks = Hashtbl.create 8 in
+  let raw_blocks = split_into_blocks m.commands in
+  let entry_block_id = fresh_block_id () in
+
+  let _ =
+    List.fold_left (fun last_id (label, cmds) ->
+      let id = if label = None && last_id = None then entry_block_id else fresh_block_id () in
+      let block = {
+        id;
+        label;
+        class_name = m.class_name;
+        method_name = m.method_name;
+        instructions = cmds;
+        successors = [];
+        predecessors = [];
+      } in
+      Hashtbl.add blocks id block;
+      Some id
+    ) None raw_blocks
   in
+  connect_blocks blocks;
+  { class_name = m.class_name; method_name = m.method_name; arg_count = m.arg_count; entry_block = entry_block_id; blocks; ids = m.ids }
 
-  { blocks; label_map; entry_block }
+let build_cfg (methods : method_tac list) : cfg =
+  List.map method_tac_to_cfg methods
 
-    
-let cfg_to_method_tac (g : cfg) : method_tac list =
-  let grouped = Hashtbl.create 16 in
-
-  Hashtbl.iter (fun _ b ->
-    let key = (b.class_name, b.method_name) in
-    let existing = Hashtbl.find_opt grouped key |> Option.value ~default:[] in
-    Hashtbl.replace grouped key (b :: existing)
-  ) g.blocks;
-
-  Hashtbl.fold (fun (cls, mth) blocks acc ->
-    let sorted_blocks = List.sort (fun a b -> compare a.id b.id) blocks in
-    let commands = List.flatten (List.map (fun b ->
-      match b.label with
-      | Some l -> TAC_label l :: b.instructions
-      | None -> b.instructions
-    ) sorted_blocks) in
-    let ids = collect_ids commands in
-    let arg_count = (List.hd sorted_blocks).arg_count in
-    { class_name = cls; method_name = mth; arg_count; commands; ids } :: acc
-  ) grouped []
-
+  let cfg_to_method_tac_list (cfgs : cfg) : method_tac list =
+    let block_sort blocks =
+      blocks |> Hashtbl.to_seq |> List.of_seq |> List.sort (fun (i1, _) (i2, _) -> compare i1 i2) |> List.map snd
+    in
+    List.map (fun mcfg ->
+      let sorted_blocks = block_sort mcfg.blocks in
+      let commands = List.flatten (List.map (fun b ->
+        match b.label with
+        | Some lbl -> TAC_label lbl :: b.instructions
+        | None -> b.instructions
+      ) sorted_blocks) in
+      { class_name = mcfg.class_name;
+        method_name = mcfg.method_name;
+        arg_count = mcfg.arg_count;
+        commands;
+        ids = mcfg.ids }
+    ) cfgs
   
