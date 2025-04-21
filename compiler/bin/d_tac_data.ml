@@ -77,8 +77,18 @@ let f_id (id : tac_id) : string =
 
 let p_id (i : tac_id) : string = 
   match i with
-  | Self -> ("self")
+  | Self -> ("")
   | Local x | Temporary x | Attribute x | Parameter x -> (Printf.sprintf "t$%d" x)
+
+let rec stringify_args (l : tac_id list) : string list =
+  match l with 
+  | [] -> []
+  | hd :: tl -> (
+    match hd with
+      | Self -> (stringify_args tl)
+      | x -> p_id x :: stringify_args tl 
+  )
+
 
 let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   match cmd with
@@ -103,8 +113,7 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" (p_id id) s)
   | TAC_isvoid  (id, a) -> output (Printf.sprintf "%s <- isvoid %s" (p_id id) (p_id a))
   | TAC_call    (id, s, args) -> 
-    let str_args = List.map p_id args in 
-    output (Printf.sprintf "%s <- call %s"  (p_id id) (String.concat " " @@ s :: str_args))
+    output (Printf.sprintf "%s <- call %s"  (p_id id) (String.concat " " @@ s :: (stringify_args args)))
 
   | TAC_label     s -> output (Printf.sprintf "label %s" s)
   | TAC_jmp       s -> output (Printf.sprintf "jmp %s" s)
