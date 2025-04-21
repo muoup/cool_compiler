@@ -45,8 +45,15 @@ let () =
     let method_tacs = generate_tac program_data in
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in
-    (* print_cfg cfg; *)
+    print_cfg cfg;
     let updated_method_tacs = cfg_to_method_tac_list cfg in
+
+
+    (* let output_handle = open_out @@ change_file_extension file_name ".cl-tac_us" in
+    List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) updated_method_tacs;
+    close_out output_handle; *)
+
+    
     let asm = List.map (generate_asm) updated_method_tacs in
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in

@@ -74,3 +74,43 @@ let f_id (id : tac_id) : string =
     | Attribute i   -> Printf.sprintf "A%d" i
     | Parameter i   -> Printf.sprintf "P%d" i
     | Self          -> "self"
+
+let p_id (i : tac_id) : string = 
+  match i with
+  | Self -> ("self")
+  | Local x | Temporary x | Attribute x | Parameter x -> (Printf.sprintf "t$%d" x)
+
+let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
+  match cmd with
+  | TAC_add     (id, a, b) -> output (Printf.sprintf "%s <- + %s %s" (p_id id) (p_id a) (p_id b))
+  | TAC_sub     (id, a, b) -> output (Printf.sprintf "%s <- - %s %s" (p_id id) (p_id a) (p_id b))
+  | TAC_mul     (id, a, b) -> output (Printf.sprintf "%s <- * %s %s" (p_id id) (p_id a) (p_id b))
+  | TAC_div     (_, id, a, b) -> output (Printf.sprintf "%s <- / %s %s" (p_id id) (p_id a) (p_id b))
+
+  | TAC_lt      (id, a, b) -> output (Printf.sprintf "%s <- < %s %s" (p_id id) (p_id a) (p_id b))
+  | TAC_lte     (id, a, b) -> output (Printf.sprintf "%s <- <= %s %s" (p_id id) (p_id a) (p_id b))
+  | TAC_eq      (id, a, b) -> output (Printf.sprintf "%s <- = %s %s" (p_id id) (p_id a) (p_id b))
+  
+  | TAC_int     (id, i) -> output (Printf.sprintf "%s <- int %d" (p_id id) i)
+  | TAC_str     (id, s) -> output (Printf.sprintf "%s <- string\n%s" (p_id id) s)
+  | TAC_bool    (id, b) -> output (Printf.sprintf "%s <- bool %b" (p_id id) b)
+  | TAC_ident   (id, s) -> output (Printf.sprintf "%s <- %s" (p_id id) (p_id s))
+
+  | TAC_neg     (id, a) -> output (Printf.sprintf "%s <- ~ %s" (p_id id) (p_id a))
+  | TAC_not     (id, a) -> output (Printf.sprintf "%s <- not %s" (p_id id) (p_id a))
+
+  | TAC_new     (id, s) -> output (Printf.sprintf "%s <- new %s" (p_id id) s)
+  | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" (p_id id) s)
+  | TAC_isvoid  (id, a) -> output (Printf.sprintf "%s <- isvoid %s" (p_id id) (p_id a))
+  | TAC_call    (id, s, args) -> 
+    let str_args = List.map p_id args in 
+    output (Printf.sprintf "%s <- call %s"  (p_id id) (String.concat " " @@ s :: str_args))
+
+  | TAC_label     s -> output (Printf.sprintf "label %s" s)
+  | TAC_jmp       s -> output (Printf.sprintf "jmp %s" s)
+  | TAC_bt      (id, s) -> output (Printf.sprintf "bt %s %s" (p_id id) s)
+
+  | TAC_return   id -> output (Printf.sprintf "return %s"  (p_id id))
+  | TAC_comment   s -> output (Printf.sprintf "comment %s" s)
+
+  | x -> output (Printf.sprintf "comment Unimplemented")
