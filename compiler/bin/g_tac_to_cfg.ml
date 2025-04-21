@@ -154,7 +154,7 @@ let connect_blocks (blocks : (int, basic_block) Hashtbl.t) : unit =
 
 let method_tac_to_cfg (m : method_tac) : method_cfg =
   let blocks = Hashtbl.create 8 in
-  let raw_blocks = split_into_blocks m.commands in
+  let raw_blocks = split_into_blocks m.tac_commands in
   let entry_block_id = fresh_block_id () in
 
   let _ =
@@ -193,7 +193,7 @@ let build_cfg (methods : method_tac list) : cfg =
       { class_name = mcfg.class_name;
         method_name = mcfg.method_name;
         arg_count = mcfg.arg_count;
-        commands;
+        tac_commands = commands;
         ids = mcfg.ids }
     ) cfgs
   

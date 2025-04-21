@@ -46,15 +46,17 @@ let () =
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in
     print_cfg cfg;
-    let updated_method_tacs = cfg_to_method_tac_list cfg in
+    let optimized_method_tacs = cfg_to_method_tac_list cfg in
 
-
-    (* let output_handle = open_out @@ change_file_extension file_name ".cl-tac_us" in
-    List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) updated_method_tacs;
-    close_out output_handle; *)
+    let all_tac_commands (mt : method_tac list) : tac_cmd list =
+        List.concat_map (fun m -> m.tac_commands) mt in
+    let optimized_tac_commands = all_tac_commands optimized_method_tacs in
+    let output_handle = open_out @@ change_file_extension file_name ".cl-tac_us" in
+    List.iter (print_tac_cmd (Printf.fprintf output_handle "%s\n")) optimized_tac_commands;
+    close_out output_handle;
 
     
-    let asm = List.map (generate_asm) updated_method_tacs in
+    (* let asm = List.map (generate_asm) optimized_method_tacs in
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 
@@ -67,4 +69,4 @@ let () =
     emit_metadata output program_data;
     output "\n";
     
-    close_out assembly_handle
+    close_out assembly_handle *)

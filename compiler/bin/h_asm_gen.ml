@@ -393,7 +393,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
 let generate_asm (method_tac : method_tac) : asm_method =
     let stack_space = 8 * (List.length method_tac.ids) in
     let asm_data = {
-        strlit_map = generate_strlit_map method_tac.commands;
+        strlit_map = generate_strlit_map method_tac.tac_commands;
         stack_map = generate_stack_map method_tac.ids;
     } in
 
@@ -401,7 +401,7 @@ let generate_asm (method_tac : method_tac) : asm_method =
         List.concat @@ 
         List.map (
             fun (cmd : tac_cmd) -> generate_tac_asm cmd method_tac.class_name asm_data
-        ) method_tac.commands
+        ) method_tac.tac_commands
     in
 
     {
