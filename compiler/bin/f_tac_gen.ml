@@ -56,7 +56,7 @@ let generate_constructor (data : program_data) (symbol_table : symbol_table ref)
         method_name = constructor_name;
         arg_count = 0;
 
-        tac_commands = instantiate :: default_attributes @ valued_attributes @ [return];
+        commands = instantiate :: default_attributes @ valued_attributes @ [return];
         ids = !ids
     }
 
@@ -110,7 +110,7 @@ let generate_tac (data : program_data) : method_tac list =
                     method_name = method_name_gen _class.name method_.name;
                     arg_count = List.length method_.formals + 1;
                     
-                    tac_commands = cmds @ [TAC_return val_id];
+                    commands = cmds @ [TAC_return val_id];
                     ids = ids;
                 }   
         ) _class.methods in

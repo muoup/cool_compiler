@@ -154,7 +154,7 @@ let connect_blocks (blocks : (int, basic_block) Hashtbl.t) : unit =
 
 let method_tac_to_cfg (m : method_tac) : method_cfg =
   let blocks = Hashtbl.create 8 in
-  let raw_blocks = split_into_blocks m.tac_commands in
+  let raw_blocks = split_into_blocks m.commands in
   let entry_block_id = fresh_block_id () in
 
   let _ =
@@ -187,13 +187,13 @@ let build_cfg (methods : method_tac list) : cfg =
       let sorted_blocks = block_sort mcfg.blocks in
       let commands = List.flatten (List.map (fun b ->
         match b.label with
-        | Some lbl -> TAC_label lbl :: b.instructions
+        | Some lbl -> (TAC_label lbl :: b.instructions)
         | None -> b.instructions
       ) sorted_blocks) in
       { class_name = mcfg.class_name;
         method_name = mcfg.method_name;
         arg_count = mcfg.arg_count;
-        tac_commands = commands;
+        commands;
         ids = mcfg.ids }
     ) cfgs
   

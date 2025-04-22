@@ -6,11 +6,21 @@ let local_dce (block : basic_block) : tac_cmd list =
     match l with
     | [] -> []
     | hd :: tl -> (
-      match hd with 
-      | TAC_int (_, _) | TAC_str  (_, _) | TAC_bool  (_, _) | TAC_ident  (_, _) -> (
-        (* TODO actually do dce *)
+      match hd with
+      | TAC_int (lhs, i) -> (
         hd :: check_instructions tl 
       )
+      | TAC_str (lhs, s) -> (
+        hd :: check_instructions tl 
+      )
+      | TAC_bool (lhs, b) -> (
+        hd :: check_instructions tl 
+      )
+      | TAC_ident (lhs, id) -> (
+        if p_id lhs = p_id id then check_instructions tl else (
+          hd :: check_instructions tl
+        ) 
+      )  
       | _ -> (
         hd :: check_instructions tl
       )

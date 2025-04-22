@@ -62,8 +62,7 @@ type method_tac = {
     class_name: string;
     method_name: string;
     arg_count: int;
-
-    tac_commands: tac_cmd list;
+    commands: tac_cmd list;
     ids: tac_id list;
 }
 
@@ -89,8 +88,22 @@ let rec stringify_args (l : tac_id list) : string list =
       | x -> p_id x :: stringify_args tl 
   )
 
+let get_main_main (methods : method_tac list) : method_tac list =
+  List.filter (fun m -> (m.class_name = "Main" && m.method_name = "Main.main")) methods
 
-let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
+let all_relevant_tac_commands (mt : method_tac list) : tac_cmd list =
+    List.concat_map (fun m -> m.commands) mt
+
+let remove_main_prefix (s : string) : string =
+  let prefix = "Main." in
+  if String.length s >= String.length prefix && String.sub s 0 (String.length prefix) = prefix then
+    String.sub s (String.length prefix) (String.length s - String.length prefix)
+  else
+    s
+
+
+
+let print_tac_cmd_for_pa4c1 (output : string -> unit) (cmd : tac_cmd) : unit =
   match cmd with
   | TAC_add     (id, a, b) -> output (Printf.sprintf "%s <- + %s %s" (p_id id) (p_id a) (p_id b))
   | TAC_sub     (id, a, b) -> output (Printf.sprintf "%s <- - %s %s" (p_id id) (p_id a) (p_id b))
@@ -102,7 +115,7 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_eq      (id, a, b) -> output (Printf.sprintf "%s <- = %s %s" (p_id id) (p_id a) (p_id b))
   
   | TAC_int     (id, i) -> output (Printf.sprintf "%s <- int %d" (p_id id) i)
-  | TAC_str     (id, s) -> output (Printf.sprintf "%s <- string\n%s" (p_id id) s)
+  | TAC_str     (id, s) -> output (Printf.sprintf "%s <- string %s" (p_id id) s)
   | TAC_bool    (id, b) -> output (Printf.sprintf "%s <- bool %b" (p_id id) b)
   | TAC_ident   (id, s) -> output (Printf.sprintf "%s <- %s" (p_id id) (p_id s))
 
@@ -110,16 +123,16 @@ let print_tac_cmd (output : string -> unit) (cmd : tac_cmd) : unit =
   | TAC_not     (id, a) -> output (Printf.sprintf "%s <- not %s" (p_id id) (p_id a))
 
   | TAC_new     (id, s) -> output (Printf.sprintf "%s <- new %s" (p_id id) s)
-  | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" (p_id id) s)
+  (* | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" (p_id id) s) *)
   | TAC_isvoid  (id, a) -> output (Printf.sprintf "%s <- isvoid %s" (p_id id) (p_id a))
   | TAC_call    (id, s, args) -> 
-    output (Printf.sprintf "%s <- call %s"  (p_id id) (String.concat " " @@ s :: (stringify_args args)))
+    output (Printf.sprintf "%s <- call %s"  (p_id id) (String.concat " " @@ remove_main_prefix s :: (stringify_args args)))
 
   | TAC_label     s -> output (Printf.sprintf "label %s" s)
   | TAC_jmp       s -> output (Printf.sprintf "jmp %s" s)
   | TAC_bt      (id, s) -> output (Printf.sprintf "bt %s %s" (p_id id) s)
 
   | TAC_return   id -> output (Printf.sprintf "return %s"  (p_id id))
-  | TAC_comment   s -> output (Printf.sprintf "comment %s" s)
+  (* | TAC_comment   s -> output (Printf.sprintf "comment %s" s) *)
 
-  | x -> output (Printf.sprintf "comment Unimplemented")
+  | x -> ()
