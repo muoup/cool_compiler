@@ -50,7 +50,7 @@ let () =
 
     (* ONLY FOR PA4C1 *)
     let main_dot_main = get_main_main optimized_method_tacs in
-    let optimized_tac_commands = [TAC_label "Main_main"] @ all_relevant_tac_commands main_dot_main in
+    let optimized_tac_commands = all_relevant_tac_commands main_dot_main in
     let output_handle = open_out @@ change_file_extension file_name ".cl-tac_us" in
     List.iter (print_tac_cmd_for_pa4c1 (Printf.fprintf output_handle "%s\n")) optimized_tac_commands;
     close_out output_handle;

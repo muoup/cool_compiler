@@ -17,7 +17,7 @@ let local_dce (block : basic_block) : tac_cmd list =
         hd :: check_instructions tl 
       )
       | TAC_ident (lhs, id) -> (
-        if p_id lhs = p_id id then check_instructions tl else (
+        if f_id lhs = f_id id then check_instructions tl else (
           hd :: check_instructions tl
         ) 
       )  
