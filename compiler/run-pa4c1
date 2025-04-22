@@ -13,13 +13,13 @@ printf "Checking for correct outputs\n"
 for file in *.cl; do
     printf "Running test: %s -- " "$file"
     cool --tac "$file"
-    them_original=$(echo "$input" | cool "$file-tac")
+    them=$(echo "$input" | cool "$file-tac")
 
     cool --type "$file"
     dune exec --profile=release cool "$file-type" 2> /dev/null
-    our_out=$(echo "$input" | cool "$file-tac")
+    us=$(echo "$input" | cool "$file-tac")
 
-    if [ "$them_original" != "$our_out" ]; then
+    if [ "$them" != "$us" ]; then
         echo "FAILED"
         fail=$((fail+1))
     else 
@@ -29,6 +29,39 @@ for file in *.cl; do
     rm ./*.cl-t*
 
 done
-cd ..
 echo "Passed: $pass"
 echo "Failed: $fail"
+
+if [ $fail != 0 ]; then 
+    exit 1
+fi
+
+printf "\nTesting for successful dead code elimination"
+
+fast=0
+slow=0
+for file in *.cl; do
+    printf "Running test: %s -- " "$file"
+    cool --tac --opt "$file"
+    them=$(cool --profile ref_optimized.cl-tac | grep STEPS)
+    them=$(echo "$them" | grep -oE '[0-9]+')
+
+
+    cool --type "$file"
+    dune exec --profile=release cool "$file-type" 2> /dev/null
+    us=$(cool --profile my_optimized.cl-tac | grep STEPS)
+    us=$(echo "$us" | grep -oE '[0-9]+')
+
+    df=$($them - $us)
+    if [ "$them" -gt "$us" ]; then
+        fast=$((fast+1))
+    else 
+        echo "SLOWER"
+        slow=$((slow+1))
+    fi
+    rm ./*.cl-t*
+done
+echo "Faster: $fast"
+echo "Slower: $slow"
+
+cd ..
