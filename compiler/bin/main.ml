@@ -45,19 +45,19 @@ let () =
     let method_tacs = generate_tac program_data in
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in
-    print_cfg cfg;
+    (* print_cfg cfg; *)
     let optimized_method_tacs = cfg_to_method_tac_list cfg in
 
     (* ONLY FOR PA4C1 *)
-    (* let main_dot_main = get_main_main optimized_method_tacs in
+    let main_dot_main = get_main_main optimized_method_tacs in
     let optimized_tac_commands = all_relevant_tac_commands main_dot_main in
     let output_handle = open_out @@ change_file_extension file_name ".cl-tac" in
     List.iter (print_tac_cmd_for_pa4c1 (Printf.fprintf output_handle "%s\n")) optimized_tac_commands;
-    close_out output_handle; *)
+    close_out output_handle;
     (* ONLY FOR PA4C1 *)
 
     
-    let asm = List.map (generate_asm) optimized_method_tacs in
+    (* let asm = List.map (generate_asm) optimized_method_tacs in
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
 
@@ -70,4 +70,4 @@ let () =
     emit_metadata output program_data;
     output "\n";
     
-    close_out assembly_handle
+    close_out assembly_handle *)
