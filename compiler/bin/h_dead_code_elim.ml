@@ -5,6 +5,8 @@ let rec overwrites_before_usage (id : tac_id) (lst : tac_cmd list) : bool =
   match lst with 
   | [] -> false
   | hd :: tl -> (
+    Printf.printf "Checking if id is overwritten %s \n" (p_id id);
+      Printf.printf "by instruction %s \n" (string_of_tac_cmd hd);
       match hd with 
       | TAC_add     (left, a, b)
       | TAC_sub     (left, a, b)
@@ -41,6 +43,7 @@ let rec overwrites_before_usage (id : tac_id) (lst : tac_cmd list) : bool =
 
 
 let is_instruction_dead (instruction : tac_cmd) (lst : tac_cmd list) : bool = 
+  Printf.printf "Checking if instruction is a candidate %s \n" (string_of_tac_cmd instruction);
   match instruction with 
   | TAC_int (lhs, _)
   | TAC_bool (lhs, _)
@@ -59,9 +62,10 @@ let is_instruction_dead (instruction : tac_cmd) (lst : tac_cmd list) : bool =
   (* | TAC_new (lhs, _) *)
   (* | TAC_default (lhs,  _) *)
   | TAC_isvoid (lhs,  _) -> (
+    print_endline "YES candidate";
     if overwrites_before_usage lhs lst then true else false
   )
-  | _ -> false 
+  | _ -> print_endline "NO candidate"; false 
  
 
 let local_dce (block : basic_block) : tac_cmd list = 
@@ -71,8 +75,9 @@ let local_dce (block : basic_block) : tac_cmd list =
     | hd :: tl -> (
       match hd with
       | TAC_int (lhs, _) | TAC_bool(lhs, _) | TAC_str (lhs, _) | TAC_ident (lhs, _) -> (
-          if is_instruction_dead hd tl then check_instructions tl 
-          else hd :: check_instructions tl
+        Printf.printf "Checking instruction %s \n" (string_of_tac_cmd hd);
+          if is_instruction_dead hd tl then (print_endline "DEAD\n"; check_instructions tl )
+          else (print_endline "NOT dead\n"; hd :: check_instructions tl)
       )
       | _ -> (
         hd :: check_instructions tl
