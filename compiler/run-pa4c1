@@ -26,7 +26,7 @@ for file in *.cl; do
         echo "PASSED"
         pass=$((pass+1))
     fi
-    rm ./*.cl-t*
+    rm "$file-tac"
 
 done
 echo "Passed: $pass"

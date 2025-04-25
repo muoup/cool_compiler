@@ -70,18 +70,24 @@ match lst with
   
  
 
+let rec go_to_fixpoint f x =
+  let x_new = f x in
+  if List.length x = List.length x_new then x_new
+  else go_to_fixpoint f x_new
+
 let local_dce (block : basic_block) : tac_cmd list =
   Printf.printf "Processing block %d for local DCE\n" block.id;
   let rec remove_dead = function
     | [] -> []
     | instr :: rest ->
-      if is_instruction_dead instr rest then
-        (Printf.printf "Removing dead instruction: %s\n" (string_of_tac_cmd instr);
-          remove_dead rest)
-      else
+      if is_instruction_dead instr rest then (
+        Printf.printf "Removing dead instruction: %s\n" (string_of_tac_cmd instr);
+        remove_dead rest
+      ) else
         instr :: remove_dead rest
   in
-  remove_dead block.instructions
+  go_to_fixpoint remove_dead block.instructions
+    
   
 
 let dce_method (mthd : method_cfg) : method_cfg = 
