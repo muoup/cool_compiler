@@ -180,11 +180,17 @@ let local_dce (block : basic_block) : tac_cmd list =
 
 
 let dce_method (mthd : method_cfg) : method_cfg =
-  (* 1. Local DCE pass *)
-  Hashtbl.iter (fun id block ->
-    let new_instrs = local_dce block in
-    Hashtbl.replace mthd.blocks id { block with instructions = new_instrs }
-  ) mthd.blocks;
+  let blocks_in_order = Hashtbl.fold (fun id block acc -> (id, block) :: acc) mthd.blocks [] in
+  let blocks_in_order = List.sort ~cmp:(fun (id1, _) (id2, _) -> compare id1 id2) blocks_in_order (* Sorting blocks by id *)
+in
+
+
+  (* Local DCE pass *)
+  List.iter ~f:(fun (id, block) ->
+    let updated_tac_cmds = local_dce block in
+    let updated_block = { block with instructions = updated_tac_cmds } in
+    Hashtbl.replace mthd.blocks id updated_block
+  ) blocks_in_order;
 
   (* 2. Build initial empty liveness info *)
   let live_info = Hashtbl.create (Hashtbl.length mthd.blocks) in
