@@ -36,30 +36,33 @@ if [ $fail != 0 ]; then
     exit 1
 fi
 
-printf "\nTesting for successful dead code elimination"
+printf "\nTesting for successful dead code elimination\n"
 
+# This currently loops forever because line 47, which I copied directly from pa4 instructions, doesn't return
 fast=0
 slow=0
 for file in *.cl; do
     printf "Running test: %s -- " "$file"
     cool --tac --opt "$file"
-    them=$(cool --profile ref_optimized.cl-tac | grep STEPS)
+    them=$(cool --profile "${file}-tac" | grep STEPS)
     them=$(echo "$them" | grep -oE '[0-9]+')
-
 
     cool --type "$file"
     dune exec --profile=release cool "$file-type" 2> /dev/null
-    us=$(cool --profile my_optimized.cl-tac | grep STEPS)
+    echo "here"
+    us=$(cool --profile "${file}-tac" | grep STEPS)
     us=$(echo "$us" | grep -oE '[0-9]+')
 
     df=$($them - $us)
     if [ "$them" -gt "$us" ]; then
+        printf "FASTER by %d" "$df"
         fast=$((fast+1))
     else 
-        echo "SLOWER"
+        printf "SLOWER by %d" "$df"
         slow=$((slow+1))
     fi
-    rm ./*.cl-t*
+    rm "$file-tac"
+
 done
 echo "Faster: $fast"
 echo "Slower: $slow"
