@@ -1,12 +1,9 @@
 open D_tac_data
 open G_tac_to_cfg
 open Hashtbl
-module IntSet = Set.Make(Int)
+module IntSet = Set.Make(Int)  
+(* cause of gradescope error? *)
 
-module IdSet = Set.Make(struct
-  type t = tac_id
-  let compare = compare
-end)
 
 let rec overwrites_before_usage (id : tac_id) (lst : tac_cmd list) : bool =
 match lst with
@@ -90,226 +87,127 @@ let local_dce (block : basic_block) : tac_cmd list =
   in
   go_to_fixpoint remove_dead block.instructions
     
-let use_def (block : basic_block) : IdSet.t * IdSet.t =
-  let use = ref IdSet.empty in
-  let def = ref IdSet.empty in
+  module IdSet = Set.Make(struct
+  type t = tac_id
+  let compare = compare
+end)
 
-  let add_use id =
-    if not (IdSet.mem id !def) then
-      use := IdSet.add id !use
-  in
-  let add_def id =
-    def := IdSet.add id !def
-  in
-
-  List.iter (fun cmd ->
-    match cmd with
-    | TAC_add (dst, lhs, rhs)
-    | TAC_sub (dst, lhs, rhs)
-    | TAC_mul (dst, lhs, rhs)
-    | TAC_div (_, dst, lhs, rhs)
-    | TAC_lt (dst, lhs, rhs)
-    | TAC_lte (dst, lhs, rhs)
-    | TAC_eq (dst, lhs, rhs)
-    | TAC_str_eq (dst, lhs, rhs)
-    | TAC_str_lt (dst, lhs, rhs)
-    | TAC_str_lte (dst, lhs, rhs) ->
-        add_use lhs; add_use rhs; add_def dst
-
-    | TAC_neg (dst, src)
-    | TAC_not (dst, src)
-    | TAC_isvoid (dst, src) ->
-        add_use src; add_def dst
-
-    | TAC_int (dst, _)
-    | TAC_str (dst, _)
-    | TAC_bool (dst, _)
-    | TAC_new (dst, _)
-    | TAC_default (dst, _)
-    | TAC_object (dst, _, _) ->
-        add_def dst
-
-    | TAC_ident (dst, src) ->
-        add_use src; add_def dst
-
-    | TAC_call (dst, _, args) ->
-        List.iter add_use args;
-        add_def dst
-
-    | TAC_dispatch {store; obj; args; _} ->
-        add_use obj;
-        List.iter add_use args;
-        add_def store
-
-    | TAC_attribute {object_id; value; _} ->
-        add_use object_id;
-        add_use value
-
-    | TAC_return id
-    | TAC_bt (id, _)
-    | TAC_void_check (_, id, _) ->
-        add_use id
-
-    | TAC_label _
-    | TAC_jmp _
-    | TAC_internal _
-    | TAC_comment _
-    | TAC_inline_assembly _ -> ()
-  ) block.instructions;
-
-  (!use, !def)
+  type live_info = {
+    mutable live_in : IdSet.t;
+    mutable live_out : IdSet.t;
+  }
   
-let liveness_analysis (mthd : method_cfg)
-  : (int, IdSet.t) Hashtbl.t * (int, IdSet.t) Hashtbl.t =
-  let live_in = Hashtbl.create 10 in
-  let live_out = Hashtbl.create 10 in
-  let use_map = Hashtbl.create 10 in
-  let def_map = Hashtbl.create 10 in
-
-  Hashtbl.iter (fun id block ->
-    let use_b, def_b = use_def block in
-    Hashtbl.add use_map id use_b;
-    Hashtbl.add def_map id def_b;
-    Hashtbl.add live_in id IdSet.empty;
-    Hashtbl.add live_out id IdSet.empty
-  ) mthd.blocks;
-
-  let changed = ref true in
-  while !changed do
-    changed := false;
-    Hashtbl.iter (fun id block ->
-      let old_in = Hashtbl.find live_in id in
-      let old_out = Hashtbl.find live_out id in
-
-      let out =
-        List.fold_left (fun acc succ_id ->
-          match Hashtbl.find_opt live_in succ_id with
-          | Some live_in_succ -> IdSet.union acc live_in_succ
-          | None -> acc
-        ) IdSet.empty block.successors
-      in
-
-      let use_b = Hashtbl.find use_map id in
-      let def_b = Hashtbl.find def_map id in
-      let in_ = IdSet.union use_b (IdSet.diff out def_b) in
-
-      if not (IdSet.equal in_ old_in) || not (IdSet.equal out old_out) then
-        changed := true;
-
-      Hashtbl.replace live_in id in_;
-      Hashtbl.replace live_out id out;
-    ) mthd.blocks
-  done;
-  (live_in, live_out)
+  let dce_method (mthd : method_cfg) : method_cfg =
+    let live_info = Hashtbl.create 16 in
   
-  let global_dce_block (block : basic_block) : basic_block =
-    let live = ref IdSet.empty in
-    let new_instructions = 
-      List.fold_right (fun cmd acc ->
-        match cmd with
-        (* Critical: always keep control flow operations *)
-        | TAC_label _
-        | TAC_jmp _
-        | TAC_bt _
-        | TAC_internal _
-        | TAC_comment _
-        | TAC_inline_assembly _ ->
-            cmd :: acc
+    (* Initialize *)
+    Hashtbl.iter (fun id _ ->
+      Hashtbl.add live_info id { live_in = IdSet.empty; live_out = IdSet.empty }
+    ) mthd.blocks;
   
-        (* TAC_return must always be kept *)
-        | TAC_return id ->
-            live := IdSet.add id !live;
-            cmd :: acc
-  
-        (* Assignments *)
-        | TAC_add (dst, lhs, rhs)
-        | TAC_sub (dst, lhs, rhs)
-        | TAC_mul (dst, lhs, rhs)
-        | TAC_lt (dst, lhs, rhs)
-        | TAC_lte (dst, lhs, rhs)
-        | TAC_eq (dst, lhs, rhs)
-        | TAC_str_eq (dst, lhs, rhs)
-        | TAC_str_lt (dst, lhs, rhs)
-        | TAC_str_lte (dst, lhs, rhs) ->
-            if IdSet.mem dst !live then begin
-              live := IdSet.add lhs (IdSet.add rhs !live);
-              cmd :: acc
-            end else
-              acc
-  
-        | TAC_div (_, dst, lhs, rhs) ->
-            if IdSet.mem dst !live then begin
-              live := IdSet.add lhs (IdSet.add rhs !live);
-              cmd :: acc
-            end else
-              acc
-  
-        | TAC_neg (dst, src)
-        | TAC_not (dst, src)
-        | TAC_isvoid (dst, src)
-        | TAC_ident (dst, src) ->
-            if IdSet.mem dst !live then begin
-              live := IdSet.add src !live;
-              cmd :: acc
-            end else
-              acc
-  
-        | TAC_int (dst, _)
-        | TAC_str (dst, _)
-        | TAC_bool (dst, _)
-        | TAC_new (dst, _)
-        | TAC_default (dst, _)
-        | TAC_object (dst, _, _) ->
-            if IdSet.mem dst !live then
-              cmd :: acc
-            else
-              acc
-  
-        | TAC_call (dst, _, args) ->
-            if IdSet.mem dst !live then begin
-              List.iter (fun arg -> live := IdSet.add arg !live) args;
-              cmd :: acc
-            end else
-              acc
-  
-        | TAC_dispatch {store = dst; obj; args; _} ->
-            if IdSet.mem dst !live then begin
-              live := IdSet.add obj !live;
-              List.iter (fun arg -> live := IdSet.add arg !live) args;
-              cmd :: acc
-            end else
-              acc
-  
-        | TAC_attribute {object_id; value; _} ->
-            (* Always live because modifying an attribute *)
-            live := IdSet.add object_id (IdSet.add value !live);
-            cmd :: acc
-  
-        | TAC_void_check (_, id, _) ->
-            live := IdSet.add id !live;
-            cmd :: acc
-      ) block.instructions []
+    (* Helper to get uses and defs from a command *)
+    let uses_and_defs (cmd : tac_cmd) : IdSet.t * IdSet.t =
+      match cmd with
+      | TAC_add (dst, lhs, rhs)
+      | TAC_sub (dst, lhs, rhs)
+      | TAC_mul (dst, lhs, rhs)
+      | TAC_lt (dst, lhs, rhs)
+      | TAC_lte (dst, lhs, rhs)
+      | TAC_eq (dst, lhs, rhs)
+      | TAC_str_eq (dst, lhs, rhs)
+      | TAC_str_lt (dst, lhs, rhs)
+      | TAC_str_lte (dst, lhs, rhs) ->
+          (IdSet.of_list [lhs; rhs], IdSet.singleton dst)
+      | TAC_div (_, dst, lhs, rhs) ->
+          (IdSet.of_list [lhs; rhs], IdSet.singleton dst)
+      | TAC_neg (dst, src)
+      | TAC_not (dst, src)
+      | TAC_isvoid (dst, src)
+      | TAC_ident (dst, src) ->
+          (IdSet.singleton src, IdSet.singleton dst)
+      | TAC_int (dst, _)
+      | TAC_str (dst, _)
+      | TAC_bool (dst, _)
+      | TAC_new (dst, _)
+      | TAC_default (dst, _)
+      | TAC_object (dst, _, _) ->
+          (IdSet.empty, IdSet.singleton dst)
+      | TAC_call (dst, _, args) ->
+          (IdSet.of_list args, IdSet.singleton dst)
+      | TAC_dispatch { store; obj; args; _ } ->
+          (IdSet.add obj (IdSet.of_list args), IdSet.singleton store)
+      | TAC_attribute { object_id; value; _ } ->
+          (IdSet.of_list [object_id; value], IdSet.empty)
+      | TAC_void_check (_, id, _) ->
+          (IdSet.singleton id, IdSet.empty)
+      | TAC_return id ->
+          (IdSet.singleton id, IdSet.empty)
+      | TAC_bt (id, _) ->
+          (IdSet.singleton id, IdSet.empty)
+      | TAC_jmp _
+      | TAC_label _
+      | TAC_comment _
+      | TAC_internal _
+      | TAC_inline_assembly _ ->
+          (IdSet.empty, IdSet.empty)
     in
-    { block with instructions = new_instructions }
   
-  
-    let dce_method (mthd : method_cfg) : method_cfg =
-      (* Local DCE *)
-      (* Hashtbl.iter (fun id block ->
-        let updated_tac_cmds = local_dce block in
-        let updated_block = { block with instructions = updated_tac_cmds } in
-        Hashtbl.replace mthd.blocks id updated_block
-      ) mthd.blocks; *)
-    
-      (* Global DCE *)
+    (* Iterate until fixed point *)
+    let changed = ref true in
+    while !changed do
+      changed := false;
       Hashtbl.iter (fun id block ->
-        let new_block = global_dce_block block in
-        Hashtbl.replace mthd.blocks id new_block
+        let info = Hashtbl.find live_info id in
+  
+        (* Compute live_out = union of successors' live_in *)
+        let new_live_out =
+          List.fold_left (fun acc succ_id ->
+            let succ_info = Hashtbl.find live_info succ_id in
+            IdSet.union acc succ_info.live_in
+          ) IdSet.empty block.successors
+        in
+  
+        (* Compute use/def for this block *)
+        let use, def =
+          List.fold_left (fun (use, def) cmd ->
+            let u, d = uses_and_defs cmd in
+            (IdSet.union use (IdSet.diff u def), IdSet.union def d)
+          ) (IdSet.empty, IdSet.empty) block.instructions
+        in
+  
+        (* live_in = use ∪ (live_out - def) *)
+        let new_live_in = IdSet.union use (IdSet.diff new_live_out def) in
+  
+        if not (IdSet.equal new_live_in info.live_in) || not (IdSet.equal new_live_out info.live_out) then begin
+          info.live_in <- new_live_in;
+          info.live_out <- new_live_out;
+          changed := true;
+        end
       ) mthd.blocks;
+    done;
+  
+    Hashtbl.iter (fun id block ->
+      let info = Hashtbl.find live_info id in
+      let live = ref info.live_out in
+      let new_instrs =
+        List.fold_right (fun cmd acc ->
+          let uses, defs = uses_and_defs cmd in
+          if not (IdSet.is_empty defs) && IdSet.is_empty (IdSet.inter defs !live) then
+            (* Dead assignment, can remove *)
+            acc
+          else begin
+            live := IdSet.union (IdSet.diff !live defs) uses;
+            cmd :: acc
+          end
+        ) block.instructions []
+      in
+      (* 🛠 Replace old block with updated instructions *)
+      Hashtbl.replace mthd.blocks id { block with instructions = new_instrs }
+    ) mthd.blocks;
     
-      mthd
+  
+    mthd
+  
     
-
-
 let eliminate_dead_code (graph : cfg) : cfg = 
   List.map dce_method graph
