@@ -6,6 +6,7 @@ open B_impl_map
 open B_parent_map
 open C_parser_data
 open D_tac_data
+open E_tac_parsing
 open F_tac_gen
 open G_metadata_output
 open G_tac_to_cfg
@@ -32,17 +33,9 @@ let () =
     let file_name = Sys.argv.(1) in
     let data : parser_data = { line_number = 0; file_handle = open_in file_name } in
 
-    let data, class_map = parse_class_map data in
-    let data, impl_map = parse_implementation_map data in
-    let data, parent_map = parse_parent_map data in
-    let data, ast = parse_ast data in
+    let tac_commands = parse_tac_file data in
+    let method_tacs = cmds_to_method tac_commands in
 
-    let parsed_data : parsed_data = { 
-        ast = ast; class_map = class_map; impl_map = impl_map; parent_map = parent_map; 
-    } in
-
-    let program_data = organize_parser_data parsed_data in
-    let method_tacs = generate_tac program_data in
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in
     (* print_cfg cfg; *)
