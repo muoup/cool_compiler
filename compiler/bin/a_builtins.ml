@@ -1,4 +1,6 @@
 let builtin_asm = {|# -------- BUILT-IN FUNCTIONS ------------
+.section .note.GNU-stack,"",@progbits
+
 #   Designed with help from GCC output, and some use of the reference compiler output
 
 # Start routine
@@ -552,6 +554,23 @@ ambigious_compare:
 
     leave
     ret
+
+    .text
+    .globl safe_calloc
+    .type safe_calloc, @function
+safe_calloc:
+    pushq   %r8
+    pushq   %r9
+    pushq   %r10
+    pushq   %r11
+    pushq   %r12
+    call    calloc
+    popq    %r12
+    popq    %r11
+    popq    %r10
+    popq    %r9
+    popq    %r8
+    retq
 
     .section .rodata
 default_string:

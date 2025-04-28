@@ -294,7 +294,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             MOV         (IMMEDIATE 1, REG RDI);
             MOV         (IMMEDIATE size, REG RSI);
             XOR         (RAX, RAX);
-            CALL        "calloc";
+            CALL        "safe_calloc";
 
             MOV         (REG RAX, REG R12);
             MOV         (REG RAX, get_symbol_storage id);

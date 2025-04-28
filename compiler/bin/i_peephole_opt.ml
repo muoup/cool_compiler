@@ -8,6 +8,9 @@ let single_map (cmd : asm_cmd) : asm_cmd list =
     | ADD   (IMMEDIATE 0, dst)
     | SUB   (IMMEDIATE 0, dst) -> []
 
+    | ADD3  (REG r1, REG r2, REG dst) when r2 = dst ->
+      [ ADD (REG r1, dst) ]
+
     | _ -> [cmd]
 
 let double_map (cmd1 : asm_cmd) (cmd2 : asm_cmd) : asm_cmd list =
@@ -58,6 +61,12 @@ let double_map (cmd1 : asm_cmd) (cmd2 : asm_cmd) : asm_cmd list =
         [
             MOV (src, REG dst);
             MOV (REG dst, REG_offset (reg2, off2))
+        ]
+
+    | MOV   (REG RAX, REG dst),
+      ADD3  (REG l1,  REG l2, REG ldst)  when dst = l2 ->
+        [
+            ADD3 (REG l1, REG RAX, REG ldst)
         ]
 
     | SUB   (IMMEDIATE i1, r1),
