@@ -54,20 +54,3 @@ let () =
     let output_handle = open_out @@ change_file_extension file_name ".cl-tac" in
     List.iter (print_tac_cmd_for_pa4c1 (Printf.fprintf output_handle "%s\n")) optimized_tac_commands;
     close_out output_handle;
-    (* ONLY FOR PA4C1 *)
-
-    
-    (* let asm = List.map (generate_asm) optimized_method_tacs in
-    let assembly_handle = open_out (change_file_extension file_name ".s") in
-    let output = Printf.fprintf assembly_handle "%s" in
-
-    output builtin_asm;
-    output "\n";
-
-    List.iter (fun (asm_ : asm_method) -> print_asm_method asm_ (output)) asm;
-    output "\n";
-
-    emit_metadata output program_data;
-    output "\n";
-    
-    close_out assembly_handle *)

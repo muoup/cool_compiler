@@ -154,14 +154,17 @@ let uses_and_defs (cmd : tac_cmd) : IdSet.t * IdSet.t =
 
 (* side effects instructions *)
 let is_critical (cmd : tac_cmd) : bool =
-  match cmd with
-  | TAC_call _
-  | TAC_dispatch _
-  | TAC_inline_assembly _
-  | TAC_void_check _
-  | TAC_internal _
-  | TAC_attribute _ -> true
-  | _ -> false
+    match cmd with
+    | TAC_call _
+    | TAC_dispatch _
+    | TAC_inline_assembly _
+    | TAC_void_check _
+    | TAC_internal _
+    | TAC_attribute _
+    | TAC_return _       
+    | TAC_bt _         
+    | TAC_jmp _  -> true
+    | _ -> false
 
 (* Local dead code elimination on a block *)
 let local_dce (block : basic_block) : tac_cmd list =
@@ -180,25 +183,11 @@ let local_dce (block : basic_block) : tac_cmd list =
 
 
 let dce_method (mthd : method_cfg) : method_cfg =
-  let blocks_in_order = Hashtbl.fold (fun id block acc -> (id, block) :: acc) mthd.blocks [] in
-  let blocks_in_order = List.sort ~cmp:(fun (id1, _) (id2, _) -> compare id1 id2) blocks_in_order (* Sorting blocks by id *)
-in
-
-
-  (* Local DCE pass *)
-  List.iter ~f:(fun (id, block) ->
-    let updated_tac_cmds = local_dce block in
-    let updated_block = { block with instructions = updated_tac_cmds } in
-    Hashtbl.replace mthd.blocks id updated_block
-  ) blocks_in_order;
-
-  (* 2. Build initial empty liveness info *)
   let live_info = Hashtbl.create (Hashtbl.length mthd.blocks) in
   Hashtbl.iter (fun id _ ->
     Hashtbl.add live_info id { live_in = IdSet.empty; live_out = IdSet.empty }
   ) mthd.blocks;
 
-  (* 3. Iteratively solve dataflow equations *)
   let changed = ref true in
   while !changed do
     changed := false;
@@ -217,18 +206,16 @@ in
           ~init:IdSet.empty
           block.successors
       in
-      
 
-      (* live_in = uses ∪ (live_out - defs) *)
+      (* live_in = uses union (live_out - defs) *)
       let uses, defs =
-    List.fold_left
-      ~f:(fun (u, d) cmd ->
-        let uses_cmd, defs_cmd = uses_and_defs cmd in
-        (IdSet.union u uses_cmd, IdSet.union d defs_cmd)
-      )
-      ~init:(IdSet.empty, IdSet.empty)
-      block.instructions
-
+        List.fold_left
+          ~f:(fun (u, d) cmd ->
+            let uses_cmd, defs_cmd = uses_and_defs cmd in
+            (IdSet.union u uses_cmd, IdSet.union d defs_cmd)
+          )
+          ~init:(IdSet.empty, IdSet.empty)
+          block.instructions
       in
       let new_in = IdSet.union uses (IdSet.diff new_out defs) in
 
@@ -240,28 +227,36 @@ in
     ) mthd.blocks;
   done;
 
-  (* 4. Final global DCE pass *)
   Hashtbl.iter (fun id block ->
     let info = Hashtbl.find live_info id in
     let live = ref info.live_out in
-    (* Global final DCE pass *)
-  let new_instrs =
-  List.fold_right
-    ~f:(fun cmd acc ->
-      let uses, defs = uses_and_defs cmd in
-      if (not (IdSet.is_empty defs)) && (IdSet.is_empty (IdSet.inter defs !live)) && (not (is_critical cmd)) then
-        acc
-      else begin
-        live := IdSet.union (IdSet.diff !live defs) uses;
-        cmd :: acc
-      end
-    )
-    ~init:[] block.instructions
+
+    (* global liveness-based removal *)
+    let filtered_instrs =
+      List.fold_right
+        ~f:(fun cmd acc ->
+          let uses, defs = uses_and_defs cmd in
+          if (not (IdSet.is_empty defs)) && (IdSet.is_empty (IdSet.inter defs !live)) && (not (is_critical cmd)) then
+            acc
+          else begin
+            live := IdSet.union (IdSet.diff !live defs) uses;
+            cmd :: acc
+          end
+        )
+        ~init:[] block.instructions
     in
+
+    (* Also apply local DCE on the surviving instructions *)
+    let new_instrs = filtered_instrs
+      (* local_dce { block with instructions = filtered_instrs } *)
+    in
+
     Hashtbl.replace mthd.blocks id { block with instructions = new_instrs }
   ) mthd.blocks;
 
   mthd
+    
+    
 
 let eliminate_dead_code (graph : cfg) : cfg =
   List.map ~f:dce_method graph
