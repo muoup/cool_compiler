@@ -21,8 +21,10 @@ if [ "$?" -ne 0 ]; then
     exit 1
 fi
 
-echo "Expected: $cool_output"
-echo "Got:      $dune_output"
+echo "Expected: "
+echo "$cool_output"
+echo "Got:      "
+echo "$dune_output"
 
 if [[ "$cool_output" == ERROR* ]]; then
     cool_output=${cool_output:0:12}

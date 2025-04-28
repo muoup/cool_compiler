@@ -38,6 +38,10 @@ IO.out_string:
     pushq   %rbp
     movq    %rsp, %rbp
     subq    $8, %rsp
+    pushq   %r8
+    pushq   %r9
+    pushq   %r10
+    pushq   %r11
     pushq   %r12
     movq    16(%rbp), %r12
 
@@ -48,13 +52,13 @@ IO.out_string:
     call    malloc
 
     movq    %rax, -8(%rbp)       #   Store the pointer to the new string
-    movq    %rax, %r8
+    movq    %rax, %rdi
 
-    movq    24(%rbp), %r9
+    movq    24(%rbp), %rsi
 
 .out_loop:
-    movzbl  (%r9), %eax
-    incq    %r9
+    movzbl  (%rsi), %eax
+    incq    %rsi
 
 .out_char:
     testb   %al, %al
@@ -64,14 +68,14 @@ IO.out_string:
     je      .escape_char
 
 .put_char:
-    movb    %al, (%r8)
-    incq    %r8
+    movb    %al, (%rdi)
+    incq    %rdi
 
     jmp     .out_loop
 
 .escape_char:
-    movzbl  (%r9), %eax
-    incq    %r9
+    movzbl  (%rsi), %eax
+    incq    %rsi
 
     cmpb    $0x6E, %al
     je      .escape_n
@@ -79,10 +83,10 @@ IO.out_string:
     cmpb    $0x74, %al
     je      .escape_t
 
-    movb    $0x5C, (%r8)
-    incq    %r8
+    movb    $0x5C, (%rdi)
+    incq    %rdi
 
-    movzbl  -1(%r9), %eax    
+    movzbl  -1(%rsi), %eax    
     jmp     .out_char
 
 .escape_n:
@@ -94,7 +98,7 @@ IO.out_string:
     jmp     .put_char
 
 .finish:
-    movb    $0, (%r8)       #   Null terminate the string
+    movb    $0, (%rdi)       #   Null terminate the string
 
     movq    $__f_out_str, %rdi
     movq    -8(%rbp), %rsi
@@ -103,6 +107,9 @@ IO.out_string:
     call    printf
 
     popq    %r12
+    popq    %r11
+    popq    %r10
+    popq    %r9
     movq    %r12, %rax
     leave
     ret
@@ -141,12 +148,16 @@ IO.in_int:
     pushq   %rbp
     movq    %rsp, %rbp
     subq    $16, %rsp
+    pushq   %r8
+    pushq   %r9
+    pushq   %r10
+    pushq   %r11
 
     # Technically IO.in_string does not reference 'self', so passing no parameters works
     call    IO.in_string    
 
-    movq    %rax, %rdi 
     movq    $__f_in_int, %rsi
+    movq    %rax, %rdi 
     leaq    -16(%rbp), %rdx
     xorq    %rax, %rax
     callq   sscanf
@@ -162,13 +173,16 @@ IO.in_int:
     cmpq    $-2147483648, %rax  # if the integer is too small, then fail
     jl      .in_int_fail
 
+    popq    %r11
+    popq    %r10
+    popq    %r9
+    popq    %r8
     leave
     retq
 
 .in_int_fail:
     movq    $0, %rax
     
-    popq    %r8
     leave
     retq
 
@@ -187,12 +201,16 @@ IO.in_string:
     pushq   %rbp
     movq    %rsp, %rbp
     subq    $16, %rsp
+    pushq   %r8
+    pushq   %r9
+    pushq   %r10
+    pushq   %r11
 
-    movq    $0, 8(%rsp)
-    movq    $0, (%rsp)
+    movq    $0, -16(%rbp)
+    movq    $0, -8(%rbp)
 
     leaq    -8(%rbp), %rdi
-    movq    %rsp, %rsi
+    leaq    -16(%rbp), %rsi
     movq    stdin(%rip), %rdx
     callq   getline             # getline(char** buffer, int* n, FILE* stream)
 
@@ -210,11 +228,15 @@ IO.in_string:
 
     movq    $__empty_string, %rdi
     movq    %rax, %rsi
-    movq    8(%rsp), %rax
+    movq    -8(%rbp), %rax
 
     testq   %rsi, %rsi          # if memchr(...) == 0 then return $__empty_string
     cmovne  %rdi, %rax
 
+    popq    %r11
+    popq    %r10
+    popq    %r9
+    popq    %r8
     leave
     ret
 
@@ -231,6 +253,10 @@ Object.copy:
     pushq   %rbp
     movq    %rsp, %rbp
     subq    $8, %rsp
+    pushq   %r8
+    pushq   %r9
+    pushq   %r10
+    pushq   %r11
     pushq   %r12
     movq    16(%rbp), %r12
 
@@ -243,6 +269,10 @@ Object.copy:
     call    memcpy
 
     popq    %r12
+    popq    %r11
+    popq    %r10
+    popq    %r9
+    popq    %r8
     leave
     ret
 
@@ -323,8 +353,12 @@ String.substr:
     pushq   %rbp
     movq    %rsp, %rbp
     subq    $8, %rsp
+    pushq   %r8
+    pushq   %r9
+    pushq   %r10
+    pushq   %r11
 
-    push    %r12
+    pushq   %r12
     movq    16(%rbp), %r12
 
     movq    %r12, %rdi
@@ -349,6 +383,10 @@ String.substr:
     call    memcpy
 
     popq    %r12
+    popq    %r11
+    popq    %r10
+    popq    %r9
+    popq    %r8
     leave
     ret
 

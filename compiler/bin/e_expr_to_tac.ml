@@ -320,6 +320,7 @@ let tac_gen_expr_body
             
             let self_id = temp_id () in
 
+            let cond_name = label_id () ^ "_cond" in
             let then_name = label_id () ^ "_then" in
             let else_name = label_id () ^ "_else" in
             let merge_name = label_id () ^ "_merge" in
@@ -327,11 +328,12 @@ let tac_gen_expr_body
             let bt_cmd = TAC_bt (cond_id, then_name) in
             let jmp_cmd = TAC_jmp else_name in
 
+            let label_cond = TAC_label cond_name in
             let label_then  = TAC_label then_name in
             let label_else  = TAC_label else_name in
             let label_merge = TAC_label merge_name in
 
-            let condition = cond_cmds @ [bt_cmd; jmp_cmd] in
+            let condition = label_cond :: cond_cmds @ [bt_cmd; jmp_cmd] in
             let then_ = [label_then] @ then_cmds @ casted_then_cmds @ [TAC_ident (self_id, casted_then_id)] @ [TAC_jmp merge_name] in
             let else_ = [label_else] @ else_cmds @ casted_else_cmds @ [TAC_ident (self_id, casted_else_id)] @ [label_merge] in
 

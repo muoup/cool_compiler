@@ -19,10 +19,12 @@ type jmp_type =
     | JLE
 
 type asm_cmd =
-    | FRAME     of int 
+    | FRAME     of { stack_size : int; regs : asm_reg list }
 
     | MOV       of asm_mem * asm_mem
     | MOV32     of asm_mem * asm_mem
+
+    | ADD3      of asm_mem * asm_mem * asm_mem
 
     | ADD       of asm_mem * asm_reg
     | SUB       of asm_mem * asm_reg
@@ -49,7 +51,7 @@ type asm_cmd =
     | JMPCC     of jmp_type * string
     | SETCC     of jmp_type
 
-    | RET
+    | RET       of { regs : asm_reg list }
 
     | MISC      of string
 
@@ -103,10 +105,14 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         output @@ Printf.sprintf "\t%-10s%s, %s" cmd arg1 arg2
     in
 
+    let format_custom (cmd : string) (args : string) : unit =
+        output @@ Printf.sprintf "\t%-10s%s" cmd args
+    in
+
     (match cmd with
-    | FRAME (size) ->
+    | FRAME { stack_size; regs } ->
         output "# -- FRAME INITIALIZATION --\n";
-        output @@ "# -- Stack Size Requested: " ^ string_of_int size ^ "\n";
+        output @@ "# -- Stack Size Requested: " ^ string_of_int stack_size ^ "\n";
         format_cmd1 "pushq" "%rbp";
         output "\n";
         format_cmd2 "movq" "%rsp" "%rbp";
@@ -114,35 +120,25 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         output "\t.cfi_def_cfa_register 16\n";
         output "\t.cfi_offset 6, 16\n";
 
-        (* (*
-            With a base pointer in %rbp and a object base pointer in %r12,
-            the stack's alignment to 16 bytes depends on if the number of
-            arguments passed is even (mod 16 = 8), or odd (mod 16 = 0).
-         *)
-        let adjusted_size = 
-            if arg_count mod 2 = 0 then
-                if size mod 16 = 8 then
-                    size
-                else
-                    size + 8 
-            else
-                if size mod 16 = 0 then
-                    size
-                else
-                    size + 8
-        in              *)
+        let total_alloc = 8 (* pushq %r12 *) + stack_size in
+        let stack_size = stack_size - 8 * (List.length regs) in
 
         (* Updated: Call procedure now ensures 16-bit alignment in stack-memory for parameters passed *)
         let adjusted_size =
-            if size mod 16 = 8 then
-                size 
+            if total_alloc mod 16 = 0 then
+                stack_size
             else
-                size + 8
+                stack_size + 8
         in
         
         if adjusted_size > 0 then
             format_cmd2 "subq" (Printf.sprintf "$%d" adjusted_size) "%rsp\n"
         ;
+
+        List.iter (fun reg ->
+            format_cmd1 "pushq" (asm_reg_to_string reg);
+            output "\n";
+        ) regs;
         
         format_cmd1 "pushq" "%r12";
         output "\n";
@@ -180,6 +176,22 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
         end
 
     | ADD (mem, reg) -> format_cmd2 "addq" (asm_mem_to_string mem) (asm_reg_to_string reg)
+
+    | ADD3 (op1, op2, dest) ->
+        begin match op1, op2, dest with
+        | IMMEDIATE i, REG r1, REG r2
+        | REG r1, IMMEDIATE i, REG r2 ->
+            format_custom "leaq" (Printf.sprintf "%d(%s), %s" i (asm_reg_to_string r1) (asm_reg_to_string r2));
+        | REG r1, REG r2, REG r3 ->
+            format_custom "leaq" (Printf.sprintf "(%s, %s), %s" (asm_reg_to_string r1) (asm_reg_to_string r2) (asm_reg_to_string r3));
+        | _ ->
+            format_cmd2 "movq" (asm_mem_to_string op1) (asm_reg_to_string RAX);
+            output "\n";
+            format_cmd2 "addq" (asm_mem_to_string op2) (asm_reg_to_string RAX);
+            output "\n";
+            format_cmd2 "movq" (asm_reg_to_string RAX) (asm_mem_to_string dest)
+        end
+
     | SUB (mem, reg) -> format_cmd2 "subq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | MUL (mem, reg) -> format_cmd2 "imulq" (asm_mem_to_string mem) (asm_reg_to_string reg)
     | DIV reg -> format_cmd1 "idivl" (asm_reg32_to_string reg)
@@ -242,8 +254,17 @@ let print_asm_cmd (output : string -> unit) (arg_count : int) (cmd : asm_cmd) : 
 
     | CALL label     -> format_cmd1 "callq" label
     | CALL_indirect reg -> format_cmd1 "callq" ("*" ^ asm_reg_to_string reg)
-    | RET            ->
+    | RET   { regs } ->
         format_cmd1 "pop" "%r12";
+        output "\n";
+
+        regs
+        |> List.rev
+        |> List.iter (fun reg ->
+            format_cmd1 "popq" (asm_reg_to_string reg);
+            output "\n";
+        );
+
         output "\n\tleave\n\tret";
 
     | MISC s         -> output @@ "\t" ^ s

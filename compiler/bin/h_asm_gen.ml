@@ -6,6 +6,7 @@ type strlit_map = (string * string) list
 type stack_map = {
     local_variable_offset : int;
     temporaries_offset : int;
+    regs_used : asm_reg list;
 }
 
 type asm_data = {
@@ -34,9 +35,18 @@ let generate_stack_map (_method : method_tac) : stack_map =
     let local_variable_offset = 0 in
     let temporaries_offset = local_variable_offset + _method.locals * 8 in
 
+    let regs = match _method.temps with
+    | 0 -> []
+    | 1 -> [R8]
+    | 2 -> [R8; R9]
+    | 3 -> [R8; R9; R10]
+    | _ -> [R8; R9; R10; R11]
+    in
+
     {
         local_variable_offset = local_variable_offset;
         temporaries_offset = temporaries_offset;
+        regs_used = regs;
     }
 
 let get_parameter_memory (i : int) : asm_mem =
@@ -45,7 +55,13 @@ let get_parameter_memory (i : int) : asm_mem =
 let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     match id with
     | Local     i -> REG_offset (RBP, -stack_map.local_variable_offset - ((i + 1) * 8))
-    | Temporary i -> REG_offset (RBP, -stack_map.temporaries_offset - ((i + 1) * 8))
+    
+    | Temporary 0 -> REG R8
+    | Temporary 1 -> REG R9
+    | Temporary 2 -> REG R10
+    | Temporary 3 -> REG R11
+    | Temporary i -> REG_offset (RBP, -stack_map.temporaries_offset - ((i - 4) * 8))
+    
     | Attribute i -> REG_offset (R12, 24 + 8 * i)
     | CallSlot  i -> REG_offset (RSP, 8 * i)
     | Parameter i -> get_parameter_memory i
@@ -55,73 +71,6 @@ let get_id_memory (id : tac_id) (stack_map : stack_map) : asm_mem =
     | RAX         -> REG RAX
     | CMP       _ -> failwith "Comparison should not directly be accessed"
 
-let generate_internal_asm (class_name : string) (internal_id : string) : asm_cmd list =
-    match internal_id with
-    | "IO.in_string" ->
-        [
-            CALL    "in_string";
-            RET;
-        ]
-    | "IO.out_string" ->
-        [
-            PUSH    (REG RAX);
-            PUSH    (get_parameter_memory 0);
-            CALL    "out_string";
-            ADD     (IMMEDIATE 16, RSP);
-            MOV     (REG R12, REG RAX);
-            RET
-        ]
-    | "IO.in_int" ->
-        [
-            CALL    "in_int";
-            RET;
-        ]
-    | "IO.out_int" ->
-        [
-            PUSH    (REG RAX);
-            PUSH    (get_parameter_memory 0);
-            CALL    "out_int";
-            ADD     (IMMEDIATE 16, RSP);
-            MOV     (REG R12, REG RAX);
-            RET
-        ]
-    | "Object.type_name" ->
-        [
-            MOV     (REG_offset (R12, 0), REG RAX);
-            RET;
-        ]
-    | "Object.abort" ->
-        [
-            MOV     (LABEL "abort_msg", REG RDI);
-            CALL    "puts";
-
-            MOV     (IMMEDIATE 1, REG RDI);
-            CALL    "exit";
-        ]
-    | "Object.copy" ->
-        [
-            JMP "copy";
-        ]
-    | "String.concat" ->
-        [
-            JMP "concat";
-        ]
-    | "String.substr" ->
-        [
-            JMP "substr";
-        ]
-    | "String.length" ->
-        [
-            MOV     (REG R12, REG RDI);
-            CALL    "strlen";
-            RET;
-        ]
-    | x -> 
-        [
-            COMMENT ("Unimplemented: " ^ x);
-            CALL    "exit";
-        ]
-
 let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : asm_data) : asm_cmd list = 
     let get_symbol_storage (id : tac_id) : asm_mem =
         get_id_memory id asm_data.stack_map
@@ -130,9 +79,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     match tac_cmd with
     | TAC_add (id, a, b) ->
         [
-            MOV     ((get_symbol_storage a), REG RAX);
-            ADD     ((get_symbol_storage b), RAX);
-            MOV     (REG RAX, get_symbol_storage id)
+            ADD3    ((get_symbol_storage a), (get_symbol_storage b), (get_symbol_storage id));
         ]
     | TAC_sub (id, a, b) ->
         [
@@ -306,7 +253,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
     | TAC_return id ->
         [
             MOV         (get_symbol_storage id, REG RAX);
-            RET
+            RET         { regs = asm_data.stack_map.regs_used }
         ]
     | TAC_comment s -> [COMMENT s]
     | TAC_new (id, name) ->
@@ -362,7 +309,7 @@ let generate_tac_asm (tac_cmd : tac_cmd) (current_class : string) (asm_data : as
             COMMENT     ("Inline assembly: " ^ asm_code);
             MISC        asm_code
         ]
-    | TAC_internal id -> generate_internal_asm current_class id
+    | TAC_internal id -> failwith "TAC_internal should not be used in ASM generation"
 
     | TAC_isvoid (store, _val) -> 
         [
@@ -403,6 +350,6 @@ let generate_asm (method_tac : method_tac) : asm_method =
         header = method_tac.method_name;
         arg_count = method_tac.arg_count;
 
-        commands = (FRAME stack_space :: cmds);
+        commands = (FRAME { stack_size = stack_space; regs = asm_data.stack_map.regs_used } :: cmds);
         string_literals = asm_data.strlit_map;
     }
