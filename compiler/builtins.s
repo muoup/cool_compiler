@@ -410,7 +410,7 @@ unlift_int:
 
     movq    $1, %rdi
     movq    $32, %rsi
-    call    calloc
+    call    safe_calloc
 
     movq    $.objname_Int, (%rax)
     movq    $32, 8(%rax)
@@ -429,7 +429,7 @@ unlift_string:
 
     movq    $1, %rdi
     movq    $32, %rsi
-    call    calloc
+    call    safe_calloc
 
     movq    $.objname_String, (%rax)
     movq    $32, 8(%rax)
@@ -448,7 +448,7 @@ unlift_bool:
 
     movq    $1, %rdi
     movq    $32, %rsi
-    call    calloc
+    call    safe_calloc
 
     movq    $.objname_Bool, (%rax)
     movq    $32, 8(%rax)
