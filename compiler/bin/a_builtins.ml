@@ -1,6 +1,4 @@
 let builtin_asm = {|# -------- BUILT-IN FUNCTIONS ------------
-.section .note.GNU-stack,"",@progbits
-
 #   Designed with help from GCC output, and some use of the reference compiler output
 
 # Start routine
