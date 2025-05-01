@@ -188,6 +188,7 @@ end)
       | TAC_inline_assembly _
       | TAC_void_check _
       | TAC_internal _
+      | TAC_div _ (* I don't like this, but it's the simplest way to ensure div by 0 errors don't get eliminated *)
       | TAC_attribute _ -> true
       | _ -> false
     in
