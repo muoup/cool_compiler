@@ -162,6 +162,7 @@ let local_dce (block : basic_block) : tac_cmd list =
   
     let is_critical (cmd : tac_cmd) : bool =
       match cmd with
+      | TAC_ident _
       | TAC_call _
       | TAC_dispatch _
       | TAC_inline_assembly _
