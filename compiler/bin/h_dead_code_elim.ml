@@ -2,7 +2,15 @@ open D_tac_data
 open G_tac_to_cfg
 open Hashtbl
 module IntSet = Set.Make(Int)  
+module IdSet = Set.Make(struct
+  type t = tac_id
+  let compare = compare
+end)
 
+type live_info = {
+  mutable live_in : IdSet.t;
+  mutable live_out : IdSet.t;
+}
 
 let rec overwrites_before_usage (id : tac_id) (lst : tac_cmd list) : bool =
 match lst with
@@ -46,8 +54,6 @@ match lst with
     in
     if is_overwritten then true else overwrites_before_usage id tl
 
-
-
   let is_instruction_dead (instruction : tac_cmd) (rest : tac_cmd list) : bool =
     match instruction with
     | TAC_int (lhs, _)
@@ -66,9 +72,7 @@ match lst with
     | TAC_isvoid (lhs, _)
     | TAC_default (lhs, _) ->
       overwrites_before_usage lhs rest
-    | _ -> false
-  
- 
+    | _ -> false 
 
 let rec go_to_fixpoint f x =
   let x_new = f x in
@@ -85,17 +89,9 @@ let local_dce (block : basic_block) : tac_cmd list =
         instr :: remove_dead rest
   in
   go_to_fixpoint remove_dead block.instructions
-    
-  module IdSet = Set.Make(struct
-  type t = tac_id
-  let compare = compare
-end)
-
-  type live_info = {
-    mutable live_in : IdSet.t;
-    mutable live_out : IdSet.t;
-  }
   
+  
+
   let dce_method (mthd : method_cfg) : method_cfg =
     let live_info = Hashtbl.create 16 in
   
@@ -149,6 +145,33 @@ end)
           (IdSet.empty, IdSet.empty)
     in
   
+    let side_effecting_uses (cmd : tac_cmd) : IdSet.t =
+      match cmd with
+      | TAC_dispatch { obj; args; _ } ->
+          IdSet.of_list (obj :: args)
+      | TAC_call (_, _, args) ->
+          IdSet.of_list args
+      | TAC_void_check (_, id, _) ->
+          IdSet.singleton id
+      | TAC_div (_, _, lhs, rhs) ->
+          IdSet.of_list [lhs; rhs]
+      | TAC_attribute { object_id; value; _ } ->
+          IdSet.of_list [object_id; value]
+      | _ -> IdSet.empty
+    in
+  
+    let is_critical (cmd : tac_cmd) : bool =
+      match cmd with
+      | TAC_call _
+      | TAC_dispatch _
+      | TAC_inline_assembly _
+      | TAC_void_check _
+      | TAC_internal _
+      | TAC_div _ (* I don't like this, but it's the simplest way to ensure div by 0 errors don't get eliminated *)
+      | TAC_attribute _ -> true
+      | _ -> false
+    in
+  
     let changed = ref true in
     while !changed do
       changed := false;
@@ -180,29 +203,18 @@ end)
         end
       ) mthd.blocks;
     done;
-
-    let is_critical (cmd : tac_cmd) : bool =
-      match cmd with
-      | TAC_call _
-      | TAC_dispatch _
-      | TAC_inline_assembly _
-      | TAC_void_check _
-      | TAC_internal _
-      | TAC_div _ (* I don't like this, but it's the simplest way to ensure div by 0 errors don't get eliminated *)
-      | TAC_attribute _ -> true
-      | _ -> false
-    in
-
+  
     Hashtbl.iter (fun id block ->
       let info = Hashtbl.find live_info id in
       let live = ref info.live_out in
       let new_instrs =
         List.fold_right (fun cmd acc ->
           let uses, defs = uses_and_defs cmd in
-          if not (IdSet.is_empty defs) && IdSet.is_empty (IdSet.inter defs !live) && (not (is_critical cmd)) then
-            (* Dead assignment, can remove *)
+          let side_uses = side_effecting_uses cmd in
+          if not (IdSet.is_empty defs) && IdSet.is_empty (IdSet.inter defs !live) && not (is_critical cmd) then
             acc
           else begin
+            live := IdSet.union !live side_uses;
             live := IdSet.union (IdSet.diff !live defs) uses;
             cmd :: acc
           end
@@ -210,7 +222,6 @@ end)
       in
       Hashtbl.replace mthd.blocks id { block with instructions = new_instrs }
     ) mthd.blocks;
-    
   
     mthd
   
