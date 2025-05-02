@@ -42,6 +42,7 @@ let () =
     } in
 
     let program_data = organize_parser_data parsed_data in
+    let program_data = remove_unused_methods program_data in
     let method_tacs = generate_tac program_data in
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in

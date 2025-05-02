@@ -1,3 +1,5 @@
+open B_ast
+open C_parser_data
 open D_tac_data
 open G_tac_to_cfg
 open Hashtbl
@@ -10,6 +12,11 @@ end)
 type live_info = {
   mutable live_in : IdSet.t;
   mutable live_out : IdSet.t;
+}
+
+type class_and_method = {
+  class_name : string;
+  method_name : string;
 }
 
 let rec overwrites_before_usage (id : tac_id) (lst : tac_cmd list) : bool =
@@ -162,7 +169,7 @@ let local_dce (block : basic_block) : tac_cmd list =
   
     let is_critical (cmd : tac_cmd) : bool =
       match cmd with
-      | TAC_ident _
+      | TAC_ident _ (* yes i'm aware this slightly defeats the purpose of dce, i'll fix it later™ *)
       | TAC_call _
       | TAC_dispatch _
       | TAC_inline_assembly _
@@ -229,3 +236,54 @@ let local_dce (block : basic_block) : tac_cmd list =
     
 let eliminate_dead_code (graph : cfg) : cfg = 
   List.map dce_method graph
+
+let rec get_all_used_methods (mthd : ast_method) (cls : ast_class) (ast : ast) (acc : class_and_method list): class_and_method list = 
+  let rec extract_used (value : ast_expression_val) (cls : ast_class) (ast : ast): class_and_method list =
+    match value with 
+    | Assign expr -> (extract_used expr.rhs.data cls ast)
+    | If expr -> (
+      (extract_used expr.predicate.data cls ast) @ 
+      (extract_used expr._then.data cls ast) @ (extract_used expr._else.data cls ast)
+    )
+    | While expr -> (
+      (extract_used expr.predicate.data cls ast) @ (extract_used expr.body.data cls ast)
+    )
+    | Block expr_list -> (
+      (* ?? *)
+      (* List.fold_left (fun acc e -> acc @ extract_used e.data cls ast) [] expr_list *)
+      []
+    )
+    | New expr -> (
+      [{class_name = expr._class.name; method_name = String.empty}]
+    )
+    (* why wouldn't this combine??? *)
+    | UnOp expr -> (extract_used expr.expr.data cls ast)
+    | IsVoid expr -> (extract_used expr.expr.data cls ast)
+    | BinOp expr -> (
+      (extract_used expr.left.data cls ast) @ (extract_used expr.right.data cls ast)
+    )
+    | Let expr -> (
+      []
+    )
+    | Case expr -> (
+      []
+    )
+    | DynamicDispatch expr -> (
+      []
+    )
+    | StaticDispatch expr -> (
+      []
+    )
+    | SelfDispatch expr -> (
+      []
+    )
+    | _ -> []
+  in
+  acc @ (extract_used mthd.body.data cls ast)
+
+
+let remove_unused_methods (data : program_data) : program_data = 
+  let main_class = List.find (fun (m : ast_class) -> (m.name.name = "Main")) data.ast in
+  let main_method = List.find (fun (m : ast_method) -> (m.name.name = "main")) main_class.methods in
+  let all_methods = get_all_used_methods main_method main_class data.ast [] in
+  data
