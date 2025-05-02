@@ -11,5 +11,6 @@
   g_metadata_output g_tac_to_cfg
   h_asm_data
   h_asm_gen
+  h_dead_code_elim
   main
 ))
