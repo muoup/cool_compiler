@@ -237,53 +237,88 @@ let local_dce (block : basic_block) : tac_cmd list =
 let eliminate_dead_code (graph : cfg) : cfg = 
   List.map dce_method graph
 
-let rec get_all_used_methods (mthd : ast_method) (cls : ast_class) (ast : ast) (acc : class_and_method list): class_and_method list = 
-  let rec extract_used (value : ast_expression_val) (cls : ast_class) (ast : ast): class_and_method list =
+
+(* unnecessary acc? *)
+let rec get_all_used_methods (mthd : ast_method) (cls : ast_class) (acc : class_and_method list): class_and_method list = 
+  
+  let rec extract_used (value : ast_expression_val) (cls : ast_class): class_and_method list =
+    let rec extract_expr_list stmts = 
+      match stmts with | [] -> [] | hd :: tl -> (extract_used hd.data cls @ extract_expr_list tl) in
+
     match value with 
-    | Assign expr -> (extract_used expr.rhs.data cls ast)
+    | Assign expr -> (extract_used expr.rhs.data cls)
     | If expr -> (
-      (extract_used expr.predicate.data cls ast) @ 
-      (extract_used expr._then.data cls ast) @ (extract_used expr._else.data cls ast)
+      (extract_used expr.predicate.data cls) @ 
+      (extract_used expr._then.data cls) @ (extract_used expr._else.data cls)
     )
     | While expr -> (
-      (extract_used expr.predicate.data cls ast) @ (extract_used expr.body.data cls ast)
+      (extract_used expr.predicate.data cls) @ (extract_used expr.body.data cls)
     )
     | Block expr_list -> (
-      (* ?? *)
-      (* List.fold_left (fun acc e -> acc @ extract_used e.data cls ast) [] expr_list *)
-      []
+        extract_expr_list expr_list.body
     )
     | New expr -> (
       [{class_name = expr._class.name; method_name = String.empty}]
     )
     (* why wouldn't this combine??? *)
-    | UnOp expr -> (extract_used expr.expr.data cls ast)
-    | IsVoid expr -> (extract_used expr.expr.data cls ast)
+    | UnOp expr -> (extract_used expr.expr.data cls)
+    | IsVoid expr -> (extract_used expr.expr.data cls)
     | BinOp expr -> (
-      (extract_used expr.left.data cls ast) @ (extract_used expr.right.data cls ast)
+      (extract_used expr.left.data cls) @ (extract_used expr.right.data cls)
     )
     | Let expr -> (
-      []
+      let rec extract_let_bindings (bd : ast_let_binding_type list) : class_and_method list = 
+        match bd with 
+        | [] -> []
+        | hd :: tl -> (
+          match hd with
+          LetBindingNoInit no_init -> (
+            {class_name = no_init._type.name; method_name = String.empty} :: extract_let_bindings tl
+          )
+        | LetBindingInit init -> (
+          {class_name = init._type.name; method_name = String.empty} 
+            :: (extract_used init.value.data cls) @ extract_let_bindings tl
+        )
+        )
+      in
+      (extract_let_bindings expr.bindings) @ (extract_used expr._in.data cls)
     )
     | Case expr -> (
-      []
+      let rec extract_case_mappings (cs : ast_case_mapping list) : class_and_method list = 
+        match cs with 
+        | [] -> []
+        | hd :: tl -> (
+          {class_name = hd._type.name; method_name = String.empty} 
+            :: extract_used hd.maps_to.data cls @ extract_case_mappings tl
+        )
+      in
+      (extract_case_mappings expr.mapping_list) @ (extract_used expr.expression.data cls)
     )
     | DynamicDispatch expr -> (
-      []
+       {class_name = expr.call_on._type; method_name = expr._method.name} :: extract_used expr.call_on.data cls
+       @ (extract_expr_list expr.args)
     )
     | StaticDispatch expr -> (
-      []
+      {class_name = expr._type.name; method_name = expr._method.name} :: extract_used expr.call_on.data cls
+       @ (extract_expr_list expr.args)
     )
     | SelfDispatch expr -> (
-      []
+      (* is this right? *)
+      {class_name = cls.name.name; method_name = expr._method.name} :: (extract_expr_list expr.args)
     )
+    (* Maybe bool/int/string will have to be matched and added *)
     | _ -> []
   in
-  acc @ (extract_used mthd.body.data cls ast)
+  acc @ (extract_used mthd.body.data cls)
 
+let print_used_methods cm = 
+  Printf.printf "Class: %s --- Method: %s \n" cm.class_name cm.method_name; ()
 
 let remove_unused_methods (data : program_data) : program_data = 
   let main_class = List.find (fun (m : ast_class) -> (m.name.name = "Main")) data.ast in
   let main_method = List.find (fun (m : ast_method) -> (m.name.name = "main")) main_class.methods in
-  let all_methods = get_all_used_methods main_method main_class data.ast [] in
+  (* this could/should be a set but it shouldn't really matter *)
+  let all_methods = get_all_used_methods main_method main_class [] in
+  Printf.printf "Used %d class/method combinations \n" (List.length all_methods);
+  List.iter print_used_methods all_methods;
   data
