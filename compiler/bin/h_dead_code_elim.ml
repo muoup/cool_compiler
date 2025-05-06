@@ -237,11 +237,22 @@ let local_dce (block : basic_block) : tac_cmd list =
 let eliminate_dead_code (graph : cfg) : cfg = 
   List.map dce_method graph
 
-
+(* please future Tommy add comments before merging *)
 let rec get_all_used_methods (mthd : ast_method) (cls : ast_class) (ast : ast) (acc : class_and_method list): class_and_method list = 
   let object_methods = ["abort"; "copy"; "type_name"] in
   let io_methods = ["in_string"; "out_string"; "in_int"; "out_int"] in
   let string_methods = ["length"; "concat"; "substr"] in
+  let already_visited c m = List.mem {class_name = c; method_name = m} acc in
+  let rec inherits_io class_name = 
+    if List.mem class_name ["Bool"; "Object"; "Int"; "String";] then false 
+      else if class_name = "IO" then true else (
+    Printf.printf "Inherits IO - class %s\n" class_name;
+    match (List.find (fun (m : ast_class) -> (m.name.name = class_name)) ast).inherits with
+    | None -> false
+    | Some inherited -> if inherited.name = "IO" then true else inherits_io inherited.name
+    )
+    in
+
   let rec extract_used (value : ast_expression_val) (cls : ast_class) (ast : ast): class_and_method list =
     let rec extract_expr_list stmts = 
       match stmts with | [] -> [] | hd :: tl -> (extract_used hd.data cls ast@ extract_expr_list tl) in
@@ -296,42 +307,47 @@ let rec get_all_used_methods (mthd : ast_method) (cls : ast_class) (ast : ast) (
       in
       (extract_case_mappings expr.mapping_list) @ (extract_used expr.expression.data cls ast)
     )
-    (* Instead of = for IO should be inherits *)
+
     | DynamicDispatch expr -> (
-      if not (List.mem expr._method.name (object_methods @ io_methods) && expr.call_on._type <> "Io") 
-        || (List.mem expr._method.name (object_methods @ string_methods) && expr.call_on._type <> "String")
-        || (List.mem expr._method.name object_methods)
+      if not ((List.mem expr._method.name (object_methods @ io_methods) && inherits_io expr.call_on._type) 
+        || (List.mem expr._method.name (object_methods @ string_methods) && expr.call_on._type = "String")
+        || (List.mem expr._method.name object_methods) || already_visited expr.call_on._type expr._method.name)
       then (
+      Printf.printf "DD - class %s, method %s \n" expr.call_on._type expr._method.name;
       let new_class = List.find (fun (m : ast_class) -> (m.name.name = expr.call_on._type)) ast in
       let new_method = List.find (fun (m : ast_method) -> (m.name.name = expr._method.name)) new_class.methods in
-       {class_name = expr.call_on._type; method_name = expr._method.name} :: extract_used expr.call_on.data cls ast
-       @ (extract_expr_list expr.args) @ get_all_used_methods new_method new_class ast acc
+      let new_acc = {class_name = expr.call_on._type; method_name = expr._method.name} :: extract_used expr.call_on.data cls ast
+       @ (extract_expr_list expr.args) in
+        get_all_used_methods new_method new_class ast new_acc
        )
       else {class_name = expr.call_on._type; method_name = expr._method.name} :: extract_used expr.call_on.data cls ast
       @ (extract_expr_list expr.args)
     )
     | StaticDispatch expr -> (
-      if not (List.mem expr._method.name (object_methods @ io_methods) && expr._type.name <> "Io") 
-        || (List.mem expr._method.name (object_methods @ string_methods) && expr._type.name <> "String")
-        || (List.mem expr._method.name object_methods)
+      if not ((List.mem expr._method.name (object_methods @ io_methods) && inherits_io expr._type.name) 
+        || (List.mem expr._method.name (object_methods @ string_methods) && expr._type.name = "String")
+        || (List.mem expr._method.name object_methods) || already_visited expr._type.name expr._method.name)
       then (
+        Printf.printf "SD - class %s, method %s \n" expr._type.name expr._method.name;
         let new_class = List.find (fun (m : ast_class) -> (m.name.name = expr._type.name)) ast in
         let new_method = List.find (fun (m : ast_method) -> (m.name.name = expr._method.name)) new_class.methods in
-        {class_name = expr._type.name; method_name = expr._method.name} :: extract_used expr.call_on.data cls ast
-          @ (extract_expr_list expr.args) @ get_all_used_methods new_method new_class ast acc
+        let new_acc = {class_name = expr._type.name; method_name = expr._method.name}
+         :: extract_used expr.call_on.data cls ast @ (extract_expr_list expr.args) in
+        get_all_used_methods new_method new_class ast new_acc
       )
       else {class_name = expr._type.name; method_name = expr._method.name} :: extract_used expr.call_on.data cls ast
         @ (extract_expr_list expr.args)
     )
     | SelfDispatch expr -> (
-      if not (List.mem expr._method.name (object_methods @ io_methods) && cls.name.name <> "Io") 
-        || (List.mem expr._method.name (object_methods @ string_methods) && cls.name.name <> "String")
-        || (List.mem expr._method.name object_methods)
+      if not ((List.mem expr._method.name (object_methods @ io_methods) && inherits_io cls.name.name) 
+        || (List.mem expr._method.name (object_methods @ string_methods) && cls.name.name = "String")
+        || (List.mem expr._method.name object_methods) || already_visited cls.name.name expr._method.name)
       then (
+        Printf.printf "Self - class %s, method %s \n" cls.name.name expr._method.name;
         let new_class = List.find (fun (m : ast_class) -> (m.name.name = cls.name.name)) ast in
         let new_method = List.find (fun (m : ast_method) -> (m.name.name = expr._method.name)) new_class.methods in
-        {class_name = cls.name.name; method_name = expr._method.name} :: (extract_expr_list expr.args)
-        @ get_all_used_methods new_method new_class ast acc
+        let new_acc = {class_name = cls.name.name; method_name = expr._method.name} :: (extract_expr_list expr.args) in
+        get_all_used_methods new_method new_class ast new_acc
       )
       else {class_name = cls.name.name; method_name = expr._method.name} :: (extract_expr_list expr.args)
     )
@@ -340,15 +356,17 @@ let rec get_all_used_methods (mthd : ast_method) (cls : ast_class) (ast : ast) (
   in
   acc @ (extract_used mthd.body.data cls ast)
 
-let print_used_methods cm = 
-  Printf.printf "Class: %s --- Method: %s \n" cm.class_name cm.method_name; ()
+let print_used_methods cm = Printf.printf "Class: %s --- Method: %s \n" cm.class_name cm.method_name; ()
+let rec remove_dupes lst = match lst with
+   | [] -> []
+   | hd :: tl -> if List.mem hd tl then remove_dupes tl else hd :: remove_dupes tl
 
 let remove_unused_methods (data : program_data) : program_data = 
+  print_endline "Finding main";
   let main_class = List.find (fun (m : ast_class) -> (m.name.name = "Main")) data.ast in
   let main_method = List.find (fun (m : ast_method) -> (m.name.name = "main")) main_class.methods in
   (* this could/should be a set but it shouldn't really matter *)
-  (* maybe remove dupes from list? *)
-  let all_methods = get_all_used_methods main_method main_class data.ast []  in
+  let all_methods = remove_dupes (get_all_used_methods main_method main_class data.ast [])  in
   Printf.printf "Used %d class/method combinations \n" (List.length all_methods);
   List.iter print_used_methods all_methods;
   data
