@@ -80,7 +80,6 @@ type method_tac = {
     class_name: string;
     method_name: string;
     arg_count: int;
-
     commands: tac_cmd list;
 
     locals : int;
@@ -193,3 +192,44 @@ let output_tac_cmd (f : string -> unit) (cmd : tac_cmd) =
         f (Printf.sprintf "test_error %s %s" (f_id src) cls)
     | TAC_inline_assembly s ->
         f (Printf.sprintf "asm %s" s)
+
+let rec stringify_args (l : tac_id list) : string list =
+  match l with 
+  | [] -> []
+  | hd :: tl -> (
+    match hd with
+      | Self -> (stringify_args tl)
+      | x -> f_id x :: stringify_args tl 
+  )
+
+let get_main_main (methods : method_tac list) : method_tac list =
+  List.filter (fun m -> (m.class_name = "Main" && m.method_name = "Main.main")) methods
+
+let all_relevant_tac_commands (mt : method_tac list) : tac_cmd list =
+    List.concat_map (fun m -> m.commands) mt
+
+let remove_main_prefix (s : string) : string =
+  let prefix = "Main." in
+  if String.length s >= String.length prefix && String.sub s 0 (String.length prefix) = prefix then
+    String.sub s (String.length prefix) (String.length s - String.length prefix)
+  else
+    s
+
+
+(* I'm aware this "do we need a backslash or not" malarkey is hideous. It's only needed for PA4C1 *)
+let remove_extra_backslashes (s : string) : string =
+  let len = String.length s in
+  let result = ref "" in
+  let rec loop i =
+    if i >= len then ()
+    else if i + 1 < len && s.[i] = '\\' && s.[i + 1] = '\\' then (
+      result := !result ^ "\\";
+      loop (i + 2)
+    )
+    else (
+      result := !result ^ String.make 1 s.[i];
+      loop (i + 1)
+    )
+  in
+  loop 0;
+  !result

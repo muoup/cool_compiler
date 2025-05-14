@@ -11,6 +11,7 @@ open G_metadata_output
 open G_tac_to_cfg
 open H_asm_data
 open H_asm_gen
+open H_dead_code_elim
 open I_peephole_opt
 
 let change_file_extension (path : string) (new_extension : string) : string =
@@ -43,19 +44,13 @@ let () =
 
     let program_data = organize_parser_data parsed_data in
     let method_tacs = generate_tac program_data in
-(* 
-    List.iter (fun (tac : method_tac) ->
-        Printf.printf "Method: %s\n" tac.method_name;
-        List.iter (fun tac_ -> print_tac_cmd (Printf.printf "%s\n") tac_) tac.commands;
-        Printf.printf "\n";
-    ) method_tacs; *)
 
-    (* Generate the CFG for each method *)
-
-    (* let main_tac = List.find (fun (tac : method_tac) -> tac.method_name = "Main.main") method_tacs in
-    List.iter (output_tac_cmd (Printf.printf "%s\n")) main_tac.commands; *)
-
-    let asm = method_tacs
+    let cfg = build_cfg method_tacs in
+    let cfg = eliminate_dead_code cfg in
+    (* print_cfg cfg; *)
+    let optimized_method_tacs = cfg_to_method_tac_list cfg in
+    
+    let asm = optimized_method_tacs
         |> List.map (generate_asm) 
         |> List.map (peephold_optimize) 
     in

@@ -14,8 +14,7 @@ let parse_parent_map (data : parser_data) : (parser_data * parent_map) =
     let data, first_line = parse_line data in
 
     if first_line <> "parent_map" then
-        raise (Invalid_argument ("Expected parent_map, got " ^ first_line))
-    ;
+        raise (Invalid_argument ("Expected parent_map, got " ^ first_line));
 
     let data, relations = parse_list data parse_parent_relation in
     data, StringMap.of_seq (List.to_seq relations)
