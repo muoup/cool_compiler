@@ -108,7 +108,6 @@ let cmp_str (cmp_type : cmp_type) : string =
     | LE -> "<="
     | GE -> ">="
 
-(* TODO: Reimplement tac output *)
 let output_tac_cmd (f : string -> unit) (cmd : tac_cmd) =
     match cmd with
     | TAC_add (dst, src1, src2) ->
@@ -216,7 +215,7 @@ let remove_main_prefix (s : string) : string =
     s
 
 
-(* I'm aware this "do we need a backslash or not" malarkey is hideous. It's only needed for PA4C1 *)
+(* I'm aware this "do we need a backslash or not" studd is hideous. It's only needed for PA4C1 *)
 let remove_extra_backslashes (s : string) : string =
   let len = String.length s in
   let result = ref "" in

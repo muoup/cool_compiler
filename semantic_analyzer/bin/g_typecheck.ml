@@ -360,7 +360,7 @@ let verify_class(cls : ast_class) (ast_data : ast_data) : ast_class = (
 
 let verify_ast (ast : ast) (ast_data : ast_data) : ast =  (
   (* It feels like there should be a way to define this globally and not have to
-  pass it through everywhere - I'll spend time figuring that out when everything is done *)
+  pass it through everywhere *)
   let ast = List.map (fun c -> verify_class c ast_data) ast in
   ast
 )

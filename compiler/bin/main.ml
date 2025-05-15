@@ -47,7 +47,6 @@ let () =
 
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in
-    (* print_cfg cfg; *)
     let optimized_method_tacs = cfg_to_method_tac_list cfg in
     
     let asm = optimized_method_tacs
