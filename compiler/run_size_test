@@ -1,0 +1,33 @@
+#!/bin/bash
+
+fast=0
+slow=0
+for file in restricted_testcases/*.cl valid_testcases/*.cl medium_testcases/*.cl \
+invalid_testcases/*.cl large_testcases/*.cl optimization_testcases/*.cl; do
+    printf "Running test: %s -- " "$file"
+    cool --x86 --opt "$file"
+    them=$(wc -l "${file%.cl}.s")
+    them=$(echo "$them" | grep -oE '^[0-9]+')
+
+    cool --type "$file"
+    dune exec --profile=release cool "$file-type" 2> /dev/null
+    us=$(wc -l "${file%.cl}.s")
+    us=$(echo "$us" | grep -oE '^[0-9]+')
+
+    df=$(( them - us ))
+    if [ "$them" -gt "$us" ]; then
+        printf "FASTER by %d\n" "$df"
+        fast=$((fast+1))
+    else 
+        df=$((-1 * df))
+        printf "SLOWER by %d\n" "$df"
+        slow=$((slow+1))
+    fi
+    rm "${file}-type"
+    rm "${file%.cl}.s"
+
+done
+echo "Faster: $fast"
+echo "Slower: $slow"
+
+cd ..

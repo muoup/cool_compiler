@@ -215,7 +215,7 @@ let remove_main_prefix (s : string) : string =
     s
 
 
-(* I'm aware this "do we need a backslash or not" studd is hideous. It's only needed for PA4C1 *)
+(* I'm aware this "do we need a backslash or not" stuff isn't great. It's only needed for PA4C1 *)
 let remove_extra_backslashes (s : string) : string =
   let len = String.length s in
   let result = ref "" in

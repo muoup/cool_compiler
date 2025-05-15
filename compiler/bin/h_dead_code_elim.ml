@@ -171,7 +171,8 @@ let local_dce (block : basic_block) : tac_cmd list =
       | TAC_inline_assembly _
       | TAC_void_check _
       | TAC_internal _
-      | TAC_div _ (* I don't love this, but it's the simplest way to ensure div by 0 errors don't get eliminated *)
+      | TAC_div _  (* I don't love this, but it's the simplest way to ensure div by 0 errors don't get eliminated *)
+        -> true
       | _ -> false
     in
   
@@ -228,6 +229,13 @@ let local_dce (block : basic_block) : tac_cmd list =
   
     mthd
   
-    
+let remove_isolated_blocks (cfg : method_cfg) : method_cfg =
+  let new_blocks = Hashtbl.create (Hashtbl.length cfg.blocks) in
+  Hashtbl.iter (fun id block ->
+    if (block.successors <> [] || block.predecessors <> []) || id = cfg.entry_block then
+      Hashtbl.add new_blocks id block) cfg.blocks;
+  { cfg with blocks = new_blocks }
+
 let eliminate_dead_code (graph : cfg) : cfg = 
-  List.map dce_method graph
+  let graph = List.map dce_method graph in
+  List.map remove_isolated_blocks graph

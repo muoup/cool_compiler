@@ -103,6 +103,18 @@ let double_map (cmd1 : asm_cmd) (cmd2 : asm_cmd) : asm_cmd list =
         [
             ADD (IMMEDIATE (i2 - i1), r1);
         ]
+
+    | NOT   (r1),
+      NOT   (r2) when r1 = r2 ->
+        []
+
+    | NEG   (r1),
+      NEG   (r2) when r1 = r2 ->
+        []
+
+    | NEG   (r1),
+      NEG   (r2) when r1 = r2 ->
+        []
       
     | _ -> [cmd1; cmd2]
 
