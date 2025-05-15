@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' "$1" > "$1.tmp"

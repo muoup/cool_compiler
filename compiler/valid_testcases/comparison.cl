@@ -29,10 +29,10 @@ class Main inherits IO {
                 out_string("i1 != i2\n")
             fi;
 
-            if i1 < i3 then
-                out_string("i1 < i3\n")
-            else
+            if not (i1 < i3) then
                 out_string("i1 >= i3\n")
+            else
+                out_string("i1 < i3\n")
             fi;
 
             if b1 = b2 then

@@ -4,6 +4,8 @@ fail=0
 
 input=$1
 
+failed_cases=""
+
 # run test method
 run_test() {
     extension_less=$(echo $1 | sed 's/\.cl//')
@@ -16,6 +18,7 @@ run_test() {
     else
         fail=$((fail+1))
         echo "FAILED!"
+        failed_cases="$failed_cases $1"
     fi
 }
 
@@ -44,10 +47,12 @@ for file in large_testcases/*.cl; do
     run_test $file $input
 done
 
-for file in benchmarks/*.cl; do
+for file in optimization_testcases/*.cl; do
     printf "Running test: $file -- "
     run_test $file $input
 done
 
 echo "Success: $success"
 echo "Fail: $fail"
+
+echo "Failed cases: $failed_cases"
