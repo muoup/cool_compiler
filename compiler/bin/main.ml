@@ -48,10 +48,21 @@ let () =
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in
     let optimized_method_tacs = cfg_to_method_tac_list cfg in
+
+    let rec fixpoint_optimize_methods (methods : asm_method list): asm_method list =
+        let changed = ref false in
+        let updated_methods = List.map (fun m ->
+            let new_method = peephold_optimize m in
+            if List.length new_method.commands <> List.length m.commands then
+            changed := true;
+            new_method
+        ) methods in
+        if !changed then fixpoint_optimize_methods updated_methods
+        else updated_methods in
+
     
-    let asm = optimized_method_tacs
-        |> List.map (generate_asm) 
-        |> List.map (peephold_optimize) 
+    let asm = List.map generate_asm optimized_method_tacs in
+    let asm = fixpoint_optimize_methods asm
     in
 
     let assembly_handle = open_out (change_file_extension file_name ".s") in

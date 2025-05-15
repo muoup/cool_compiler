@@ -6,10 +6,15 @@ let single_map (cmd : asm_cmd) : asm_cmd list =
     | MOV   (src, dst) when src = dst -> []
     
     | ADD   (IMMEDIATE 0, dst)
-    | SUB   (IMMEDIATE 0, dst) -> []
+    | SUB   (IMMEDIATE 0, dst) 
+    | MUL   (IMMEDIATE 1, dst) -> []
 
     | ADD3  (REG r1, REG r2, REG dst) when r2 = dst ->
       [ ADD (REG r1, dst) ]
+    | MUL   (IMMEDIATE 2, dst) ->
+      [ADD (REG dst, dst)]
+    | MUL   (IMMEDIATE 0, dst) ->
+      [XOR (dst, dst)]
 
     | _ -> [cmd]
 
@@ -79,6 +84,12 @@ let double_map (cmd1 : asm_cmd) (cmd2 : asm_cmd) : asm_cmd list =
       ADD   (IMMEDIATE i2, r2) when r1 = r2 ->
         [
             ADD (IMMEDIATE (i1 + i2), r1);
+        ]
+
+    | MUL   (IMMEDIATE i1, r1),
+      MUL   (IMMEDIATE i2, r2) when r1 = r2 ->
+        [
+            MUL (IMMEDIATE (i1 * i2), r1);
         ]
 
     | ADD   (IMMEDIATE i1, r1),
