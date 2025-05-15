@@ -3,7 +3,20 @@ type tac_id =
   | Temporary   of int
   | Attribute   of int
   | Parameter   of int
+  | CallSlot    of int
+  | IntLit      of int
+  | StrLit      of string
+  | RAX
+  | CMP         of cmp_type
   | Self
+
+and cmp_type =
+  | EQ
+  | NE
+  | LT
+  | GT
+  | LE
+  | GE
 
 module StringTbl = Hashtbl.Make (struct
     type t = string
@@ -42,12 +55,16 @@ type tac_cmd =
   | TAC_bt      of tac_id * string
 
   | TAC_object   of tac_id * string * int
-  | TAC_attribute of { object_id : tac_id; attribute_id : int; value : tac_id }
 
   | TAC_internal of string
 
   | TAC_return  of tac_id
   | TAC_comment of string
+
+  (* Boolean in-lining - seperate nodes to not mess with PA4c1 *)
+  | TAC_cmp     of cmp_type * tac_id * tac_id (* Implicitly gets into 'Comparison' *)
+  | TAC_str_cmp of cmp_type * tac_id * tac_id (* Implicitly gets into 'Comparison' *)
+  | TAC_set     of cmp_type * tac_id          (* Implicitly gets from 'Comparison' *)
 
   (* Special Internal Nodes *)
   | TAC_str_eq  of tac_id * tac_id * tac_id
@@ -55,6 +72,7 @@ type tac_cmd =
   | TAC_str_lte of tac_id * tac_id * tac_id
 
   (* Since this has to cache the line number, it is a separate node, at least for now *)
+  | TAC_call_alloc of int
   | TAC_void_check of int * tac_id * string
   | TAC_inline_assembly of string
 
@@ -63,7 +81,9 @@ type method_tac = {
     method_name: string;
     arg_count: int;
     commands: tac_cmd list;
-    ids: tac_id list;
+
+    locals : int;
+    temps : int;
 }
 
 let f_id (id : tac_id) : string =
@@ -72,12 +92,106 @@ let f_id (id : tac_id) : string =
     | Temporary i   -> Printf.sprintf "T%d" i
     | Attribute i   -> Printf.sprintf "A%d" i
     | Parameter i   -> Printf.sprintf "P%d" i
+    | CallSlot  i   -> Printf.sprintf "C%d" i
+    | IntLit    i   -> Printf.sprintf "$%d" i
+    | StrLit    s   -> Printf.sprintf "$%s" s
+    | RAX           -> Printf.sprintf "%%rax"
+    | CMP     _type -> Printf.sprintf "cmp"
     | Self          -> "self"
 
-let p_id (i : tac_id) : string = 
-  match i with
-  | Self -> ("")
-  | Local x | Temporary x | Attribute x | Parameter x -> (Printf.sprintf "t$%d" x)
+let cmp_str (cmp_type : cmp_type) : string =
+    match cmp_type with
+    | EQ -> "=="
+    | NE -> "!="
+    | LT -> "<"
+    | GT -> ">"
+    | LE -> "<="
+    | GE -> ">="
+
+(* TODO: Reimplement tac output *)
+let output_tac_cmd (f : string -> unit) (cmd : tac_cmd) =
+    match cmd with
+    | TAC_add (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s + %s" (f_id dst) (f_id src1) (f_id src2))
+    | TAC_sub (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s - %s" (f_id dst) (f_id src1) (f_id src2))
+    | TAC_mul (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s * %s" (f_id dst) (f_id src1) (f_id src2))
+    | TAC_div (line_num, dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s / %s" (f_id dst) (f_id src1) (f_id src2))
+
+    | TAC_lt (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s < %s" (f_id dst) (f_id src1) (f_id src2))
+    | TAC_lte (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s <= %s" (f_id dst) (f_id src1) (f_id src2))
+    | TAC_eq (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s == %s" (f_id dst) (f_id src1) (f_id src2))
+
+    | TAC_str_lt (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s < %s" (f_id dst) (f_id src1) (f_id src2))
+    | TAC_str_lte (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s <= %s" (f_id dst) (f_id src1) (f_id src2))
+    | TAC_str_eq (dst, src1, src2) ->
+        f (Printf.sprintf "%s <- %s == %s" (f_id dst) (f_id src1) (f_id src2))
+
+    | TAC_int (dst, i) ->
+        f (Printf.sprintf "%s <- %d" (f_id dst) i)
+    | TAC_str (dst, s) ->
+        f (Printf.sprintf "%s <- \"%s\"" (f_id dst) s)
+    | TAC_bool (dst, b) ->
+        f (Printf.sprintf "%s <- %b" (f_id dst) b)
+
+    | TAC_ident (dst, src) ->
+        f (Printf.sprintf "%s <- %s" (f_id dst) (f_id src))
+
+    | TAC_neg (dst, src) ->
+        f (Printf.sprintf "%s <- -%s" (f_id dst) (f_id src))
+    | TAC_not (dst, src) ->
+        f (Printf.sprintf "%s <- !%s" (f_id dst) (f_id src))
+
+    | TAC_new (dst, cls) ->
+        f (Printf.sprintf "%s <- new %s" (f_id dst) cls)
+    | TAC_default (dst, cls) ->
+        f (Printf.sprintf "%s <- default %s" (f_id dst) cls)
+    | TAC_isvoid (dst, src) ->
+        f (Printf.sprintf "%s <- isvoid %s" (f_id dst) (f_id src))
+
+    | TAC_call_alloc amt ->
+        f (Printf.sprintf "allocate %d stack slots for call" amt)
+    | TAC_dispatch { line_number; store; obj; method_id; args } ->
+        let args_str = String.concat ", " (List.map f_id args) in
+        f (Printf.sprintf "%s <- %s.%d(%s)" (f_id store) (f_id obj) method_id args_str)
+    | TAC_call (dst, method_name, args) ->
+        let args_str = String.concat ", " (List.map f_id args) in
+        f (Printf.sprintf "%s <- %s(%s)" (f_id dst) method_name args_str)
+
+    | TAC_label label ->
+        f (Printf.sprintf "\n%s:" label)
+    | TAC_jmp label ->
+        f (Printf.sprintf "jmp %s" label)
+    | TAC_bt (cond, label) ->
+        f (Printf.sprintf "if %s goto %s" (f_id cond) label)
+
+    | TAC_cmp (cmp_type, src1, src2) ->
+        f (Printf.sprintf "cmp %s %s %s" (f_id src1) (cmp_str cmp_type) (f_id src2))
+    | TAC_str_cmp (cmp_type, src1, src2) ->
+        f (Printf.sprintf "str_cmp %s %s" (f_id src1) (f_id src2))
+    | TAC_set (cmp_type, src) ->
+        f (Printf.sprintf "set %s" (f_id src))
+
+    | TAC_object (dst, cls, slot) ->
+        f (Printf.sprintf "%s <- %s(%d)" (f_id dst) cls slot)
+    | TAC_internal s ->
+        f (Printf.sprintf "%s" s)
+    | TAC_return src ->
+        f (Printf.sprintf "return %s" (f_id src))
+    | TAC_comment s ->
+        f (Printf.sprintf "/* %s */" s)
+
+    | TAC_void_check (line_num, src, cls) ->
+        f (Printf.sprintf "test_error %s %s" (f_id src) cls)
+    | TAC_inline_assembly s ->
+        f (Printf.sprintf "asm %s" s)
 
 let rec stringify_args (l : tac_id list) : string list =
   match l with 
@@ -85,7 +199,7 @@ let rec stringify_args (l : tac_id list) : string list =
   | hd :: tl -> (
     match hd with
       | Self -> (stringify_args tl)
-      | x -> p_id x :: stringify_args tl 
+      | x -> f_id x :: stringify_args tl 
   )
 
 let get_main_main (methods : method_tac list) : method_tac list =
@@ -119,44 +233,3 @@ let remove_extra_backslashes (s : string) : string =
   in
   loop 0;
   !result
-
-(* This is ugly code. It's only needed for pa4cl and I'm doing it like this because I want all of the
-necessary tac manipulation for correct output to not occur in the real assembly. *)
-let print_tac_cmd_for_pa4c1 (output : string -> unit) (cmd : tac_cmd) : unit =
-  match cmd with
-  | TAC_add     (id, a, b) -> output (Printf.sprintf "%s <- + %s %s" (p_id id) (p_id a) (p_id b))
-  | TAC_sub     (id, a, b) -> output (Printf.sprintf "%s <- - %s %s" (p_id id) (p_id a) (p_id b))
-  | TAC_mul     (id, a, b) -> output (Printf.sprintf "%s <- * %s %s" (p_id id) (p_id a) (p_id b))
-  | TAC_div     (_, id, a, b) -> output (Printf.sprintf "%s <- / %s %s" (p_id id) (p_id a) (p_id b))
-
-  | TAC_lt      (id, a, b) -> output (Printf.sprintf "%s <- < %s %s" (p_id id) (p_id a) (p_id b))
-  | TAC_lte     (id, a, b) -> output (Printf.sprintf "%s <- <= %s %s" (p_id id) (p_id a) (p_id b))
-  | TAC_eq      (id, a, b) -> output (Printf.sprintf "%s <- = %s %s" (p_id id) (p_id a) (p_id b))
-  
-  | TAC_int     (id, i) -> output (Printf.sprintf "%s <- int %d" (p_id id) i)
-  | TAC_str     (id, s) -> output (Printf.sprintf "%s <- string\n%s" (p_id id) (remove_extra_backslashes s))
-  | TAC_bool    (id, b) -> output (Printf.sprintf "%s <- bool %b" (p_id id) b)
-  | TAC_ident   (id, s) -> output (Printf.sprintf "%s <- %s" (p_id id) (p_id s))
-
-  | TAC_neg     (id, a) -> output (Printf.sprintf "%s <- ~ %s" (p_id id) (p_id a))
-  | TAC_not     (id, a) -> output (Printf.sprintf "%s <- not %s" (p_id id) (p_id a))
-
-  | TAC_new     (id, s) -> output (Printf.sprintf "%s <- new %s" (p_id id) s)
-  | TAC_default (id, s) -> output (Printf.sprintf "%s <- default %s" (p_id id) s)
-  | TAC_isvoid  (id, a) -> output (Printf.sprintf "%s <- isvoid %s" (p_id id) (p_id a))
-  | TAC_call    (id, s, args) -> 
-    (* This is a pretty terrible hack because it introduces an unnecessary assignment DCE won't be able
-    to check. But if I do DCE right then in the final PA4 it will work fully so maybe this is fine? *)
-    if s = "unlift_int" then 
-    output (Printf.sprintf "%s <- %s"  (p_id id) (List.hd (List.rev (stringify_args args))))
-    else
-    output (Printf.sprintf "%s <- call %s"  (p_id id) (String.concat " " @@ remove_main_prefix s :: (stringify_args args)))
-
-  | TAC_label     s -> output (Printf.sprintf "label %s" s)
-  | TAC_jmp       s -> output (Printf.sprintf "jmp %s" s)
-  | TAC_bt      (id, s) -> output (Printf.sprintf "bt %s %s" (p_id id) s)
-
-  | TAC_return   id -> output (Printf.sprintf "return %s"  (p_id id))
-  | TAC_comment   s -> output (Printf.sprintf "comment %s" s)
-
-  | x -> ()

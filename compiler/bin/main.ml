@@ -6,12 +6,13 @@ open B_impl_map
 open B_parent_map
 open C_parser_data
 open D_tac_data
-open F_tac_gen
+open F_ast_to_tac
 open G_metadata_output
 open G_tac_to_cfg
 open H_asm_data
 open H_asm_gen
 open H_dead_code_elim
+open I_peephole_opt
 
 let change_file_extension (path : string) (new_extension : string) : string =
     Filename.remove_extension path ^ new_extension
@@ -43,22 +44,27 @@ let () =
 
     let program_data = organize_parser_data parsed_data in
     let method_tacs = generate_tac program_data in
+
     let cfg = build_cfg method_tacs in
     let cfg = eliminate_dead_code cfg in
     (* print_cfg cfg; *)
     let optimized_method_tacs = cfg_to_method_tac_list cfg in
     
-    let asm = List.map (generate_asm) optimized_method_tacs in
+    let asm = optimized_method_tacs
+        |> List.map (generate_asm) 
+        |> List.map (peephold_optimize) 
+    in
+
     let assembly_handle = open_out (change_file_extension file_name ".s") in
     let output = Printf.fprintf assembly_handle "%s" in
-
-    output builtin_asm;
-    output "\n";
 
     List.iter (fun (asm_ : asm_method) -> print_asm_method asm_ (output)) asm;
     output "\n";
 
     emit_metadata output program_data;
     output "\n";
-    
+
+    output builtin_asm;
+    output "\n";
+
     close_out assembly_handle

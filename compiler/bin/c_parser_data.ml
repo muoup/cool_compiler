@@ -55,7 +55,8 @@ let get_dispatch (data : program_data) (class_name : string) (method_name : stri
     let class_data = StringMap.find class_name data.data_map in
     let method_id = find_index class_data.methods (fun impl_method -> impl_method.name = method_name) in
 
-    method_id
+    (* new.### is 0 so add 1 *)
+    method_id + 1
 
 let parent_of (data : program_data) (class_name : string) : string =
     match StringMap.find_opt class_name data.parent_map with
@@ -81,6 +82,22 @@ let get_internal_signature (method_name : string) : string * string list =
         Printf.printf "Warning: Method %s not found in internal signature.\n" method_name;
         exit 0
 
+let get_internal_name (method_name : string) : string =
+    match method_name with
+    | "out_string" -> "IO.out_string"
+    | "out_int" -> "IO.out_int"
+    | "in_string" -> "IO.in_string"
+    | "in_int" -> "IO.in_int"
+    | "length" -> "String.length"
+    | "concat" -> "String.concat"
+    | "substr" -> "String.substr"
+    | "abort" -> "Object.abort"
+    | "type_name" -> "Object.type_name"
+    | "copy" -> "Object.copy"
+    | _ ->
+        Printf.printf "Warning: Method %s not found in internal signature.\n" method_name;
+        exit 0
+
 let rec get_subtypes (data : program_data) (_type : string) : string list = 
     StringMap.bindings data.parent_map
     |>  List.filter_map (
@@ -94,6 +111,27 @@ let rec type_order (data : program_data) (_type : string) : int =
     | Some parent ->
         1 + type_order data parent
     | None -> 0
+
+let rec get_method_name (data : program_data) (class_name : string) (method_name : string) : string =
+    let _method =
+        List.find_opt (fun (class_data : ast_class) -> class_data.name.name = class_name) data.ast
+        |>  Option.map (fun (class_data : ast_class) ->
+                List.find_opt (
+                    fun (method_data : ast_method) -> method_data.name.name = method_name
+                ) class_data.methods
+            )
+        |>  Option.join 
+    in 
+
+    match _method with
+    | Some _ ->
+        method_name_gen class_name method_name
+    | None ->
+        if class_name = "Object" then
+            get_internal_name method_name
+        else
+            let parent = parent_of data class_name in
+            get_method_name data parent method_name
 
 let rec get_method_signature (data : program_data) (class_name : string) (method_name : string) : string * string list =
     let _method =

@@ -17,68 +17,12 @@ type method_cfg = {
   arg_count : int;
   entry_block : int;
   blocks : (int, basic_block) Hashtbl.t;
-  ids : tac_id list;
+
+  locals : int;
+  temps : int;
 }
 
 type cfg = method_cfg list
-let string_of_tac_id = function
-  | Local i     -> Printf.sprintf "Local(%d)" i
-  | Temporary i -> Printf.sprintf "Temp(%d)" i
-  | Attribute i -> Printf.sprintf "Attr(%d)" i
-  | Parameter i -> Printf.sprintf "Param(%d)" i
-  | Self        -> "Self"
-
-let string_of_tac_cmd = function
-  | TAC_add (x, y, z)     -> Printf.sprintf "%s := %s + %s" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
-  | TAC_sub (x, y, z)     -> Printf.sprintf "%s := %s - %s" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
-  | TAC_mul (x, y, z)     -> Printf.sprintf "%s := %s * %s" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
-  | TAC_div (_, x, y, z)  -> Printf.sprintf "%s := %s / %s" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
-
-  | TAC_lt (x, y, z)      -> Printf.sprintf "%s := %s < %s" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
-  | TAC_lte (x, y, z)     -> Printf.sprintf "%s := %s <= %s" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
-  | TAC_eq (x, y, z)      -> Printf.sprintf "%s := %s == %s" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
-
-  | TAC_int (x, i)        -> Printf.sprintf "%s := %d" (string_of_tac_id x) i
-  | TAC_str (x, s)        -> Printf.sprintf "%s := \"%s\"" (string_of_tac_id x) s
-  | TAC_bool (x, b)       -> Printf.sprintf "%s := %b" (string_of_tac_id x) b
-  | TAC_ident (x, y)      -> Printf.sprintf "%s := %s" (string_of_tac_id x) (string_of_tac_id y)
-
-  | TAC_neg (x, y)        -> Printf.sprintf "%s := -%s" (string_of_tac_id x) (string_of_tac_id y)
-  | TAC_not (x, y)        -> Printf.sprintf "%s := !%s" (string_of_tac_id x) (string_of_tac_id y)
-
-  | TAC_new (x, cls)      -> Printf.sprintf "%s := new %s" (string_of_tac_id x) cls
-  | TAC_default (x, cls)  -> Printf.sprintf "%s := default %s" (string_of_tac_id x) cls
-  | TAC_isvoid (x, y)     -> Printf.sprintf "%s := isvoid %s" (string_of_tac_id x) (string_of_tac_id y)
-  | TAC_call (x, f, args) ->
-    let arg_str = String.concat ", " (List.map string_of_tac_id args) in
-    Printf.sprintf "%s := call %s(%s)" (string_of_tac_id x) f arg_str
-
-  | TAC_dispatch { line_number; store; obj; method_id; args } ->
-    let arg_str = String.concat ", " (List.map string_of_tac_id args) in
-    Printf.sprintf "%s := dispatch line %d, obj=%s, method#%d(%s)"
-      (string_of_tac_id store) line_number (string_of_tac_id obj) method_id arg_str
-
-  | TAC_label l           -> Printf.sprintf "Label %s:" l
-  | TAC_jmp l             -> Printf.sprintf "jmp %s" l
-  | TAC_bt (cond, l)      -> Printf.sprintf "if %s goto %s" (string_of_tac_id cond) l
-
-  | TAC_object (x, cls, _) -> Printf.sprintf "%s := object(%s)" (string_of_tac_id x) cls
-  | TAC_attribute { object_id; attribute_id; value } ->
-    Printf.sprintf "attr %d of %s := %s"
-      attribute_id (string_of_tac_id object_id) (string_of_tac_id value)
-
-  | TAC_internal s        -> Printf.sprintf "internal: %s" s
-  | TAC_inline_assembly s -> Printf.sprintf "asm: %s" s
-  | TAC_void_check (line, x, msg) ->
-    Printf.sprintf "void check line %d on %s: \"%s\"" line (string_of_tac_id x) msg
-
-  | TAC_return x          -> Printf.sprintf "return %s" (string_of_tac_id x)
-  | TAC_comment s         -> Printf.sprintf "# %s" s
-
-  | TAC_str_eq (x, y, z)
-  | TAC_str_lt (x, y, z)
-  | TAC_str_lte (x, y, z) ->
-    Printf.sprintf "%s := str-op(%s, %s)" (string_of_tac_id x) (string_of_tac_id y) (string_of_tac_id z)
 
 let print_cfg (cfgs : cfg) : unit =
   List.iter (fun mcfg ->
@@ -87,7 +31,7 @@ let print_cfg (cfgs : cfg) : unit =
     Hashtbl.iter (fun id block ->
       Printf.printf "  Block %d%s:\n" id (match block.label with Some l -> ":" ^ l | None -> "");
       List.iter (fun instr ->
-        Printf.printf "    %s\n" (string_of_tac_cmd instr)
+        output_tac_cmd (Printf.printf "    %s") instr
       ) block.instructions;
       Printf.printf "    Successors: [%s]\n" (String.concat ", " (List.map string_of_int block.successors));
       Printf.printf "    Predecessors: [%s]\n" (String.concat ", " (List.map string_of_int block.predecessors));
@@ -197,7 +141,7 @@ let method_tac_to_cfg (m : method_tac) : method_cfg =
     ) None raw_blocks
   in
   connect_blocks blocks;
-  { class_name = m.class_name; method_name = m.method_name; arg_count = m.arg_count; entry_block = entry_block_id; blocks; ids = m.ids }
+  { class_name = m.class_name; method_name = m.method_name; arg_count = m.arg_count; entry_block = entry_block_id; blocks; locals = m.locals; temps = m.temps }
 
 let build_cfg (methods : method_tac list) : cfg =
   List.map method_tac_to_cfg methods
@@ -217,6 +161,7 @@ let cfg_to_method_tac_list (cfgs : cfg) : method_tac list =
       method_name = mcfg.method_name;
       arg_count = mcfg.arg_count;
       commands;
-      ids = mcfg.ids }
+      locals = mcfg.locals;
+      temps = mcfg.temps; }
   ) cfgs
   

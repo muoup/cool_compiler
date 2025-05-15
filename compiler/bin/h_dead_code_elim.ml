@@ -89,8 +89,6 @@ let local_dce (block : basic_block) : tac_cmd list =
         instr :: remove_dead rest
   in
   go_to_fixpoint remove_dead block.instructions
-  
-  
 
   let dce_method (mthd : method_cfg) : method_cfg =
     let live_info = Hashtbl.create 16 in
@@ -129,14 +127,20 @@ let local_dce (block : basic_block) : tac_cmd list =
           (IdSet.of_list args, IdSet.singleton dst)
       | TAC_dispatch { store; obj; args; _ } ->
           (IdSet.add obj (IdSet.of_list args), IdSet.singleton store)
-      | TAC_attribute { object_id; value; _ } ->
-          (IdSet.of_list [object_id; value], IdSet.empty)
       | TAC_void_check (_, id, _) ->
           (IdSet.singleton id, IdSet.empty)
       | TAC_return id ->
           (IdSet.singleton id, IdSet.empty)
       | TAC_bt (id, _) ->
           (IdSet.singleton id, IdSet.empty)
+      | TAC_call_alloc _ ->
+          (IdSet.empty, IdSet.empty)
+      | TAC_str_cmp (_, lhs, rhs) 
+      | TAC_cmp (_, lhs, rhs) ->
+          (IdSet.of_list [lhs; rhs], IdSet.empty)
+      | TAC_set (_, operand) ->
+          (IdSet.empty, IdSet.singleton operand)
+        
       | TAC_jmp _
       | TAC_label _
       | TAC_comment _
@@ -155,21 +159,19 @@ let local_dce (block : basic_block) : tac_cmd list =
           IdSet.singleton id
       | TAC_div (_, _, lhs, rhs) ->
           IdSet.of_list [lhs; rhs]
-      | TAC_attribute { object_id; value; _ } ->
-          IdSet.of_list [object_id; value]
       | _ -> IdSet.empty
     in
   
     let is_critical (cmd : tac_cmd) : bool =
       match cmd with
       | TAC_ident _
+      | TAC_call_alloc _
       | TAC_call _
       | TAC_dispatch _
       | TAC_inline_assembly _
       | TAC_void_check _
       | TAC_internal _
       | TAC_div _ (* I don't like this, but it's the simplest way to ensure div by 0 errors don't get eliminated *)
-      | TAC_attribute _ -> true
       | _ -> false
     in
   

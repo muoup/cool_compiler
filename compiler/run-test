@@ -1,14 +1,16 @@
 #!/bin/bash
 input="5 5 5 5"
 
-if [ "$#" -gt 1 ]; then
-    input=$2
+# if $1.input exists
+if [ -f "$1.input" ]; then
+    input=$(cat "$1.input")
 fi
 
 cool --x86 "$1.cl"
 ./run-compile "$1.s" 2> /dev/null
 cool_output=$(echo "$input" | ./a.out)
 
+rm a.out
 dune_output=$(echo "$input" | ./run-full "$1")
 
 if [ "$?" -ne 0 ]; then
@@ -18,8 +20,10 @@ if [ "$?" -ne 0 ]; then
     exit 1
 fi
 
-echo "Expected: $cool_output"
-echo "Got:      $dune_output"
+echo "Expected: "
+echo "$cool_output"
+echo "Got:      "
+echo "$dune_output"
 
 if [[ "$cool_output" == ERROR* ]]; then
     cool_output=${cool_output:0:12}
